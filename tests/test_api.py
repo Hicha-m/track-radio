@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from app.main import create_station, health, plays, top_tracks
+from app.main import create_station, health, parse_station_id, plays, top_tracks
 from app.models import Play, Station
 from app.schemas import StationCreate
 
@@ -41,3 +41,9 @@ def test_create_station_generates_unique_slug(db):
     assert first.slug == "radio-etoile"
     assert second.slug == "radio-etoile-2"
     assert second.enabled is True
+
+
+def test_empty_dashboard_station_filter_means_all_stations():
+    assert parse_station_id("") is None
+    assert parse_station_id(None) is None
+    assert parse_station_id("12") == 12

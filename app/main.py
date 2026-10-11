@@ -116,13 +116,23 @@ def top_tracks(
     return [StatsOut(artist=a, title=t, plays=c) for a, t, c in db.execute(query)]
 
 
+def parse_station_id(value: str | None) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="station_id doit être un entier.") from error
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     db: DbSession,
-    station_id: int | None = None,
+    station_id: str | None = None,
     hours: int = Query(24, ge=0, le=8760),
 ):
+    station_id = parse_station_id(station_id)
     since = datetime.now(UTC) - timedelta(hours=hours) if hours else None
     stations_list = list(db.scalars(select(Station).order_by(Station.name)))
     recent_query = play_query(station_id, since, None).order_by(Play.detected_at.desc()).limit(25)
