@@ -1,6 +1,10 @@
+import json
 import re
 from dataclasses import dataclass
+from datetime import datetime
+from html import unescape
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -20,6 +24,9 @@ def split_title(raw: str) -> tuple[str | None, str]:
     value = re.sub(r"\s*§\d+$", "", value).strip()
     if " - " in value:
         artist, title = value.split(" - ", 1)
+        return artist.strip() or None, title.strip()
+    if " • " in value:
+        artist, title = value.split(" • ", 1)
         return artist.strip() or None, title.strip()
     return None, value
 
@@ -72,7 +79,10 @@ async def fetch_json(station: Station, timeout: float) -> TrackMetadata | None:
             station.metadata_url, headers={"User-Agent": "RadioTracker/0.1"}
         )
         response.raise_for_status()
-        payload = response.json()
+        try:
+            payload = response.json()
+        except UnicodeDecodeError:
+            payload = json.loads(response.content.decode("cp1252"))
     title = str(_json_path(payload, station.json_title_path)).strip()
     artist_value = (
         _json_path(payload, station.json_artist_path) if station.json_artist_path else None
@@ -80,12 +90,36 @@ async def fetch_json(station: Station, timeout: float) -> TrackMetadata | None:
     artist = str(artist_value).strip() if artist_value else None
     if not title:
         return None
+    if not artist and " • " in title:
+        artist, title = split_title(title)
     raw = f"{artist} - {title}" if artist else title
     return TrackMetadata(artist, title, raw, "json")
+
+
+async def fetch_html(station: Station, timeout: float) -> TrackMetadata | None:
+    now = datetime.now(ZoneInfo("Europe/Paris"))
+    url = f"{station.metadata_url}/{now:%d-%m-%Y}/songs?hour={now:%H}&minute={now:%M}"
+    async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+        response = await client.get(url, headers={"User-Agent": "RadioTracker/0.1"})
+        response.raise_for_status()
+
+    for encoded_info in re.findall(r'data-qect-info="([^"]+)"', response.text):
+        try:
+            info = json.loads(unescape(encoded_info))
+        except json.JSONDecodeError:
+            continue
+        artist = str(info.get("singer") or "").strip() or None
+        title = str(info.get("title") or "").strip()
+        if title:
+            raw = f"{artist} - {title}" if artist else title
+            return TrackMetadata(artist, title, raw, "html")
+    return None
 
 
 async def fetch_metadata(station: Station, timeout: float) -> TrackMetadata | None:
     if station.source_type == "json":
         return await fetch_json(station, timeout)
+    if station.source_type == "html":
+        return await fetch_html(station, timeout)
     return await fetch_icy(station, timeout)
 

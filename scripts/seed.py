@@ -10,63 +10,37 @@ STATIONS = [
         "stream_url": "https://icecast.skyrock.net/s/natio_mp3_128k",
     },
     {
-        "name": "Skyrock 100% Français",
-        "slug": "skyrock-francais",
-        "stream_url": "http://icecast.skyrock.net/s/francais_aac_128k",
-    },
-    {
-        "name": "Skyrock Hit US",
-        "slug": "skyrock-hit-us",
-        "stream_url": "http://icecast.skyrock.net/s/hit_us_aac_128k",
-    },
-    {
-        "name": "Skyrock La Nocturne",
-        "slug": "skyrock-la-nocturne",
-        "stream_url": "http://icecast.skyrock.net/s/nocturne_aac_128k",
-    },
-    {
-        "name": "Skyrock PLM",
-        "slug": "skyrock-plm",
-        "stream_url": "http://icecast.skyrock.net/s/plm_aac_128k",
-    },
-    {
-        "name": "Skyrock Premier sur le Rap",
-        "slug": "skyrock-premier-rap",
-        "stream_url": "http://icecast.skyrock.net/s/1er_rap_aac_128k",
-    },
-    {
-        "name": "Skyrock Rap & RnB Non Stop",
-        "slug": "skyrock-rap-rnb",
-        "stream_url": "http://icecast.skyrock.net/s/rap_rnb_aac_128k",
-    },
-    {
-        "name": "Skyrock Klassiks",
-        "slug": "skyrock-klassiks",
-        "stream_url": "http://icecast.skyrock.net/s/klassiks_aac_128k",
-    },
-    {
         "name": "NRJ",
         "slug": "nrj",
         "stream_url": "https://scdn.nrjaudio.fm/adwz2/fr/30001/mp3_128.mp3?origine=radio-tracker",
-        "enabled": False,
+        "source_type": "json",
+        "metadata_url": "https://players.nrjaudio.fm/wr_api/live/fr?act=get_plist&id_wr=158&fmt=json&sg_memory=",
+        "json_artist_path": "itms.0.art",
+        "json_title_path": "itms.0.tit",
     },
     {
         "name": "Europe 2",
         "slug": "europe2",
         "stream_url": "http://europe2.lmn.fm/europe2.mp3",
-        "enabled": False,
+        "source_type": "json",
+        "metadata_url": "https://www.europe2.fr/cetait-quoi-ce-titre/history?idplayer=1&player_id=1&limit=8&ts=&date_diffusion=",
+        "json_artist_path": "nowplaying.0.artist",
+        "json_title_path": "nowplaying.0.title",
     },
     {
         "name": "Fun Radio",
         "slug": "fun-radio",
         "stream_url": "http://icecast.funradio.fr/fun-1-44-128?listen=radio-tracker",
-        "enabled": False,
+        "source_type": "html",
+        "metadata_url": "https://www.funradio.fr/quel-est-ce-titre",
     },
     {
         "name": "Mouv'",
         "slug": "mouv",
         "stream_url": "https://icecast.radiofrance.fr/mouv-midfi.mp3",
-        "enabled": False,
+        "source_type": "json",
+        "metadata_url": "https://api.radiofrance.fr/livemeta/live/6/transistor_mouv_player",
+        "json_title_path": "now.secondLine",
     },
 ]
 
@@ -74,8 +48,12 @@ with SessionLocal() as db:
     for values in STATIONS:
         station = db.scalar(select(Station).where(Station.slug == values["slug"]))
         if not station:
-            db.add(Station(source_type="icy", **values))
+            db.add(Station(**values))
         else:
             station.stream_url = values["stream_url"]
             station.enabled = values.get("enabled", True)
+            station.source_type = values.get("source_type", "icy")
+            station.metadata_url = values.get("metadata_url")
+            station.json_artist_path = values.get("json_artist_path")
+            station.json_title_path = values.get("json_title_path")
     db.commit()
