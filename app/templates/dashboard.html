@@ -32,14 +32,22 @@
       </form>
       <button type="button" class="secondary" id="show-add">+ Ajouter une radio</button>
     </section>
-    <section class="player panel">
-      <div><span class="eyebrow">LECTEUR</span><strong id="player-name">{{ selected_station.name if selected_station else 'Choisissez une radio' }}</strong></div>
+    <section class="player panel" data-station-id="{{ station_id or '' }}">
+      <div class="player-copy">
+        <span class="eyebrow">LECTEUR</span>
+        <strong id="player-name">{{ selected_station.name if selected_station else 'Choisissez une radio' }}</strong>
+        <div class="now-playing" aria-live="polite">
+          <span>EN LECTURE</span>
+          <strong id="track-title">Sélectionnez une radio</strong>
+          <small id="track-artist"></small>
+        </div>
+      </div>
       <audio id="radio-player" controls preload="none" {% if selected_station %}src="{{ selected_station.stream_url }}"{% endif %}></audio>
     </section>
     <section class="stations">
       {% for station in stations %}
       <article class="{{ 'selected' if station.id == station_id else '' }}">
-        <button class="station-play" type="button" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}">▶</button>
+        <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}">▶</button>
         <div><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ 'Suivie' if station.enabled else 'Écoute seule' }}</small></div>
       </article>
       {% endfor %}

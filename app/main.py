@@ -89,6 +89,7 @@ def plays(
         PlayOut(
             id=play.id, station_id=play.station_id, station_name=name, artist=play.artist,
             title=play.title, detected_at=play.detected_at, last_seen_at=play.last_seen_at,
+            source=play.source,
         )
         for play, name in rows
     ]
