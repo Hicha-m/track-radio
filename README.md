@@ -9,8 +9,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Ouvrir <http://localhost:8000> (tableau de bord) ou <http://localhost:8000/docs> (API). Les tables sont migrées et les radios initiales ajoutées automatiquement.
-
+Ouvrir <http://localhost:8000> (tableau de bord) ou <http://localhost:8000/docs> (API). Les tables sont migrées et les radios initiales ajoutées automatiquement. Le tableau de bord permet d'écouter un flux, de filtrer par radio et période, et d'ajouter une station sans redémarrer les conteneurs.
 
 ```bash
 docker compose logs -f collector
@@ -32,6 +31,7 @@ Les URLs publiques changent parfois. Vérifier les logs après le premier lancem
 ## API et filtres
 
 - `GET /api/stations`
+- `POST /api/stations` avec `{"name":"Ma radio","stream_url":"https://…","enabled":true}`
 - `GET /api/plays?station_id=1&since=2026-10-01T00:00:00Z&until=2026-10-02T00:00:00Z`
 - `GET /api/stats/top?station_id=1&since=2026-10-01T18:00:00Z&until=2026-10-02T00:00:00Z&limit=20`
 
@@ -39,7 +39,7 @@ Les dates sont stockées en UTC. Le client choisit son fuseau lors de l'affichag
 
 ## Ajouter une radio
 
-Ajouter une entrée à `scripts/seed.py` avant le premier démarrage, ou insérer une ligne dans `stations`. Une future interface d'administration pourra s'appuyer sur la même table sans modifier le worker.
+Cliquer sur **Ajouter une radio** dans le tableau de bord, saisir son nom et l'URL directe du flux. Le slug est généré automatiquement et le worker la prend en charge au cycle suivant. Si le flux ne contient pas de métadonnées ICY, décocher le suivi : la radio restera disponible dans le lecteur sans provoquer de sondages inutiles.
 
 Les stations livrées avec le projet restent dans `scripts/seed.py`. Le seed est idempotent : il ajoute les stations manquantes et met à jour leurs URLs sans effacer l'historique.
 

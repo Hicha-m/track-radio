@@ -3,25 +3,67 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="refresh" content="30">  
   <title>Radio Tracker</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header><div><span class="eyebrow">EN DIRECT</span><h1>Radio Tracker</h1><p>Les titres diffusés, sans bruit.</p></div><a href="/docs">API ↗</a></header>
+  <header>
+    <div><span class="eyebrow">EN DIRECT</span><h1>Radio Tracker</h1><p>Écouter, suivre et comparer les radios.</p></div>
+    <a href="/docs">API ↗</a>
+  </header>
   <main>
+    <section class="toolbar panel">
+      <form method="get" class="filters">
+        <label>Radio
+          <select name="station_id">
+            <option value="">Toutes les radios</option>
+            {% for station in stations %}<option value="{{ station.id }}" {{ 'selected' if station.id == station_id else '' }}>{{ station.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Période
+          <select name="hours">
+            <option value="24" {{ 'selected' if hours == 24 else '' }}>24 heures</option>
+            <option value="168" {{ 'selected' if hours == 168 else '' }}>7 jours</option>
+            <option value="720" {{ 'selected' if hours == 720 else '' }}>30 jours</option>
+            <option value="0" {{ 'selected' if hours == 0 else '' }}>Tout l'historique</option>
+          </select>
+        </label>
+        <button type="submit">Filtrer</button>
+      </form>
+      <button type="button" class="secondary" id="show-add">+ Ajouter une radio</button>
+    </section>
+    <section class="player panel">
+      <div><span class="eyebrow">LECTEUR</span><strong id="player-name">{{ selected_station.name if selected_station else 'Choisissez une radio' }}</strong></div>
+      <audio id="radio-player" controls preload="none" {% if selected_station %}src="{{ selected_station.stream_url }}"{% endif %}></audio>
+    </section>
     <section class="stations">
-      {% for station in stations %}<article><span class="dot {{ 'on' if station.enabled else '' }}"></span><strong>{{ station.name }}</strong><small>{{ station.source_type|upper }}</small></article>{% endfor %}
+      {% for station in stations %}
+      <article class="{{ 'selected' if station.id == station_id else '' }}">
+        <button class="station-play" type="button" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}">▶</button>
+        <div><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ 'Suivie' if station.enabled else 'Écoute seule' }}</small></div>
+      </article>
+      {% endfor %}
     </section>
     <div class="grid">
       <section class="panel"><h2>Derniers passages</h2>
-        <div class="list">{% for play, station_name in recent %}<div class="row"><time>{{ play.detected_at.strftime('%H:%M') }}</time><div><strong>{{ play.title }}</strong><span>{{ play.artist or 'Artiste inconnu' }} · {{ station_name }}</span></div></div>{% else %}<p class="empty">Le collecteur attend les premières métadonnées.</p>{% endfor %}</div>
+        <div class="list">{% for play, station_name in recent %}<div class="row"><time>{{ play.detected_at.strftime('%H:%M') }}</time><div><strong>{{ play.title }}</strong><span>{{ play.artist or 'Artiste inconnu' }} · {{ station_name }}</span></div></div>{% else %}<p class="empty">Aucun passage pour ce filtre.</p>{% endfor %}</div>
       </section>
-      <section class="panel"><h2>Top 24 heures</h2>
+      <section class="panel"><h2>Classement</h2>
         <ol>{% for artist, title, count in top %}<li><div><strong>{{ title }}</strong><span>{{ artist or 'Artiste inconnu' }}</span></div><b>{{ count }}×</b></li>{% else %}<p class="empty">Pas encore assez de données.</p>{% endfor %}</ol>
       </section>
     </div>
   </main>
-  <footer>Données actualisées automatiquement toutes les 30 secondes.</footer>
+  <dialog id="add-dialog">
+    <form id="add-form">
+      <div class="dialog-head"><h2>Ajouter une radio</h2><button type="button" class="close" aria-label="Fermer">×</button></div>
+      <label>Nom<input name="name" required minlength="2" placeholder="Ex. Skyrock Urban"></label>
+      <label>URL du flux<input name="stream_url" required type="url" placeholder="https://…/radio.mp3"></label>
+      <label class="checkbox"><input name="enabled" type="checkbox" checked> Suivre automatiquement les métadonnées</label>
+      <p class="form-status" role="status"></p>
+      <button type="submit">Ajouter et activer</button>
+    </form>
+  </dialog>
+  <footer>Le lecteur utilise le flux officiel de la radio. Aucun audio n'est enregistré.</footer>
+  <script src="/static/dashboard.js"></script>
 </body>
 </html>

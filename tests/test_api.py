@@ -1,8 +1,32 @@
 from datetime import UTC, datetime
 
-from app.main import health, plays, top_tracks
-from app.models import Play, Station
+import pytest
+from fastapi import HTTPException
 
+from app.main import create_station, health, make_slug, plays, top_tracks
+from app.models import Play, Station
+from app.schemas import StationCreate
+
+
+def test_create_station_generates_unique_slug(db):
+    first = create_station(
+        StationCreate(name="Ma Radio Électro", stream_url="https://example.test/one"), db
+    )
+    second = create_station(
+        StationCreate(name="Ma Radio Électro!", stream_url="https://example.test/two"), db
+    )
+    assert first.slug == "ma-radio-electro"
+    assert second.slug == "ma-radio-electro-2"
+
+    with pytest.raises(HTTPException) as error:
+        create_station(
+            StationCreate(name="Copie", stream_url="https://example.test/one"), db
+        )
+    assert error.value.status_code == 409
+
+
+def test_make_slug():
+    assert make_slug("Skyrock Rap & RnB") == "skyrock-rap-rnb"
 
 
 def test_filtered_api_functions(db):

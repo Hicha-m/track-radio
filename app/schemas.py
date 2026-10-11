@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class StationOut(BaseModel):
@@ -10,6 +10,20 @@ class StationOut(BaseModel):
     slug: str
     enabled: bool
     source_type: str
+    stream_url: str
+
+
+class StationCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    stream_url: str = Field(min_length=8, max_length=2000)
+    enabled: bool = True
+
+    @field_validator("stream_url")
+    @classmethod
+    def valid_stream_url(cls, value: str) -> str:
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("L'URL doit commencer par http:// ou https://")
+        return value
 
 
 class PlayOut(BaseModel):
