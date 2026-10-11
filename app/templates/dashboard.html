@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="refresh" content="30">  
+  <title>Radio Tracker</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header><div><span class="eyebrow">EN DIRECT</span><h1>Radio Tracker</h1><p>Les titres diffusés, sans bruit.</p></div><a href="/docs">API ↗</a></header>
+  <main>
+    <section class="stations">
+      {% for station in stations %}<article><span class="dot {{ 'on' if station.enabled else '' }}"></span><strong>{{ station.name }}</strong><small>{{ station.source_type|upper }}</small></article>{% endfor %}
+    </section>
+    <div class="grid">
+      <section class="panel"><h2>Derniers passages</h2>
+        <div class="list">{% for play, station_name in recent %}<div class="row"><time>{{ play.detected_at.strftime('%H:%M') }}</time><div><strong>{{ play.title }}</strong><span>{{ play.artist or 'Artiste inconnu' }} · {{ station_name }}</span></div></div>{% else %}<p class="empty">Le collecteur attend les premières métadonnées.</p>{% endfor %}</div>
+      </section>
+      <section class="panel"><h2>Top 24 heures</h2>
+        <ol>{% for artist, title, count in top %}<li><div><strong>{{ title }}</strong><span>{{ artist or 'Artiste inconnu' }}</span></div><b>{{ count }}×</b></li>{% else %}<p class="empty">Pas encore assez de données.</p>{% endfor %}</ol>
+      </section>
+    </div>
+  </main>
+  <footer>Données actualisées automatiquement toutes les 30 secondes.</footer>
+</body>
+</html>
