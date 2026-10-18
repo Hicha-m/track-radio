@@ -1,0 +1,36 @@
+# Optionnel sur un serveur avec un domaine pointant vers son IP publique.
+services:
+  api:
+    cpus: 0.45
+  collector:
+    cpus: 0.45
+  proxy:
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?Renseigner DOMAIN dans .env pour HTTPS}
+      GOMEMLIMIT: 32MiB
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 48m
+    cpus: 0.1
+    pids_limit: 32
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:

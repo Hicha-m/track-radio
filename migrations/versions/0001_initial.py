@@ -1,4 +1,5 @@
 """Schema initial."""
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -45,4 +46,3 @@ def upgrade():
 def downgrade():
     op.drop_table("plays")
     op.drop_table("stations")
-

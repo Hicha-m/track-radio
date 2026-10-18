@@ -1,14 +1,17 @@
+import asyncio
 import json
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from html import unescape
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import httpx
 
+from app.config import settings
 from app.models import Station
+from app.services.html_sources import HTML_ADAPTERS, HtmlConfig, parse_html
+from app.services.network import metadata_client
 
 
 @dataclass(frozen=True)
@@ -37,28 +40,32 @@ def parse_icy_block(block: bytes) -> str | None:
     return match.group(1).strip() if match and match.group(1).strip() else None
 
 
-async def fetch_icy(station: Station, timeout: float) -> TrackMetadata | None:
+async def fetch_icy(station: Station, client: httpx.AsyncClient) -> TrackMetadata | None:
     headers = {"Icy-MetaData": "1", "User-Agent": "RadioTracker/0.1"}
-    async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-        async with client.stream("GET", station.stream_url, headers=headers) as response:
-            response.raise_for_status()
-            metaint_value = response.headers.get("icy-metaint")
-            if not metaint_value:
-                return None
-            metaint = int(metaint_value)
-            data = bytearray()
-            needed = metaint + 1
-            async for chunk in response.aiter_bytes():
-                data.extend(chunk)
+    async with client.stream("GET", station.stream_url, headers=headers) as response:
+        response.raise_for_status()
+        check_encoding(response)
+        metaint_value = response.headers.get("icy-metaint")
+        if not metaint_value:
+            return None
+        metaint = int(metaint_value)
+        if not 1 <= metaint <= settings.max_icy_metaint:
+            raise ValueError("Intervalle ICY trop grand ou invalide.")
+        data = bytearray()
+        needed = metaint + 1
+        async for chunk in response.aiter_raw(chunk_size=4096):
+            if len(data) + len(chunk) > settings.max_response_bytes:
+                raise ValueError("Réponse ICY trop volumineuse.")
+            data.extend(chunk)
+            if len(data) >= needed:
+                length = data[metaint] * 16
+                needed = metaint + 1 + length
                 if len(data) >= needed:
-                    length = data[metaint] * 16
-                    needed = metaint + 1 + length
-                    if len(data) >= needed:
-                        raw = parse_icy_block(bytes(data[metaint + 1 : needed]))
-                        if not raw:
-                            return None
-                        artist, title = split_title(raw)
-                        return TrackMetadata(artist, title, raw, "icy")
+                    raw = parse_icy_block(bytes(data[metaint + 1 : needed]))
+                    if not raw:
+                        return None
+                    artist, title = split_title(raw)
+                    return checked_metadata(artist, title, raw, "icy")
     return None
 
 
@@ -71,19 +78,18 @@ def _json_path(payload: Any, path: str | None) -> Any:
     return current
 
 
-async def fetch_json(station: Station, timeout: float) -> TrackMetadata | None:
+async def fetch_json(station: Station, client: httpx.AsyncClient) -> TrackMetadata | None:
     if not station.metadata_url or not station.json_title_path:
         return None
-    async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-        response = await client.get(
-            station.metadata_url, headers={"User-Agent": "RadioTracker/0.1"}
-        )
-        response.raise_for_status()
-        try:
-            payload = response.json()
-        except UnicodeDecodeError:
-            payload = json.loads(response.content.decode("cp1252"))
-    title = str(_json_path(payload, station.json_title_path)).strip()
+    content = await read_bounded(client, station.metadata_url)
+    try:
+        payload = json.loads(content)
+    except UnicodeDecodeError:
+        payload = json.loads(content.decode("cp1252"))
+    title_value = _json_path(payload, station.json_title_path)
+    if not isinstance(title_value, str):
+        return None
+    title = title_value.strip()
     artist_value = (
         _json_path(payload, station.json_artist_path) if station.json_artist_path else None
     )
@@ -93,33 +99,69 @@ async def fetch_json(station: Station, timeout: float) -> TrackMetadata | None:
     if not artist and " • " in title:
         artist, title = split_title(title)
     raw = f"{artist} - {title}" if artist else title
-    return TrackMetadata(artist, title, raw, "json")
+    return checked_metadata(artist, title, raw, "json")
 
 
-async def fetch_html(station: Station, timeout: float) -> TrackMetadata | None:
+async def fetch_html(station: Station, client: httpx.AsyncClient) -> TrackMetadata | None:
+    if not station.metadata_url:
+        return None
+    # Compatibilité des bases antérieures à la migration/configuration HTML explicite.
+    legacy_funradio = (
+        station.metadata_url.rstrip("/") == "https://www.funradio.fr/quel-est-ce-titre"
+    )
+    options = HtmlConfig.model_validate(
+        station.html or ({"adapter": "funradio"} if legacy_funradio else {})
+    )
+    adapter = HTML_ADAPTERS[options.adapter]
     now = datetime.now(ZoneInfo("Europe/Paris"))
-    url = f"{station.metadata_url}/{now:%d-%m-%Y}/songs?hour={now:%H}&minute={now:%M}"
-    async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-        response = await client.get(url, headers={"User-Agent": "RadioTracker/0.1"})
+    url = adapter.url(station.metadata_url, now)
+    content = await read_bounded(client, url)
+    result = await asyncio.to_thread(parse_html, adapter, content, options)
+    if result is None:
+        return None
+    artist, title = result
+    raw = f"{artist} - {title}" if artist else title
+    return checked_metadata(artist, title, raw, "html")
+
+
+def checked_metadata(artist: str | None, title: str, raw: str, source: str) -> TrackMetadata:
+    if not title or len(title) > 500 or (artist and len(artist) > 300):
+        raise ValueError("Métadonnées invalides ou trop longues.")
+    return TrackMetadata(artist, title, raw, source)
+
+
+def check_encoding(response: httpx.Response):
+    # Refuse compression rather than risking a decompression bomb before size checks.
+    if response.headers.get("content-encoding", "identity").lower() != "identity":
+        raise ValueError("Compression HTTP non prise en charge pour les métadonnées.")
+
+
+async def read_bounded(client: httpx.AsyncClient, url: str) -> bytes:
+    async with client.stream("GET", url) as response:
         response.raise_for_status()
-
-    for encoded_info in re.findall(r'data-qect-info="([^"]+)"', response.text):
-        try:
-            info = json.loads(unescape(encoded_info))
-        except json.JSONDecodeError:
-            continue
-        artist = str(info.get("singer") or "").strip() or None
-        title = str(info.get("title") or "").strip()
-        if title:
-            raw = f"{artist} - {title}" if artist else title
-            return TrackMetadata(artist, title, raw, "html")
-    return None
+        check_encoding(response)
+        length = response.headers.get("content-length")
+        if length and int(length) > settings.max_response_bytes:
+            raise ValueError("Réponse distante trop volumineuse.")
+        data = bytearray()
+        async for chunk in response.aiter_raw(chunk_size=4096):
+            if len(data) + len(chunk) > settings.max_response_bytes:
+                raise ValueError("Réponse distante trop volumineuse.")
+            data.extend(chunk)
+        return bytes(data)
 
 
-async def fetch_metadata(station: Station, timeout: float) -> TrackMetadata | None:
-    if station.source_type == "json":
-        return await fetch_json(station, timeout)
-    if station.source_type == "html":
-        return await fetch_html(station, timeout)
-    return await fetch_icy(station, timeout)
-
+async def fetch_metadata(
+    station: Station,
+    timeout: float,
+    client: httpx.AsyncClient | None = None,
+) -> TrackMetadata | None:
+    if client is None:
+        async with metadata_client() as owned_client:
+            return await fetch_metadata(station, timeout, owned_client)
+    async with asyncio.timeout(timeout):
+        if station.source_type == "json":
+            return await fetch_json(station, client)
+        if station.source_type == "html":
+            return await fetch_html(station, client)
+        return await fetch_icy(station, client)

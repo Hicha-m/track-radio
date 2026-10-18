@@ -8,5 +8,15 @@ __pycache__/
 .coverage
 htmlcov/
 radio.db
-.*
+.env.*
+!.env.example
+.codex/
+.agents/
+.aws/
 backups
+
+data/
+*.db-wal
+*.db-shm
+test-unused.db
+ci.db

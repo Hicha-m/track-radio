@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models import Play, Station
 from app.services.metadata import TrackMetadata
 
@@ -22,8 +23,12 @@ def record_metadata(db: Session, station: Station, metadata: TrackMetadata) -> t
         and normalize(last.title) == normalize(metadata.title)
     )
     if same:
-        last.last_seen_at = now
-        db.commit()
+        previous = last.last_seen_at
+        if previous.tzinfo is None:
+            previous = previous.replace(tzinfo=UTC)
+        if (now - previous).total_seconds() >= settings.last_seen_write_seconds:
+            last.last_seen_at = now
+            db.commit()
         return last, False
     play = Play(
         station_id=station.id,
@@ -38,4 +43,3 @@ def record_metadata(db: Session, station: Station, metadata: TrackMetadata) -> t
     db.commit()
     db.refresh(play)
     return play, True
-

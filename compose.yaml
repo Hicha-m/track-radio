@@ -1,44 +1,61 @@
-services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: radio
-      POSTGRES_USER: radio
-      POSTGRES_PASSWORD: radio
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U radio -d radio"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    restart: unless-stopped
+x-common: &common
+  image: track-radio:local
+  build:
+    context: .
+    target: runtime
+  env_file: .env
+  environment:
+    DATABASE_URL: sqlite:////app/data/radio.db
+    ARCHIVE_DIRECTORY: /app/data/archives
+  volumes:
+    - radio_data:/app/data
+    - ./config:/app/config:ro
+  read_only: true
+  tmpfs:
+    - /tmp:size=16m,mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "5m"
+      max-file: "2"
+  restart: unless-stopped
 
+services:
   api:
-    build: .
-    env_file: .env
+    <<: *common
     ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-    command: ["sh", "-c", "alembic upgrade head && python scripts/seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8080}:8000"
+    mem_limit: 160m
+    cpus: 0.5
+    pids_limit: 64
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
-      interval: 15s
-      timeout: 5s
+      test: ["CMD", "python", "-c", "import http.client; c=http.client.HTTPConnection('127.0.0.1',8000,timeout=5); c.request('GET','/health'); assert c.getresponse().status == 200"]
+      interval: 30s
+      timeout: 15s
       retries: 5
-    restart: unless-stopped
+      start_period: 120s
 
   collector:
-    build: .
-    env_file: .env
+    <<: *common
+    command: ["python", "-m", "app.worker"]
     depends_on:
       api:
         condition: service_healthy
-    command: ["python", "-m", "app.worker"]
-    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 32
+    healthcheck:
+      test: ["CMD", "python", "-c", "import time,os; age=time.time()-os.stat('/app/data/collector.heartbeat').st_mtime; deadline=float(os.getenv('REQUEST_TIMEOUT_SECONDS','12'))*int(os.getenv('MAX_STATIONS','50'))/int(os.getenv('COLLECTOR_CONCURRENCY','3'))+int(os.getenv('POLL_INTERVAL_SECONDS','20'))+120; assert age < deadline"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 120s
 
 volumes:
+  radio_data:
+  # Ancien volume conserve pour retour arriere ; aucun PostgreSQL lance par defaut.
   postgres_data:
-

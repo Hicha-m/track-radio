@@ -8,18 +8,20 @@ version = "0.1.0"
 description = "Collecte et analyse les titres diffuses par les radios"
 requires-python = ">=3.12"
 dependencies = [
-  "alembic==1.14.1",
-  "fastapi==0.115.8",
+  "alembic==1.20.0",
+  "beautifulsoup4==4.15.0",
+  "fastapi==0.146.0",
   "httpx==0.28.1",
-  "jinja2==3.1.5",
-  "psycopg[binary]==3.2.4",
-  "pydantic-settings==2.7.1",
-  "sqlalchemy==2.0.38",
-  "uvicorn[standard]==0.34.0",
+  "jinja2==3.1.6",
+  "pydantic-settings==2.16.0",
+  "sqlalchemy==2.1.5",
+  "tzdata>=2025.2; sys_platform == 'win32'",
+  "uvicorn==0.54.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==8.3.4", "pytest-cov==6.0.0", "ruff==0.9.6"]
+dev = ["pytest==9.1.1", "pytest-cov>=6,<8", "ruff==0.17.1", "pip-audit==2.10.1"]
+postgres = ["psycopg[binary]>=3.2.4,<4"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -27,6 +29,9 @@ addopts = "-q"
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["templates/*.html", "static/*.css", "static/*.js"]
 
 [tool.ruff]
 line-length = 100

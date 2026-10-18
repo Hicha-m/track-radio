@@ -12,26 +12,6 @@
     <a href="/docs">API ↗</a>
   </header>
   <main>
-    <section class="toolbar panel">
-      <form method="get" class="filters">
-        <label>Radio
-          <select name="station_id">
-            <option value="">Toutes les radios</option>
-            {% for station in stations %}<option value="{{ station.id }}" {{ 'selected' if station.id == station_id else '' }}>{{ station.name }}</option>{% endfor %}
-          </select>
-        </label>
-        <label>Période
-          <select name="hours">
-            <option value="24" {{ 'selected' if hours == 24 else '' }}>24 heures</option>
-            <option value="168" {{ 'selected' if hours == 168 else '' }}>7 jours</option>
-            <option value="720" {{ 'selected' if hours == 720 else '' }}>30 jours</option>
-            <option value="0" {{ 'selected' if hours == 0 else '' }}>Tout l'historique</option>
-          </select>
-        </label>
-        <button type="submit">Filtrer</button>
-      </form>
-      <button type="button" class="secondary" id="show-add">+ Ajouter une radio</button>
-    </section>
     <section class="player panel" data-station-id="{{ station_id or '' }}">
       <div class="player-copy">
         <span class="eyebrow">LECTEUR</span>
@@ -48,29 +28,53 @@
       {% for station in stations %}
       <article class="{{ 'selected' if station.id == station_id else '' }}">
         <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}">▶</button>
-        <div><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ 'Suivie' if station.enabled else 'Écoute seule' }}</small></div>
+        <div><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ 'Suivie' if station.enabled else 'Écoute seule' }}</small></div><button type="button" class="text-button explore-station" data-id="{{ station.id }}">Voir les musiques</button>
       </article>
       {% endfor %}
     </section>
-    <div class="grid">
-      <section class="panel"><h2>Derniers passages</h2>
-        <div class="list">{% for play, station_name in recent %}<div class="row"><time>{{ play.detected_at.strftime('%H:%M') }}</time><div><strong>{{ play.title }}</strong><span>{{ play.artist or 'Artiste inconnu' }} · {{ station_name }}</span></div></div>{% else %}<p class="empty">Aucun passage pour ce filtre.</p>{% endfor %}</div>
-      </section>
-      <section class="panel"><h2>Classement</h2>
-        <ol>{% for artist, title, count in top %}<li><div><strong>{{ title }}</strong><span>{{ artist or 'Artiste inconnu' }}</span></div><b>{{ count }}×</b></li>{% else %}<p class="empty">Pas encore assez de données.</p>{% endfor %}</ol>
-      </section>
-    </div>
+    <section class="panel explorer" aria-labelledby="explorer-title">
+      <div class="explorer-heading">
+        <div><span class="eyebrow">BASE MUSICALE</span><h2 id="explorer-title">Explorer les diffusions</h2></div>
+        <label class="live-toggle"><input id="live" type="checkbox" checked> Actualisation auto · 10 s</label>
+      </div>
+      <div class="view-tabs" role="group" aria-label="Vue des résultats">
+        <button type="button" class="active" data-view="plays" aria-pressed="true">Passages</button>
+        <button type="button" data-view="tracks" aria-pressed="false">Musiques</button>
+      </div>
+      <form id="explorer-form" autocomplete="off">
+        <input type="hidden" name="view" value="plays">
+        <div class="search-line"><label>Rechercher<input name="q" type="search" maxlength="200" placeholder="Titre, artiste ou station…"></label></div>
+        <div class="filter-grid">
+          <label>Station<select name="station_id"><option value="">Toutes les stations</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+          <label>Artiste<input name="artist" type="search" maxlength="300" placeholder="Tous les artistes"></label>
+          <label>Musique<input name="title" type="search" maxlength="500" placeholder="Tous les titres"></label>
+          <label>Trier par<select name="sort"><option value="newest">Plus récent</option><option value="oldest">Plus ancien</option><option value="artist">Artiste A–Z</option><option value="title">Titre A–Z</option><option value="station" data-only="plays">Station A–Z</option><option value="frequency" data-only="tracks">Plus diffusé</option></select></label>
+        </div>
+        <details class="advanced-filters"><summary>Dates et filtres avancés</summary>
+          <div class="filter-grid">
+            <label>Diffusé après<input name="since" type="datetime-local"></label>
+            <label>Diffusé avant<input name="until" type="datetime-local"></label>
+            <label>Dernière observation après<input name="seen_since" type="datetime-local"></label>
+            <label>Dernière observation avant<input name="seen_until" type="datetime-local"></label>
+            <label>Source<select name="source"><option value="">Toutes les sources</option><option value="icy">ICY</option><option value="json">JSON</option><option value="html">HTML</option></select></label>
+            <label>Artiste renseigné<select name="artist_status"><option value="any">Indifférent</option><option value="known">Oui</option><option value="missing">Non</option></select></label>
+            <label>Suivi de la station<select name="enabled"><option value="">Indifférent</option><option value="true">Actif</option><option value="false">Désactivé</option></select></label>
+            <label>Texte des métadonnées<input name="raw" type="search" maxlength="200" placeholder="Contenu brut"></label>
+            <label>Nombre minimum de passages<input name="min_plays" type="number" min="1" value="1" disabled></label>
+            <label>Résultats par page<select name="page_size"><option>25</option><option selected>50</option><option>100</option></select></label>
+          </div>
+          <label class="checkbox"><input name="exact" type="checkbox"> Correspondance exacte pour artiste et musique</label>
+          <p class="hint">Dates dans votre fuseau horaire. La borne « avant » est exclusive. Les filtres se combinent.</p>
+        </details>
+        <div class="filter-footer"><span id="active-filters" class="hint">Tout l’historique actif</span><button type="reset" class="text-button">Réinitialiser</button></div>
+      </form>
+      <div class="result-heading"><p id="result-status" role="status" aria-live="polite">Chargement des passages…</p><button id="refresh" type="button" class="text-button">Actualiser</button></div>
+      <div id="results" class="table-wrap" aria-busy="true"></div>
+      <nav class="pagination" aria-label="Pages de résultats"><button id="previous-page" type="button" disabled>← Précédent</button><span id="page-label">Page 1</span><button id="next-page" type="button" disabled>Suivant →</button></nav>
+      <p class="hint">Cliquez sur un artiste, un titre ou une station dans les résultats pour explorer ses passages.</p>
+      <noscript>Activez JavaScript pour explorer les passages et actualiser les résultats.</noscript>
+    </section>
   </main>
-  <dialog id="add-dialog">
-    <form id="add-form">
-      <div class="dialog-head"><h2>Ajouter une radio</h2><button type="button" class="close" aria-label="Fermer">×</button></div>
-      <label>Nom<input name="name" required minlength="2" placeholder="Ex. Skyrock Urban"></label>
-      <label>URL du flux<input name="stream_url" required type="url" placeholder="https://…/radio.mp3"></label>
-      <label class="checkbox"><input name="enabled" type="checkbox" checked> Suivre automatiquement les métadonnées</label>
-      <p class="form-status" role="status"></p>
-      <button type="submit">Ajouter et activer</button>
-    </form>
-  </dialog>
   <footer>Le lecteur utilise le flux officiel de la radio. Aucun audio n'est enregistré.</footer>
   <script src="/static/dashboard.js"></script>
 </body>

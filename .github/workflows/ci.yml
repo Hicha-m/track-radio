@@ -11,10 +11,29 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install -e '.[dev]'
+          cache-dependency-path: requirements-dev.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node --check app/static/dashboard.js
+      - run: pip install --require-hashes -r requirements-dev.lock
+      - run: pip install --no-deps -e .
       - run: ruff check .
+      - run: ruff format --check .
       - run: pytest --cov=app --cov-report=term-missing
+      - run: python scripts/stations.py --check
+      - run: pip-audit --require-hashes -r requirements.lock
+      - name: SQLite migrations and restart
+        env:
+          DATABASE_URL: sqlite:///./ci.db
+        run: |
+          alembic upgrade head
+          python scripts/seed.py
+          python scripts/seed.py
+          alembic downgrade 0001
+          alembic upgrade head
   docker:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,6 +41,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
+      - name: Build and smoke test runtime
+        run: |
+          docker build --target runtime -t radio-smoke .
+          docker run -d --name radio-smoke --memory=160m --cpus=0.5 -p 127.0.0.1:8080:8000 -e DATABASE_URL=sqlite:////app/data/radio.db radio-smoke
+          trap 'docker logs radio-smoke; docker rm -f radio-smoke' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/health; then break; fi
+            sleep 1
+          done
+          curl --fail --silent 'http://127.0.0.1:8080/?station_id=&hours=24' > /dev/null
+          curl --fail --silent http://127.0.0.1:8080/static/dashboard.js > /dev/null
+          curl --fail --silent 'http://127.0.0.1:8080/api/explore?view=tracks' > /dev/null
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
         with:
