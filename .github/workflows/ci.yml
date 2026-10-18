@@ -16,11 +16,12 @@ jobs:
         with:
           node-version: "22"
       - run: node --check app/static/dashboard.js
+      - run: bash -n scripts/deploy.sh
       - run: pip install --require-hashes -r requirements-dev.lock
       - run: pip install --no-deps -e .
       - run: ruff check .
       - run: ruff format --check .
-      - run: pytest --cov=app --cov-report=term-missing
+      - run: python -m pytest --cov=app --cov-report=term-missing
       - run: python scripts/stations.py --check
       - run: pip-audit --require-hashes -r requirements.lock
       - name: SQLite migrations and restart
@@ -34,6 +35,8 @@ jobs:
           alembic upgrade head
   docker:
     needs: test
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -67,9 +70,61 @@ jobs:
             type=ref,event=branch
             type=sha
       - uses: docker/build-push-action@v6
+        id: publish
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: docker
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    env:
+      VPS: ubuntu@129.151.250.229
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_KEY"
+          test -n "$KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          printf 'Host *\n  BatchMode yes\n  StrictHostKeyChecking yes\n  ConnectTimeout 15\n' > ~/.ssh/config
+      - name: Upload runtime configuration
+        run: |
+          release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh "$VPS" "mkdir -m 700 '$release'"
+          tar -czf - compose.production.yaml .env.example config/stations.json scripts/deploy.sh |
+            ssh "$VPS" "tar -xzf - -C '$release'"
+      - name: Authenticate VPS to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh "$VPS" \
+            "docker --config \"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\" login ghcr.io -u '${{ github.actor }}' --password-stdin"
+      - name: Deploy validated image
+        env:
+          IMAGE_DIGEST: ${{ needs.docker.outputs.digest }}
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          ssh "$VPS" "export DOCKER_CONFIG=\"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\"; cd 'track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'; bash scripts/deploy.sh 'ghcr.io/$repository@$IMAGE_DIGEST'"
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 http://129.151.250.229/health
+      - name: Remove temporary registry credentials
+        if: always()
+        run: |
+          ssh "$VPS" "docker --config \"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\" logout ghcr.io"
 

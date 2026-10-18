@@ -181,7 +181,57 @@ docker build --target test -t track-radio:test .
 docker run --rm track-radio:test
 ```
 
-La CI vérifie Ruff, le formatage, les tests, les dépendances vulnérables et les migrations SQLite. La construction et la publication GHCR dépendent du succès de ces contrôles, avec un démarrage HTTP réel de l’image. Aucune CD ajoutée.
+La CI vérifie Ruff, le formatage, les tests, les dépendances vulnérables et les migrations SQLite. La construction et la publication GHCR dépendent du succès de ces contrôles, avec un démarrage HTTP réel de l’image.
+
+## Déploiement automatique sur le VPS
+
+Après un push sur la branche par défaut (actuellement `master`), le job `deploy`
+attend la publication et installe l’image identifiée par son digest sur
+`ubuntu@129.151.250.229`. Aucun clonage ni build sur le VPS. Le site est servi
+sur le port 80, sans modifier le service existant sur 8080. L’administration HTTP
+est désactivée tant que ce déploiement utilise HTTP sans domaine.
+
+Prérequis : Docker avec Compose v2 (`--wait`), `curl`, `flock`, port 80 libre et
+accessible dans les pare-feu du VPS et de l’hébergeur. L’utilisateur `ubuntu`
+doit pouvoir exécuter `docker info` sans sudo. Vérifier aussi l’architecture :
+l’image de CI cible actuellement Linux amd64, pas ARM64.
+
+Secrets GitHub Actions requis : `VPS_SSH_KEY` (clé privée dédiée autorisée sur
+le VPS) et `VPS_KNOWN_HOSTS` (entrée SSH du serveur vérifiée). Depuis PowerShell,
+si la connexion SSH habituelle a déjà enregistré et vérifié cette identité :
+
+```powershell
+ssh-keygen -F 129.151.250.229 -f "$HOME\.ssh\known_hosts" |
+  gh secret set VPS_KNOWN_HOSTS --repo Hicha-m/track-radio
+```
+
+Ne pas utiliser une collecte `ssh-keyscan` non vérifiée pour établir la confiance.
+La CD utilise le `GITHUB_TOKEN` temporaire pour télécharger l’image GHCR, puis
+déconnecte le registre. Aucun token personnel GHCR nécessaire.
+
+Le premier démarrage crée une base vide. Les fichiers runtime et le `.env`
+privé sont installés dans `~/track-radio`, les données dans le volume Docker
+`track-radio_radio_data`. Les configurations de radios suivent le dépôt.
+Ne jamais supprimer ce volume pour une mise à jour.
+
+Avant les déploiements suivants, un export cohérent de la base active et la
+configuration précédente sont conservés dans `~/track-radio/backups/`. Les
+archives historiques restent dans le volume et ne font pas partie de cet export.
+Prévoir leur sauvegarde externe ainsi qu’une gestion de l’espace disque : les
+sauvegardes et images ne sont pas automatiquement purgées.
+
+Le collecteur est arrêté avant les migrations, puis Compose attend que les deux
+services soient sains. Une courte interruption est possible. En cas d’échec,
+la CI affiche les logs et conserve les sauvegardes ; elle ne restaure pas
+automatiquement une ancienne image avec une base potentiellement migrée.
+Une restauration demande un volume vide et la procédure d’import décrite plus
+haut. Après succès, les redémarrages manuels utilisent :
+
+```bash
+cd ~/track-radio
+docker compose up -d --wait
+docker compose ps
+```
 
 Les fichiers `requirements.lock` et `requirements-dev.lock` verrouillent les dépendances transitives avec leurs empreintes. Pour les actualiser après modification de `pyproject.toml`, utiliser `uv pip compile pyproject.toml --universal --generate-hashes --python-version 3.12 -o requirements.lock` et la même commande avec `--extra dev -o requirements-dev.lock`. Relancer tests et audit avant publication.
 
