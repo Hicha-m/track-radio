@@ -1,0 +1,19 @@
+<div class="page-heading"><span class="eyebrow">GESTION DU CATALOGUE</span><h1>Administration</h1><p>Suivi des radios et validation des informations musicales.</p></div>
+<section id="admin-root" class="panel metric-panel">
+  <p id="admin-status" class="hint" role="status">Connectez-vous une fois pour corriger les fiches depuis le classement ou la recherche. La clé n’est pas conservée dans le navigateur.</p>
+  <form id="admin-login" class="admin-login" autocomplete="off">
+    <label>Clé administrateur<input name="token" type="password" required autocomplete="off" spellcheck="false" maxlength="512"></label>
+    <button class="hero-button" type="submit">Ouvrir l’administration</button>
+  </form>
+  <div id="admin-workspace" hidden>
+    <div class="music-tools"><a href="#admin-radio-title">Radios</a><a href="#admin-catalog-title">Métadonnées</a><a href="/admin/catalogue">File de vérification</a><button type="button" data-admin-logout>Déconnexion</button></div>
+    <section aria-labelledby="admin-radio-title"><h2 id="admin-radio-title">Radios</h2><p class="hint">Désactiver arrête uniquement la collecte. L’écoute et l’historique restent disponibles.</p><div id="admin-stations"></div></section>
+    <section class="admin-catalog" aria-labelledby="admin-catalog-title">
+      <h2 id="admin-catalog-title">File de vérification</h2><p class="hint">Correspondances douteuses en priorité, puis nombre de détections sur les sept derniers jours.</p>
+      <form id="admin-catalog-form" class="metric-filters"><label>Rechercher un titre ou un artiste<input name="q" type="search" maxlength="200"></label><label class="checkbox"><input name="review" type="checkbox" checked> Fiches à vérifier uniquement</label><button type="submit" class="text-button">Actualiser</button></form>
+      <div id="admin-catalog-results"></div>
+      <nav class="pagination" aria-label="Pages du catalogue administratif"><button type="button" data-admin-previous disabled>← Précédent</button><span data-admin-page>Page 1</span><button type="button" data-admin-next disabled>Suivant →</button></nav>
+      <div id="admin-editor"></div>
+    </section>
+  </div>
+</section>

@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     max_response_bytes: int = Field(512 * 1024, ge=4096, le=2 * 1024 * 1024)
     max_icy_metaint: int = Field(65536, ge=1024, le=262144)
     last_seen_write_seconds: int = Field(120, ge=20, le=3600)
+    admin_session_hours: int = Field(8, ge=1, le=24)
     admin_token: SecretStr = SecretStr("")
     spotify_client_id: SecretStr = SecretStr("")
     spotify_client_secret: SecretStr = SecretStr("")

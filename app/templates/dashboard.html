@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#fa243c">
-  <title>{{ 'Recherche' if is_search else 'Classements' }} · Radio Tracker</title>
+  <title>{{ 'Stats' if page == '/stats' else 'Administration' if page.startswith('/admin') else 'Recherche' if is_search else 'Classements' }} · Radio Tracker</title>
   <script src="/static/theme.js?v={{ asset_version }}"></script>
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
 </head>
@@ -14,15 +14,21 @@
     <button class="search-shortcut" type="button" data-open-search><span aria-hidden="true">⌕</span> Rechercher une musique <kbd>⌘ K</kbd></button>
     <p class="nav-label">DÉCOUVRIR</p>
     <nav aria-label="Navigation principale">
-      <a href="/" class="nav-item {{ 'active' if not is_search else '' }}" {% if not is_search %}aria-current="page"{% endif %}><span aria-hidden="true">▥</span> Classements</a>
+      <a href="/" class="nav-item {{ 'active' if page == '/' else '' }}" {% if page == '/' %}aria-current="page"{% endif %}><span aria-hidden="true">▥</span> Classements</a>
       <a href="/#radios" class="nav-item"><span aria-hidden="true">◉</span> Radios</a>
       <a href="/recherche" class="nav-item {{ 'active' if is_search else '' }}" {% if is_search %}aria-current="page"{% endif %}><span aria-hidden="true">⌕</span> Recherche avancée</a>
+      <a href="/stats" class="nav-item {{ 'active' if page == '/stats' else '' }}" {% if page == '/stats' %}aria-current="page"{% endif %}><span aria-hidden="true">▤</span> Stats</a>
     </nav>
     <div class="sidebar-bottom"><span class="live-dot"></span> Au rythme des radios<p>Vos titres. Toutes les fréquences.</p></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><button class="quick-search-toggle" type="button" data-open-search aria-label="Rechercher une musique">⌕</button><a href="/recherche">Historique des diffusions <span aria-hidden="true">↗</span></a><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
+    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><span id="admin-session-controls" hidden><a href="/admin/catalogue">Mode admin</a><button type="button" class="text-button" data-admin-logout>Déconnexion</button></span><button class="quick-search-toggle" type="button" data-open-search aria-label="Rechercher une musique">⌕</button><a href="/recherche">Historique des diffusions <span aria-hidden="true">↗</span></a><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
     <main id="page-content">
+      {% if page == '/stats' %}
+      {% include 'stats.html' %}
+      {% elif page.startswith('/admin') %}
+      {% include 'admin.html' %}
+      {% else %}
       {% if is_search %}
       <div class="page-heading"><span class="eyebrow">VOTRE EXPLORATEUR MUSICAL</span><h1>Recherche avancée</h1><p>Retrouvez un titre, un artiste ou un passage à la radio.</p></div>
       {% include 'search.html' %}
@@ -53,6 +59,7 @@
       {% else %}<p class="empty">Aucune radio configurée pour le moment.</p>{% endfor %}
       </div>
       {% if not is_search %}</section>{% endif %}
+      {% endif %}
       <footer>Radio Tracker · La musique se découvre aussi à la radio.<br><span>Lecture depuis les flux officiels. Aucun audio enregistré.</span></footer>
     </main>
   </div>
@@ -72,6 +79,10 @@
   <script src="/static/cache.js?v={{ asset_version }}"></script>
   <script src="/static/dialogs.js?v={{ asset_version }}"></script>
   <script src="/static/filters.js?v={{ asset_version }}"></script>
+  <script src="/static/metrics.js?v={{ asset_version }}"></script>
+  <script src="/static/admin-session.js?v={{ asset_version }}"></script>
+  <script src="/static/admin.js?v={{ asset_version }}"></script>
+  <script src="/static/platforms.js?v={{ asset_version }}"></script>
   <script src="/static/catalog.js?v={{ asset_version }}"></script>
   <script src="/static/search.js?v={{ asset_version }}"></script>
   <script src="/static/player.js?v={{ asset_version }}"></script>

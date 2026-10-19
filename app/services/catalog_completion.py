@@ -1,0 +1,126 @@
+"""Fill missing descriptive fields from one safely matched secondary catalogue."""
+
+import re
+from copy import deepcopy
+from datetime import UTC, datetime
+
+from app.services.catalog import (
+    PROVIDER_ERRORS,
+    exact_match,
+    folded,
+    recording_details,
+    search_provider,
+)
+
+FIELDS = ("genres", "album", "release_date", "featured_artists")
+
+
+def complementary_credit(selected, candidate):
+    """Accept an explicit extra co-credit only with matching edition evidence.
+
+    This exception belongs to secondary enrichment, never primary selection.
+    Keep the lead artist intact: substring matches and different collaborators
+    must not turn into matches just because a song has a common title.
+    """
+    credits = [re.split(r"\s+&\s+", row.get("artist") or "") for row in (selected, candidate)]
+    short, long = sorted(credits, key=len)
+    if len(short) != 1 or len(long) < 2 or not folded(short[0]):
+        return False
+    if folded(short[0]) != folded(long[0]):
+        return False
+    if any(not folded(part) for part in long):
+        return False
+    # Do not erase explicit guest/version qualifiers to make this exception fit.
+    if folded(selected.get("title", "")) != folded(candidate.get("title", "")):
+        return False
+    if not selected.get("album") or not candidate.get("album"):
+        return False
+    if folded(selected["album"]) != folded(candidate["album"]):
+        return False
+    duration, other = selected.get("duration"), candidate.get("duration")
+    return bool(duration and other and abs(duration - other) <= 2)
+
+
+def compatible(selected, candidate):
+    exact = exact_match(
+        selected.get("artist"), selected.get("title", ""), candidate
+    ) and exact_match(candidate.get("artist"), candidate.get("title", ""), selected)
+    if not exact and not complementary_credit(selected, candidate):
+        return False
+    same_isrc = False
+    if selected.get("isrc") and candidate.get("isrc"):
+        same_isrc = selected["isrc"].upper() == candidate["isrc"].upper()
+        if not same_isrc:
+            return False
+    duration, other = selected.get("duration"), candidate.get("duration")
+    if duration and other:
+        return abs(duration - other) <= 2
+    return same_isrc
+
+
+async def complete_missing(client, selected, previous=None, known_candidates=None):
+    provider = "deezer" if selected.get("provider") == "itunes" else "itunes"
+    if previous and previous.get("status") in {"matched", "not_found", "ambiguous"}:
+        return deepcopy(selected), previous
+    attempt = {"provider": provider, "checked_at": datetime.now(UTC).isoformat()}
+    try:
+        candidates = (
+            known_candidates
+            if known_candidates is not None
+            else await search_provider(client, provider, selected.get("artist"), selected["title"])
+        )
+        matches = [
+            c for c in candidates if c.get("provider") == provider and compatible(selected, c)
+        ]
+        if len(matches) != 1:
+            return deepcopy(selected), {
+                **attempt,
+                "status": "ambiguous" if matches else "not_found",
+                "filled": [],
+            }
+        candidate = await recording_details(client, matches[0])
+        if not compatible(selected, candidate):
+            return deepcopy(selected), {**attempt, "status": "not_found", "filled": []}
+        result = deepcopy(selected)
+        sources = dict(result.get("field_sources") or {})
+        for field in FIELDS:
+            if result.get(field):
+                sources.setdefault(
+                    field,
+                    (result.get("genre_source") or result.get("provider"))
+                    if field == "genres"
+                    else result.get("provider"),
+                )
+        filled = []
+        same_album = not selected.get("album") or (
+            bool(candidate.get("album")) and folded(selected["album"]) == folded(candidate["album"])
+        )
+        for field in FIELDS:
+            if field == "release_date" and not same_album:
+                continue  # Do not attribute the release date of another album/edition.
+            if not result.get(field) and candidate.get(field):
+                result[field] = deepcopy(candidate[field])
+                sources[field] = provider
+                filled.append(field)
+                if field == "genres":
+                    result["genre_source"] = provider
+        result["field_sources"] = sources
+        additional = [
+            s for s in result.get("additional_sources", []) if s.get("provider") != provider
+        ]
+        result["additional_sources"] = [
+            *additional,
+            {
+                "provider": provider,
+                "provider_id": candidate["provider_id"],
+                "url": candidate.get("url"),
+            },
+        ][-4:]
+        return result, {
+            **attempt,
+            "status": "matched",
+            "filled": filled,
+            "provider_id": candidate["provider_id"],
+        }
+    except PROVIDER_ERRORS:
+        return deepcopy(selected), {**attempt, "status": "error", "filled": []}

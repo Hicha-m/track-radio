@@ -11,11 +11,14 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.admin_api import router as admin_router
+from app.admin_api import session_router
 from app.artwork_api import router as artwork_router
 from app.catalog_api import router as catalog_router
 from app.database import get_db
 from app.export_api import router as export_router
-from app.models import Play, Station
+from app.metrics_api import router as metrics_router
+from app.models import Play, Station, TrackMetadata
 from app.schemas import PlayOut, StationOut, StatsOut
 from app.security import SecurityMiddleware
 from app.services.catalog import attach_metadata
@@ -26,6 +29,8 @@ from app.services.stats import cached_top
 app = FastAPI(title="Radio Tracker", version="0.1.0")
 app.add_middleware(SecurityMiddleware)
 app.include_router(catalog_router)
+app.include_router(session_router)
+app.include_router(admin_router)
 app.include_router(export_router)
 app.include_router(artwork_router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -132,6 +137,9 @@ def parse_station_id(value: str | None) -> int | None:
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/recherche", response_class=HTMLResponse)
+@app.get("/stats", response_class=HTMLResponse)
+@app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin/catalogue", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     db: DbSession,
@@ -148,6 +156,18 @@ def dashboard(
             "station_id": station_id,
             "selected_station": selected_station,
             "is_search": request.url.path == "/recherche",
+            "page": request.url.path,
+            "genres": list(
+                db.scalars(
+                    select(TrackMetadata.primary_genre)
+                    .where(TrackMetadata.primary_genre.is_not(None))
+                    .distinct()
+                    .order_by(TrackMetadata.primary_genre)
+                )
+            ),
             "asset_version": ASSET_VERSION,
         },
     )
+
+
+app.include_router(metrics_router)

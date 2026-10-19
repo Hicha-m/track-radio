@@ -9,7 +9,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 from sqlalchemy import String, cast, func, or_, select
 
-from app.models import Play, Station
+from app.models import Play, Station, TrackMetadata
 from app.services.exclusions import ExclusionFilters, exclusion_conditions
 from app.services.search_text import normalize_search
 
@@ -19,6 +19,7 @@ class ExploreFilters(ExclusionFilters):
     view: Literal["plays", "tracks"] = "plays"
     station_id: int | None = Field(None, ge=1, le=2**63 - 1)
     q: str = Field("", max_length=200)
+    genre: str = Field("", max_length=100)
     artist: str = Field("", max_length=300)
     title: str = Field("", max_length=500)
     raw: str = Field("", max_length=200)
@@ -57,6 +58,11 @@ class ExploreFilters(ExclusionFilters):
 
 _cache = OrderedDict()
 _lock = Lock()
+
+
+def invalidate_explorer():
+    with _lock:
+        _cache.clear()
 
 
 def text_match(column, value, exact=False, unicode=True):
@@ -106,6 +112,17 @@ def conditions(filters, unicode=True):
             values.append(text_match(column, value, filters.exact, unicode))
     if filters.raw:
         values.append(text_match(Play.raw_metadata, filters.raw, unicode=unicode))
+    if filters.genre:
+        matching = select(TrackMetadata.id).where(
+            TrackMetadata.primary_genre.is_not(None)
+            if filters.genre == "__unknown__"
+            else TrackMetadata.primary_genre == filters.genre
+        )
+        values.append(
+            Play.track_id.not_in(matching)
+            if filters.genre == "__unknown__"
+            else Play.track_id.in_(matching)
+        )
     missing = or_(Play.artist.is_(None), Play.artist == "")
     if filters.artist_status == "missing":
         values.append(missing)

@@ -1,18 +1,6 @@
 import asyncio
-import secrets
 
-from fastapi import HTTPException, Request
-
-from app.config import settings
-
-
-def require_admin(request: Request):
-    expected = settings.admin_token.get_secret_value()
-    if not expected:
-        raise HTTPException(503, "Administration désactivée : configurer ADMIN_TOKEN côté serveur.")
-    supplied = request.headers.get("authorization", "")
-    if not secrets.compare_digest(supplied.encode(), f"Bearer {expected}".encode()):
-        raise HTTPException(401, "Clé administrateur invalide.")
+from app.admin_sessions import require_admin as require_admin
 
 
 class SecurityMiddleware:
@@ -69,7 +57,16 @@ class SecurityMiddleware:
                         b"style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
                         b"img-src 'self' https://fastapi.tiangolo.com data:"
                     )
-                message["headers"] = list(message.get("headers", [])) + [
+                headers = list(message.get("headers", []))
+                if (
+                    scope["path"].startswith("/api/admin")
+                    or scope["path"].startswith("/admin")
+                    or scope["path"] == "/api/catalog/spotify-match"
+                    or (scope["path"].startswith("/api/catalog") and scope["method"] != "GET")
+                ):
+                    headers = [(k, v) for k, v in headers if k.lower() != b"cache-control"]
+                    headers.append((b"cache-control", b"no-store"))
+                message["headers"] = headers + [
                     (b"x-content-type-options", b"nosniff"),
                     (b"referrer-policy", b"no-referrer"),
                     (b"content-security-policy", policy),

@@ -140,6 +140,7 @@ const onVisibility = () => { if (!document.hidden) loadChart(true); };
 document.addEventListener('visibilitychange', onVisibility);
 const onFilters = () => loadChart(true);
 window.addEventListener('radio:filterschange', onFilters);
+window.addEventListener('radio:catalogchange', onFilters);
 loadChart();
 
 return () => {
@@ -148,6 +149,7 @@ return () => {
   window.clearInterval(timer);
   document.removeEventListener('visibilitychange', onVisibility);
   window.removeEventListener('radio:filterschange', onFilters);
+  window.removeEventListener('radio:catalogchange', onFilters);
 };
 
 };

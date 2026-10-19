@@ -41,3 +41,11 @@ test('unavailable storage does not break filtering', () => {
   cache.put('search:a', {items: []});
   assert.ok(cache.get('search:a'));
 });
+test('correction clears cached catalogue results without touching unrelated storage', () => {
+  const {cache, storage} = create({'unrelated-setting': 'keep'});
+  cache.put('chart', {items: ['old cover']});
+  cache.clear();
+  assert.equal(cache.get('chart'), null);
+  assert.equal(storage['unrelated-setting'], 'keep');
+  assert.equal(Object.keys(storage).length, 1);
+});

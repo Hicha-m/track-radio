@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import DateTime, func, insert, inspect, select
+from sqlalchemy import DateTime, MetaData, Table, func, insert, inspect, select
 
 from app.database import engine
 from app.models import Play, Station, TrackMetadata
@@ -26,13 +26,15 @@ def export_data(path):
         elif engine.dialect.name == "postgresql":
             connection = connection.execution_options(isolation_level="REPEATABLE READ")
         connection = connection.execution_options(yield_per=250)
-        for name, table in TABLES.items():
+        for name in TABLES:
             if not inspect(connection).has_table(name):
                 if name == "track_metadata":
                     continue  # Backup an installation from before metadata migration.
                 raise ValueError(f"Table manquante : {name}")
             counts[name] = 0
-            for row in connection.execute(select(table)).mappings().yield_per(250):
+            # A current binary can also back up a database awaiting migrations.
+            actual = Table(name, MetaData(), autoload_with=connection)
+            for row in connection.execute(select(actual)).mappings().yield_per(250):
                 output.write(json.dumps({"table": name, "row": dict(row)}, default=str) + "\n")
                 counts[name] += 1
         output.write(json.dumps({"counts": counts}) + "\n")
@@ -58,6 +60,17 @@ def import_data(path):
                     raise ValueError("Export invalide : données après le manifeste.")
                 table = TABLES[record["table"]]
                 row = record["row"]
+                if table.name == "plays":
+                    from app.services.track_identity import identity
+
+                    row["track_id"] = identity(row.get("artist"), row["title"])
+                elif table.name == "stations":
+                    row.setdefault("config_enabled", row.get("enabled", True))
+                elif table.name == "track_metadata":
+                    row.setdefault("lyrics_status", "matched" if row.get("lyrics") else "pending")
+                    row.setdefault(
+                        "primary_genre", ((row.get("selected") or {}).get("genres") or [None])[0]
+                    )
                 for column in table.columns:
                     if isinstance(column.type, DateTime) and row.get(column.name):
                         row[column.name] = datetime.fromisoformat(row[column.name])

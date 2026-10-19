@@ -12,6 +12,7 @@
         <div class="search-line"><label>Rechercher<input name="q" type="search" maxlength="200" placeholder="Titre, artiste ou station…"></label></div>
         <div class="filter-grid">
           <label>Station<select name="station_id"><option value="">Toutes les stations</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+          <label>Genre<select name="genre"><option value="">Tous les genres</option><option value="__unknown__">Inconnu</option>{% for genre in genres %}<option value="{{ genre }}">{{ genre }}</option>{% endfor %}</select></label>
           <label>Artiste<input name="artist" type="search" maxlength="300" placeholder="Tous les artistes"></label>
           <label>Musique<input name="title" type="search" maxlength="500" placeholder="Tous les titres"></label>
           <label>Trier par<select name="sort"><option value="newest">Plus récent</option><option value="oldest">Plus ancien</option><option value="artist">Artiste A–Z</option><option value="title">Titre A–Z</option><option value="station" data-only="plays">Station A–Z</option><option value="frequency" data-only="tracks">Plus diffusé</option></select></label>

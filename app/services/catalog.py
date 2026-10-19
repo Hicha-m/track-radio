@@ -1,10 +1,11 @@
 """Catalogue durable. Aucun appel fournisseur dans les lectures du site."""
 
 import asyncio
-import hashlib
 import json
 import logging
 import re
+from collections import OrderedDict
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from time import monotonic
@@ -16,9 +17,11 @@ from sqlalchemy import case, or_, select
 from app.models import Play, TrackMetadata
 from app.services.search_text import normalize_search
 from app.services.stats import cached_top
+from app.services.track_identity import identity
 
 logger = logging.getLogger(__name__)
 _provider_pauses = {}
+_album_cache = OrderedDict()
 
 
 class ProviderCooldown(ValueError):
@@ -36,12 +39,6 @@ def retry_seconds(value):
             )
         except (TypeError, ValueError, OverflowError):
             return 900
-
-
-def identity(artist, title):
-    # Preserve version and featuring information in our identity; never merge broadcasts.
-    values = [" ".join(normalize_search(v).split()) for v in (artist, title)]
-    return hashlib.sha256(json.dumps(values, ensure_ascii=False).encode()).hexdigest()
 
 
 def folded(value):
@@ -104,7 +101,9 @@ async def search_provider(client, provider, artist, title):
         from app.services.spotify import search_spotify
 
         return await search_spotify(client, artist, title)
-    query = f"{artist or ''} {title}".strip()
+    # Do not let a featured guest dominate the provider's free-text search.
+    # Selection still validates the original artist, title, guest and version.
+    query = f"{without_feature(artist or '')} {without_feature(title)}".strip()
     if provider == "deezer":
         data = await fetch_json(client, "https://api.deezer.com/search", {"q": query, "limit": 15})
         return [
@@ -148,6 +147,9 @@ async def search_provider(client, provider, artist, title):
                 "preview_url": safe_url(t.get("previewUrl")),
                 "url": safe_url(t.get("trackViewUrl")),
                 "isrc": None,
+                "genres": [str(t["primaryGenreName"])[:100]] if t.get("primaryGenreName") else [],
+                "genre_source": "itunes",
+                "release_date": str(t["releaseDate"])[:40] if t.get("releaseDate") else None,
             }
             for t in data.get("results", [])[:15]
             if t.get("trackId") and t.get("trackName")
@@ -160,7 +162,7 @@ async def search_lyrics(client, artist, title):
         client,
         "https://lrclib.net/api/search",
         {
-            "artist_name": artist or "",
+            "artist_name": without_feature(artist or ""),
             "track_name": without_feature(title),
         },
     )
@@ -176,7 +178,7 @@ async def search_lyrics(client, artist, title):
             "provider": "lrclib",
         }
         for t in data[:15]
-        if t.get("id")
+        if t.get("id") and (t.get("plainLyrics") or t.get("syncedLyrics") or t.get("instrumental"))
     ]
 
 
@@ -196,6 +198,8 @@ def public_metadata(entry):
         "track_id": entry.id,
         "status": entry.status,
         "manual": entry.manual,
+        "lyrics_status": entry.lyrics_status,
+        "primary_genre": entry.primary_genre,
         **selected,
         "recording_id": (
             f"isrc:{selected['isrc']}"
@@ -222,34 +226,225 @@ def attach_metadata(db, items):
     ]
 
 
-async def enrich_entry(client, artist, title, provider="deezer"):
-    candidates = await search_provider(client, provider, artist, title)
-    matches = [c for c in candidates if exact_match(artist, title, c)]
-    # Different catalogue IDs may represent different recordings: leave the choice to a human.
-    selected = matches[0] if len(matches) == 1 else None
-    if selected and provider == "deezer":
+PROVIDER_ERRORS = (httpx.HTTPError, ValueError, KeyError, TypeError, TimeoutError)
+
+
+async def recording_details(client, selected):
+    provider = selected["provider"]
+    if provider == "itunes":
+        if "genres" not in selected:
+            data = await fetch_json(
+                client,
+                "https://itunes.apple.com/lookup",
+                {
+                    "id": selected["provider_id"],
+                    "entity": "song",
+                    "country": "FR",
+                },
+            )
+            rows = [
+                t
+                for t in data.get("results", [])
+                if str(t.get("trackId")) == selected["provider_id"]
+            ]
+            genre = rows[0].get("primaryGenreName") if len(rows) == 1 else None
+            selected = {
+                **selected,
+                "genres": [str(genre)[:100]] if genre else [],
+                "genre_source": "itunes",
+            }
+        return selected
+    if provider != "deezer":
+        return selected
+    if "album_id" not in selected:
         detail = await fetch_json(client, f"https://api.deezer.com/track/{selected['provider_id']}")
         selected = {
             **selected,
             "isrc": detail.get("isrc"),
-            "preview_url": safe_url(detail.get("preview")) or selected["preview_url"],
+            "preview_url": safe_url(detail.get("preview")) or selected.get("preview_url"),
+            "album_id": detail.get("album", {}).get("id"),
+            "release_date": str(detail["release_date"])[:40]
+            if detail.get("release_date")
+            else None,
+            "featured_artists": [
+                str(c["name"])[:300]
+                for c in detail.get("contributors", [])
+                if c.get("name")
+                and c.get("role") in {None, "Main", "Featured"}
+                and folded(c["name"]) != folded(selected["artist"])
+            ][:20],
         }
+    album_id = selected["album_id"]
+    genres = []
+    if album_id and str(album_id).isdigit():
+        cached = _album_cache.get(str(album_id))
+        if cached and cached[0] > monotonic():
+            genres = cached[1]
+        else:
+            try:
+                album = await fetch_json(client, f"https://api.deezer.com/album/{album_id}")
+                genres = [
+                    str(g["name"])[:100]
+                    for g in album.get("genres", {}).get("data", [])
+                    if g.get("name")
+                ][:20]
+                _album_cache[str(album_id)] = (monotonic() + 86400, genres)
+                while len(_album_cache) > 128:
+                    _album_cache.popitem(last=False)
+            except PROVIDER_ERRORS:
+                # Keep the recording and retry only the missing album enrichment.
+                return selected
+    return {**selected, "genres": genres, "genre_source": "deezer"}
+
+
+def lyrics_identity_match(selected, candidate):
+    # A validated recording supplies the guest identity. LRCLIB often omits a
+    # featuring suffix; conflicting guests and version qualifiers still fail.
+    wanted_guest = re.search(
+        r"(?:feat\.?|ft\.?)\s+([^\])]+)", f"{selected['artist']} {selected['title']}", re.I
+    )
+    found_guest = re.search(
+        r"(?:feat\.?|ft\.?)\s+([^\])]+)", f"{candidate['artist']} {candidate['title']}", re.I
+    )
+    if found_guest and (not wanted_guest or folded(wanted_guest[1]) != folded(found_guest[1])):
+        return False
+    return exact_match(
+        without_feature(selected["artist"]),
+        without_feature(selected["title"]),
+        {
+            **candidate,
+            "artist": without_feature(candidate["artist"]),
+            "title": without_feature(candidate["title"]),
+        },
+    )
+
+
+async def lyrics_result(client, selected):
+    candidates = await search_lyrics(client, selected["artist"], selected["title"])
+    related = [c for c in candidates if lyrics_identity_match(selected, c)]
+    matches = [
+        c
+        for c in related
+        if selected.get("duration")
+        and c.get("duration")
+        and abs(c["duration"] - selected["duration"]) <= 2
+        and (c.get("plain") or c.get("synced") or c.get("instrumental"))
+    ]
+    lyrics = matches[0] if len(matches) == 1 else None
+    return candidates, lyrics, "matched" if lyrics else "ambiguous" if related else "not_found"
+
+
+async def enrich_entry(client, artist, title, provider="deezer"):
+    """Single-provider operation retained for explicit catalogue lookups."""
+    candidates = await search_provider(client, provider, artist, title)
+    matches = [c for c in candidates if exact_match(artist, title, c)]
+    selected = await recording_details(client, matches[0]) if len(matches) == 1 else None
     lyrics = None
     if selected:
         try:
-            lyrics_matches = [
-                c
-                for c in await search_lyrics(client, selected["artist"], selected["title"])
-                if exact_match(selected["artist"], selected["title"], c)
-                and selected.get("duration")
-                and c.get("duration")
-                and abs(c["duration"] - selected["duration"]) <= 2
-            ]
-            if len(lyrics_matches) == 1:
-                lyrics = lyrics_matches[0]
-        except (httpx.HTTPError, ValueError, TimeoutError):
+            _, lyrics, _ = await lyrics_result(client, selected)
+        except PROVIDER_ERRORS:
             logger.warning("Paroles temporairement indisponibles")
     return candidates, selected, lyrics
+
+
+async def enrich_progress(client, snapshot):
+    """Only unresolved steps are retried; final negative results are durable."""
+    result = deepcopy(snapshot)
+    attempts = result["attempts"]
+    selected = result["selected"]
+    checked_details = False
+    if not selected:
+        for provider in ("deezer", "itunes"):
+            previous = attempts.get(provider, {})
+            if previous.get("status") in {"not_found", "ambiguous"}:
+                continue
+            try:
+                candidates = await search_provider(
+                    client, provider, result["artist"], result["title"]
+                )
+                matches = [
+                    c for c in candidates if exact_match(result["artist"], result["title"], c)
+                ]
+                selected = (
+                    await recording_details(client, matches[0]) if len(matches) == 1 else None
+                )
+                checked_details = bool(selected)
+                attempts[provider] = {
+                    "status": "matched" if selected else "ambiguous" if matches else "not_found",
+                    "candidates": candidates,
+                }
+                if selected:
+                    break
+            except PROVIDER_ERRORS:
+                attempts[provider] = {**previous, "status": "error"}
+        result["candidates"] = [
+            c
+            for provider in ("deezer", "itunes")
+            for c in attempts.get(provider, {}).get("candidates", [])
+        ]
+        states = [attempts.get(p, {}).get("status") for p in ("deezer", "itunes")]
+        result["status"] = (
+            "matched"
+            if selected
+            else "error"
+            if "error" in states
+            else "ambiguous"
+            if "ambiguous" in states
+            else "not_found"
+        )
+        result["selected"] = selected
+    if selected and selected["provider"] in {"deezer", "itunes"}:
+        if "genres" not in selected and not checked_details:
+            try:
+                selected = await recording_details(client, selected)
+            except PROVIDER_ERRORS:
+                pass  # A failed optional lookup must preserve the validated recording.
+        attempts["genres"] = {
+            "status": "matched"
+            if selected.get("genres")
+            else "not_found"
+            if "genres" in selected
+            else "error"
+        }
+        result["selected"] = selected
+    complement_failed = False
+    if (
+        selected
+        and not selected.get("genres")
+        and attempts.get("genres", {}).get("status") == "not_found"
+    ):
+        from app.services.catalog_completion import complete_missing
+
+        secondary = "deezer" if selected["provider"] == "itunes" else "itunes"
+        previous_search = attempts.get(secondary, {})
+        known = (
+            previous_search.get("candidates")
+            if previous_search.get("status") in {"not_found", "ambiguous"}
+            else None
+        )
+        selected, completion = await complete_missing(
+            client, selected, attempts.get("complement"), known_candidates=known
+        )
+
+        result["selected"] = selected
+        attempts["complement"] = completion
+        complement_failed = completion["status"] == "error"
+    if selected and result["lyrics_status"] in {"pending", "error"}:
+        try:
+            candidates, lyrics, status = await lyrics_result(client, selected)
+            result.update(lyrics_candidates=candidates, lyrics=lyrics, lyrics_status=status)
+            attempts["lrclib"] = {"status": status}
+        except PROVIDER_ERRORS:
+            result["lyrics_status"] = "error"
+            attempts["lrclib"] = {"status": "error"}
+    result["automatic_done"] = (
+        result["status"] != "error"
+        and not complement_failed
+        and attempts.get("genres", {}).get("status") != "error"
+        and (not selected or result["lyrics_status"] not in {"pending", "error"})
+    )
+    return result
 
 
 def backfill_batch(session_factory, cursor):
@@ -280,6 +475,7 @@ async def enrichment_round(client, session_factory, priorities=None):
                 select(TrackMetadata)
                 .where(
                     TrackMetadata.manual.is_(False),
+                    TrackMetadata.automatic_done.is_(False),
                     or_(TrackMetadata.retry_at.is_(None), TrackMetadata.retry_at <= now),
                 )
                 .order_by(
@@ -292,43 +488,48 @@ async def enrichment_round(client, session_factory, priorities=None):
                 .limit(2)
             )
         )
-        pending = [(e.id, e.artist, e.title, e.provider) for e in entries]
-    for key, artist, title, provider in pending:
-        host = {
-            "deezer": "api.deezer.com",
-            "itunes": "itunes.apple.com",
-            "spotify": "api.spotify.com",
-        }[provider]
-        if _provider_pauses.get(host, 0) > monotonic():
-            continue
-        try:
-            candidates, selected, lyrics = await enrich_entry(client, artist, title, provider)
-            status = "matched" if selected else "ambiguous" if candidates else "not_found"
-            delay = timedelta(hours=6) if selected else timedelta(days=7)
-        except (httpx.HTTPError, ValueError, KeyError, TypeError, TimeoutError):
-            candidates, selected, lyrics, status = [], None, None, "error"
-            delay = timedelta(minutes=15)
-            logger.warning("Enrichissement indisponible pour %s", key)
+        fields = (
+            "artist",
+            "title",
+            "status",
+            "selected",
+            "candidates",
+            "lyrics",
+            "lyrics_candidates",
+            "lyrics_status",
+            "attempts",
+        )
+        pending = [
+            (e.id, e.revision, deepcopy({f: getattr(e, f) for f in fields})) for e in entries
+        ]
+    for key, revision, snapshot in pending:
+        result = await enrich_progress(client, snapshot)
         with session_factory() as db:
-            entry = db.get(TrackMetadata, key)
-            if entry is None or entry.manual:
-                continue
-            # Keep usable metadata through temporary provider failures.
-            if status != "error":
-                old = entry.selected or {}
-                new = selected or {}
-                same_recording = (old.get("provider"), old.get("provider_id")) == (
-                    new.get("provider"),
-                    new.get("provider_id"),
+            # Atomic compare-and-set also covers a correction committed during provider I/O.
+            from sqlalchemy import update
+
+            selected = result["selected"] or {}
+            values = {f: result[f] for f in fields if f not in {"artist", "title"}}
+            values.update(
+                automatic_done=result["automatic_done"],
+                checked_at=now,
+                retry_at=None if result["automatic_done"] else now + timedelta(minutes=15),
+                primary_genre=(selected.get("genres") or [None])[0],
+                provider=selected.get("provider", "deezer"),
+                revision=revision + 1,
+            )
+            db.execute(
+                update(TrackMetadata)
+                .where(
+                    TrackMetadata.id == key,
+                    TrackMetadata.revision == revision,
+                    TrackMetadata.manual.is_(False),
                 )
-                entry.candidates, entry.selected = candidates, selected
-                if lyrics or not same_recording:
-                    entry.lyrics = lyrics
-                entry.status = status
-            elif not entry.selected:
-                entry.status = status
-            entry.checked_at, entry.retry_at = now, now + delay
+                .values(**values)
+                .execution_options(synchronize_session=False)
+            )
             db.commit()
+            db.expire_all()
 
 
 async def enrichment_loop(session_factory):

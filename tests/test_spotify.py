@@ -154,7 +154,7 @@ def test_first_result_is_cached_and_never_saved_as_a_validated_recording(monkeyp
     assert len(calls) == 1
 
 
-def test_public_resolution_preserves_search_on_provider_failure(client, db, monkeypatch):
+def test_admin_resolution_preserves_search_on_provider_failure(client, db, monkeypatch):
     from app.services.catalog import ensure_entry
 
     monkeypatch.setattr(spotify, "_first_cache", {})
@@ -175,6 +175,7 @@ def test_public_resolution_preserves_search_on_provider_failure(client, db, monk
     for _ in range(2):
         response = client.get(
             "/api/catalog/spotify-match",
+            headers={"Authorization": "Bearer test-admin-token"},
             params={
                 "artist": entry.artist,
                 "title": entry.title,
@@ -184,4 +185,10 @@ def test_public_resolution_preserves_search_on_provider_failure(client, db, monk
     assert len(calls) == 1
     assert entry.selected is None
     assert not entry.manual
-    assert client.get("/api/catalog/spotify-match?title=unknown").json()["status"] == "pending"
+    assert (
+        client.get(
+            "/api/catalog/spotify-match?title=unknown",
+            headers={"Authorization": "Bearer test-admin-token"},
+        ).json()["status"]
+        == "pending"
+    )

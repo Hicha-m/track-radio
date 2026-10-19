@@ -37,7 +37,16 @@ def serializable(value):
 def export_row(row):
     data = {k: serializable(v) for k, v in row.items() if k != "metadata"}
     metadata = row.get("metadata") or {}
-    for key in ("track_id", "recording_id", "provider", "provider_id", "duration", "cover_url"):
+    for key in (
+        "track_id",
+        "recording_id",
+        "provider",
+        "provider_id",
+        "duration",
+        "cover_url",
+        "primary_genre",
+        "genre_source",
+    ):
         data[key] = metadata.get(key)
     data["spotify_url"] = (
         metadata.get("url")
@@ -90,6 +99,8 @@ def export(db: Annotated[Session, Depends(get_db)], filters: Annotated[ExportFil
         "duration",
         "cover_url",
         "spotify_url",
+        "primary_genre",
+        "genre_source",
     ]
 
     def rows():

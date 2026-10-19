@@ -33,5 +33,9 @@ window.RadioCache = (() => {
     }
     try { sessionStorage.setItem(prefix + key, JSON.stringify(item)); } catch (_) { /* optional */ }
   }
-  return {get, put};
+  function clear() {
+    memory.clear();
+    try { for (const key of Object.keys(sessionStorage).filter(k => k.startsWith(prefix))) sessionStorage.removeItem(key); } catch (_) { /* Optional. */ }
+  }
+  return {get, put, clear};
 })();

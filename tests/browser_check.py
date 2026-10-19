@@ -47,6 +47,10 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                 "title": title,
                 "artist": "Mosimann",
                 "duration": 151,
+                "album": "Album Test",
+                "genres": ["Pop", "Dance"],
+                "genre_source": "deezer",
+                "release_date": "2026-01-01",
                 "isrc": f"FRTEST{i}",
                 "cover_url": "https://cdn-images.dzcdn.net/test-cover.svg"
                 if i != 3
@@ -54,6 +58,21 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                 "preview_url": "https://cdnt-preview.dzcdn.net/test.mp3",
                 "url": "https://www.deezer.com/track/1",
             }
+            entry.primary_genre = "Pop"
+            entry.candidates = [dict(entry.selected)]
+        for offset in (6, 8):
+            at = datetime.now(UTC) - timedelta(minutes=offset)
+            db.add(
+                Play(
+                    station_id=station.id,
+                    artist="Mosimann",
+                    title="Soon (ft Gaetan Roussel)",
+                    raw_metadata="Soon",
+                    source="icy",
+                    detected_at=at,
+                    last_seen_at=at,
+                )
+            )
         db.commit()
     log = open(f"{directory}/server.log", "w")
     with socket.socket() as available:
@@ -97,7 +116,8 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
             try:
                 for browser in browsers:
                     for width, height in [(1280, 900), (402, 874), (412, 915)]:
-                        page = browser.new_page(viewport={"width": width, "height": height})
+                        context = browser.new_context(viewport={"width": width, "height": height})
+                        page = context.new_page()
                         errors = []
                         page.on("pageerror", lambda error, errors=errors: errors.append(str(error)))
 
@@ -201,18 +221,152 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             ), width
 
                         navigation = page.get_by_role("navigation", name="Navigation principale")
+                        navigation.get_by_role("link", name="Stats", exact=True).click()
+                        expect(page.locator("h1")).to_have_text("Stats")
+                        expect(page.locator('[data-metric="diversity"] tbody tr')).to_have_count(1)
+                        expect(page.locator('[data-metric="repetitions"] tbody tr')).to_have_count(
+                            1
+                        )
+                        page.locator('[data-metric="repetitions"] .cell-link').first.click()
+                        expect(page.locator(".catalog-dialog .hourly-chart meter")).to_have_count(
+                            24
+                        )
+                        page.screenshot(
+                            path=f"/tmp/radio-track-stats-{browser.browser_type.name}-{width}.png"
+                        )
+                        page.get_by_role("button", name="Masquer ce titre", exact=True).click()
+                        expect(
+                            page.locator('[data-metric="diversity"] tbody td').nth(1)
+                        ).to_have_text("4")
+                        expect(
+                            page.locator('[data-metric="diversity"] tbody td').nth(2)
+                        ).to_have_text("4")
+                        page.locator("[data-open-exclusions]").click()
+                        page.get_by_role("button", name="Réafficher", exact=True).click()
+                        page.keyboard.press("Escape")
+                        expect(
+                            page.locator('[data-metric="diversity"] tbody td').nth(1)
+                        ).to_have_text("5")
+                        expect(
+                            page.locator('[data-metric="diversity"] tbody td').nth(2)
+                        ).to_have_text("7")
+                        page.locator("#repetition-hours").select_option("6")
+                        expect(
+                            page.locator('[data-metric="repetitions"] [role="status"]')
+                        ).to_contain_text("Du ")
+                        page.screenshot(
+                            path=f"/tmp/radio-stats-{browser.browser_type.name}-{width}.png"
+                        )
+                        assert_uninterrupted()
+                        page.evaluate(
+                            """() => {
+                                const link = document.createElement('a'); link.href='/admin';
+                                document.body.append(link); link.click(); link.remove();
+                            }"""
+                        )
+                        expect(page.locator("#admin-login")).to_be_visible()
+                        page.locator('[name="token"]').fill("browser-test-only")
+                        page.get_by_role("button", name="Ouvrir l’administration").click()
+                        expect(page.locator("#admin-workspace")).to_be_visible()
+                        expect(page.locator('[name="token"]')).to_have_value("")
+                        page.get_by_role("button", name="Désactiver", exact=True).click()
+                        expect(page.locator("#admin-stations")).to_contain_text("Collecte arrêtée")
+                        page.get_by_role(
+                            "button", name="Revenir à la configuration", exact=True
+                        ).click()
+                        expect(page.locator("#admin-stations")).to_contain_text("Collecte active")
+                        page.locator('#admin-catalog-form [name="review"]').uncheck()
+                        expect(page.locator(".admin-track")).to_have_count(5)
+                        page.locator(".admin-track").first.click()
+                        expect(page.locator("#admin-editor .catalog-editor")).to_be_visible()
+                        assert page.evaluate(
+                            "!JSON.stringify({...localStorage, ...sessionStorage})"
+                            ".includes('browser-test-only')"
+                        )
+                        page.screenshot(
+                            path=f"/tmp/radio-admin-{browser.browser_type.name}-{width}.png"
+                        )
+                        assert_uninterrupted()
+                        cookies = page.context.cookies()
+                        admin_cookie = next(
+                            cookie for cookie in cookies if cookie["name"] == "__Host-radio_admin"
+                        )
+                        assert (
+                            admin_cookie["httpOnly"]
+                            and admin_cookie["secure"]
+                            and admin_cookie["sameSite"] == "Strict"
+                        )
+                        assert "__Host-radio_admin" not in page.evaluate("document.cookie")
+                        navigation.get_by_role("link", name="Stats", exact=True).click()
+                        page.locator("#admin-session-controls a").click()
+                        expect(page).to_have_url(base_url + "/admin/catalogue")
+                        expect(page.locator("#admin-workspace")).to_be_visible()
+                        other = page.context.new_page()
+                        other.goto(base_url + "/admin/catalogue")
+                        expect(other.locator("#admin-workspace")).to_be_visible()
+                        other.close()
+                        page.locator("#admin-root [data-admin-logout]").click()
+                        expect(page.locator("#admin-login")).to_be_visible()
+                        expect(page.locator("#admin-session-controls")).not_to_be_visible()
+                        page.locator('[name="token"]').fill("browser-test-only")
+                        page.get_by_role("button", name="Ouvrir l’administration").click()
+                        expect(page.locator("#admin-workspace")).to_be_visible()
+                        assert_uninterrupted()
                         navigation.get_by_role("link", name="Recherche avancée").click()
                         expect(page.locator("h1")).to_have_text("Recherche avancée")
-                        expect(page.locator("#results tbody tr")).to_have_count(5)
+                        expect(page.locator("#results tbody tr")).to_have_count(7)
                         assert_uninterrupted()
                         navigation.get_by_role("link", name="Classements").click()
                         expect(page.locator("h1")).to_have_text("Classements")
                         assert_uninterrupted()
                         page.locator("#chart-list .chart-row").first.click()
                         expect(page.locator(".catalog-dialog")).to_be_visible()
+                        expect(page.locator(".catalog-dialog meter")).to_have_count(0)
+                        expect(page.locator(".catalog-dialog .catalog-modify")).to_be_visible()
+                        page.locator(".catalog-dialog .catalog-modify").click()
+                        expect(page.locator(".admin-edit-dialog .catalog-editor")).to_be_visible()
                         expect(
-                            page.locator('.catalog-dialog a[href*="/track/7Dst"]')
+                            page.locator('.admin-edit-dialog input[type="password"]')
+                        ).to_have_count(0)
+                        response = page.locator(".admin-edit-dialog .candidate-response pre").first
+                        expect(response).to_contain_text('"provider": "deezer"')
+                        layout = page.locator(".admin-edit-dialog .candidate-layout").first
+                        assert layout.evaluate("""(row) => {
+                            const left = row.querySelector('.candidate-presentation')
+                                .getBoundingClientRect();
+                            const right = row.querySelector('.candidate-response')
+                                .getBoundingClientRect();
+                            return innerWidth > 760
+                                ? right.left >= left.right : right.top >= left.bottom;
+                        }""")
+                        layout.scroll_into_view_if_needed()
+                        page.screenshot(
+                            path=f"/tmp/radio-admin-response-{browser.browser_type.name}-{width}.png"
+                        )
+                        page.locator(".admin-edit-dialog").get_by_role(
+                            "button", name="Choisir cette version", exact=True
+                        ).click()
+                        expect(response).to_contain_text('"manual": true')
+                        expect(page.locator(".admin-edit-dialog")).to_contain_text(
+                            "Correction enregistrée"
+                        )
+                        page.locator(".admin-edit-dialog .catalog-close").click()
+                        expect(page.locator(".catalog-dialog")).to_be_visible()
+                        page.locator(".catalog-platforms summary").click()
+                        expect(page.locator(".catalog-platforms .platform-link")).to_have_count(2)
+                        expect(
+                            page.locator('.catalog-dialog a[href*="open.spotify.com/search/"]')
                         ).to_be_visible()
+                        expect(
+                            page.locator(".catalog-platforms").get_by_role(
+                                "link", name="Rechercher sur Spotify", exact=True
+                            )
+                        ).to_be_visible()
+                        expect(page.locator(".catalog-dialog .catalog-editor")).to_have_count(0)
+                        expect(page.locator(".catalog-radio .catalog-recent li")).to_have_count(1)
+                        page.screenshot(
+                            path=f"/tmp/radio-track-detail-{browser.browser_type.name}-{width}.png"
+                        )
                         expect(page.locator(".catalog-footer button")).to_have_text(
                             "Masquer ce titre"
                         )
@@ -262,7 +416,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(page.locator(".catalog-dialog")).to_be_visible()
                         page.locator(".catalog-search-link").first.click()
                         expect(page.locator("h1")).to_have_text("Recherche avancée")
-                        expect(page.locator("#results tbody tr")).to_have_count(1)
+                        expect(page.locator("#results tbody tr")).to_have_count(3)
                         assert_uninterrupted()
                         page.go_back()
                         expect(page.locator("h1")).to_have_text("Classements")
@@ -379,6 +533,14 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(page.locator(".podium-card")).to_have_count(3)
                         page.locator(".podium").scroll_into_view_if_needed()
                         page.screenshot(path=f"/tmp/radio-{browser.browser_type.name}-{width}.png")
+                        page.locator("#admin-session-controls [data-admin-logout]").click()
+                        expect(page.locator("#admin-session-controls")).not_to_be_visible()
+                        page.locator(".podium-detail").first.click()
+                        expect(page.locator(".catalog-dialog .catalog-modify")).not_to_be_visible()
+                        expect(
+                            page.locator('.catalog-dialog input[type="password"]')
+                        ).to_have_count(0)
+                        page.keyboard.press("Escape")
                         assert not errors, errors
                         print(
                             {
@@ -391,6 +553,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             flush=True,
                         )
                         page.close()
+                        context.close()
             finally:
                 for browser in browsers:
                     browser.close()

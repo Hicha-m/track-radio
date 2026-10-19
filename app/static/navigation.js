@@ -5,7 +5,8 @@
   let generation = 0;
   const notice = document.querySelector('#navigation-status');
   function mount() {
-    cleanup = window.RadioPages[location.pathname === '/recherche' ? 'search' : 'charts']();
+    const pages = {'/': 'charts', '/recherche': 'search', '/stats': 'stats', '/admin': 'admin', '/admin/catalogue': 'admin'};
+    cleanup = window.RadioPages[pages[location.pathname] || 'charts']();
     window.dispatchEvent(new Event('radio:pagechange'));
   }
   function scrollTo(url) {
@@ -32,7 +33,7 @@
         throw new Error('Une nouvelle version est disponible. Rechargez la page après votre écoute.');
       }
       cleanup?.();
-      document.querySelectorAll('.catalog-dialog').forEach(dialog => { dialog.close(); dialog.remove(); });
+      document.querySelectorAll('.catalog-dialog, .admin-edit-dialog').forEach(dialog => { dialog.close(); dialog.remove(); });
       main.replaceWith(document.importNode(next, true));
       const navigation = html.querySelector('.sidebar nav');
       document.querySelector('.sidebar nav').replaceWith(document.importNode(navigation, true));
@@ -56,11 +57,12 @@
     const link = event.target.closest('a[href]');
     if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
     const url = new URL(link.href, location.href);
-    if (url.origin !== location.origin || !['/', '/recherche'].includes(url.pathname)) return;
+    if (url.origin !== location.origin || !['/', '/recherche', '/stats', '/admin', '/admin/catalogue'].includes(url.pathname)) return;
     if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
     event.preventDefault();
     navigate(url);
   });
   window.addEventListener('popstate', () => navigate(new URL(location.href), false));
   mount();
+  window.RadioAdmin.refresh();
 })();

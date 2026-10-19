@@ -9,10 +9,11 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import TrackMetadata
+from app.models import Play, Station, TrackMetadata
 from app.security import require_admin
 from app.services.catalog import (
     fetch_json,
@@ -59,14 +60,48 @@ def metadata(
         return {
             "track_id": identity(artist, title),
             "status": "pending",
-            "candidates": [],
+            "lyrics_status": "pending",
             "lyrics": None,
             "manual": False,
         }
-    return {**public_metadata(entry), "candidates": entry.candidates, "lyrics": entry.lyrics}
+    return {**public_metadata(entry), "lyrics": entry.lyrics}
 
 
-@router.get("/spotify-match")
+@router.get("/{key}/radio")
+def radio_history(key: str, db: Db, station_id: int | None = Query(None, ge=1)):
+    if len(key) != 64 or any(c not in "0123456789abcdef" for c in key):
+        raise HTTPException(422, "Identifiant de titre invalide.")
+    where = [Play.track_id == key]
+    if station_id is not None:
+        where.append(Play.station_id == station_id)
+    total, stations, first, last = db.execute(
+        select(
+            func.count(),
+            func.count(func.distinct(Play.station_id)),
+            func.min(Play.detected_at),
+            func.max(Play.detected_at),
+        ).where(*where)
+    ).one()
+    recent = db.execute(
+        select(Station.name, Play.detected_at)
+        .select_from(Play)
+        .join(Station)
+        .where(*where)
+        .order_by(Play.detected_at.desc(), Play.id.desc())
+        .limit(3)
+    ).all()
+    return {
+        "detections": total,
+        "stations": stations,
+        "first_at": first.replace(tzinfo=UTC) if first else None,
+        "last_at": last.replace(tzinfo=UTC) if last else None,
+        "recent": [
+            {"station_name": name, "detected_at": at.replace(tzinfo=UTC)} for name, at in recent
+        ],
+    }
+
+
+@router.get("/spotify-match", dependencies=[Depends(require_admin)])
 async def spotify_match(
     db: Db,
     artist: str = Query("", max_length=300),
@@ -115,6 +150,7 @@ async def search(key: str, payload: Search, db: Db):
         entry.lyrics_candidates = candidates
     else:
         entry.candidates = candidates
+    entry.revision += 1
     # A human is reviewing this track; the worker must not overwrite the choice.
     entry.manual = True
     db.commit()
@@ -124,14 +160,24 @@ async def search(key: str, payload: Search, db: Db):
 @router.post("/{key}/correction", dependencies=[Depends(require_admin)])
 def correct(key: str, payload: Correction, db: Db):
     entry = find(db, key)
+    entry.revision += 1
     if payload.automatic:
         entry.manual = False
+        entry.automatic_done = False
+        entry.attempts = {}
+        # Retain a validated recording but retry unresolved lyrics.
+        if not entry.selected:
+            entry.status = "pending"
+            entry.candidates = []
+        if not entry.lyrics:
+            entry.lyrics_status = "pending"
         entry.retry_at = datetime.now(UTC)
     elif payload.target == "lyrics":
         choices = [c for c in entry.lyrics_candidates if c["id"] == payload.candidate_id]
         if payload.candidate_id and not choices:
             raise HTTPException(422, "Paroles absentes des propositions recherchées.")
         entry.lyrics = choices[0] if choices else None
+        entry.lyrics_status = "matched" if choices else "rejected"
         entry.manual = True
     else:
         choices = [
@@ -143,11 +189,60 @@ def correct(key: str, payload: Correction, db: Db):
             raise HTTPException(422, "Morceau absent des propositions recherchées.")
         entry.selected = choices[0] if choices else None
         entry.lyrics = None  # Lyrics for a different recording must be checked again.
+        entry.lyrics_candidates = []
+        entry.lyrics_status = "pending"
+        entry.primary_genre = ((entry.selected or {}).get("genres") or [None])[0]
         entry.provider = entry.selected["provider"] if entry.selected else entry.provider
         entry.status = "matched" if choices else "rejected"
         entry.manual = True
     db.commit()
+    from app.metrics_api import invalidate_metrics
+    from app.services.explorer import invalidate_explorer
+
+    invalidate_metrics()
+    invalidate_explorer()
     return {**public_metadata(entry), "lyrics": entry.lyrics}
+
+
+@router.post("/{key}/complete", dependencies=[Depends(require_admin)])
+async def complete_metadata(key: str, db: Db):
+    from copy import deepcopy
+
+    from app.metrics_api import invalidate_metrics
+    from app.services.catalog_completion import complete_missing
+    from app.services.explorer import invalidate_explorer
+
+    entry = find(db, key)
+    if not entry.selected:
+        raise HTTPException(409, "Validez un enregistrement avant de compléter ses informations.")
+    selected, revision = deepcopy(entry.selected), entry.revision
+    db.commit()
+    async with httpx.AsyncClient(timeout=12, headers={"User-Agent": "RadioTracker/0.1"}) as client:
+        completed, attempt = await complete_missing(client, selected)
+    entry = find(db, key)
+    db.refresh(entry)
+    if entry.revision != revision:
+        raise HTTPException(409, "La fiche a changé pendant la recherche. Rouvrez-la.")
+    attempts = {**entry.attempts, "complement": attempt}
+    changed = db.execute(
+        update(TrackMetadata)
+        .where(TrackMetadata.id == key, TrackMetadata.revision == revision)
+        .values(
+            selected=completed,
+            attempts=attempts,
+            revision=revision + 1,
+            primary_genre=(completed.get("genres") or [None])[0],
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "La fiche a changé pendant la recherche. Rouvrez-la.")
+    db.commit()
+    db.refresh(entry)
+    invalidate_metrics()
+    invalidate_explorer()
+    return {**public_metadata(entry), "completion": attempt}
 
 
 _preview_cache = OrderedDict()

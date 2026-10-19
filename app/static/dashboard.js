@@ -266,6 +266,7 @@ const onVisibility = () => { if (!document.hidden && live.checked && page === 1)
 document.addEventListener('visibilitychange', onVisibility);
 const onFilters = () => load(true, true);
 window.addEventListener('radio:filterschange', onFilters);
+window.addEventListener('radio:catalogchange', onFilters);
 load();
 
 return () => {
@@ -275,6 +276,7 @@ return () => {
   window.clearInterval(timer);
   document.removeEventListener('visibilitychange', onVisibility);
   window.removeEventListener('radio:filterschange', onFilters);
+  window.removeEventListener('radio:catalogchange', onFilters);
 };
 
 };

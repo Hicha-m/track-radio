@@ -66,12 +66,18 @@ def apply_stations(db, values):
     for value in values:
         station = existing.get(value.slug)
         if station is None:
-            db.add(Station(**value.model_dump()))
+            db.add(Station(**value.model_dump(), config_enabled=value.enabled, configured=True))
         else:
-            for field, content in value.model_dump().items():
+            station.config_enabled = value.enabled
+            station.configured = True
+            for field, content in value.model_dump(exclude={"enabled"}).items():
                 setattr(station, field, content)
+            station.enabled = (
+                station.enabled_override if station.enabled_override is not None else value.enabled
+            )
     for slug, station in existing.items():
         if slug not in wanted:
+            station.configured = False
             station.enabled = False
     db.commit()
 

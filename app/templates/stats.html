@@ -1,0 +1,27 @@
+<div class="page-heading"><span class="eyebrow">LES ONDES EN CHIFFRES</span><h1>Stats</h1><p>Répétitions, diversité et points communs entre radios.</p></div>
+<div id="stats-root">
+  <section class="panel metric-panel">
+    <p class="hint">Les heures sont celles des détections, avec une précision limitée par la cadence de collecte. Une absence de données ne signifie pas une absence de diffusion.</p>
+    <form class="filter-grid metric-filters">
+      <label>Radio des indicateurs<select name="station_id"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+      <label>Décalages · première radio<select name="station_a"><option value="">Choisir une radio</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+      <label>Décalages · seconde radio<select name="station_b"><option value="">Choisir une radio</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+    </form>
+    <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués</button><button type="button" data-refresh>Actualiser</button></div>
+  </section>
+  {% for kind, title, description in [
+    ('repetitions', 'Détecteur de répétition', 'Au moins 3 passages du même titre sur une radio. Intervalle moyen entre les détections de la fenêtre choisie.'),
+    ('diversity', 'Diversité sur 24 heures', 'Titres distincts et passages collectés par radio, sur une fenêtre glissante.'),
+    ('overlap', 'Recoupement sur 7 jours', 'Radios configurées : titres communs divisés par l’ensemble des titres des deux radios. Les effectifs communs / ensemble accompagnent chaque pourcentage.'),
+    ('offsets', 'Décalages entre radios sur 24 heures', 'Même artiste et même titre, à 5 minutes d’intervalle maximum. Chaque passage n’est associé qu’une fois ; les plus proches sont prioritaires.'),
+    ('genres', 'Genres sur 24 heures', 'Répartition des passages selon leur genre principal disponible. Les métadonnées absentes restent dans Inconnu.')
+  ] %}
+  <section class="panel metric-panel" data-metric="{{ kind }}" aria-labelledby="metric-{{ kind }}">
+    <h2 id="metric-{{ kind }}">{{ title }}</h2><p class="hint">{{ description }}</p>
+    {% if kind == 'repetitions' %}<label class="metric-period">Fenêtre<select id="repetition-hours"><option value="6">6 heures</option><option value="12" selected>12 heures</option><option value="24">24 heures</option></select></label>{% endif %}
+    <p class="hint metric-status" role="status">Chargement…</p>
+    <div class="metric-output"></div>
+    <nav class="pagination" aria-label="Pages · {{ title }}"><button type="button" data-previous disabled>← Précédent</button><span data-page>Page 1</span><button type="button" data-next disabled>Suivant →</button></nav>
+  </section>
+  {% endfor %}
+</div>

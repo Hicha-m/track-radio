@@ -23,7 +23,13 @@ def canonical_exclusions(value):
     tracks = _tracks.validate_json(value)
     if len(tracks) > 50:
         raise ValueError("Limiter la liste à 50 titres masqués.")
-    unique = {(normalize_search(t.artist or ""), normalize_search(t.title)) for t in tracks}
+    unique = {
+        (
+            normalize_search(t.artist or "").replace("’", "'"),
+            normalize_search(t.title).replace("’", "'"),
+        )
+        for t in tracks
+    }
     return (
         json.dumps(
             [{"artist": a or None, "title": t} for a, t in sorted(unique)],
@@ -52,8 +58,9 @@ def exclusion_conditions(value, unicode=True):
         ~or_(
             *[
                 and_(
-                    fold(func.coalesce(Play.artist, "")) == (t["artist"] or ""),
-                    fold(Play.title) == t["title"],
+                    func.replace(fold(func.coalesce(Play.artist, "")), "’", "'")
+                    == (t["artist"] or ""),
+                    func.replace(fold(Play.title), "’", "'") == t["title"],
                 )
                 for t in json.loads(value)
             ]

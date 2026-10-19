@@ -18,7 +18,7 @@ jobs:
         with:
           node-version: "22"
       - run: for script in app/static/*.js; do node --check "$script"; done
-      - run: node --test tests/cache.test.cjs
+      - run: node --test tests/*.test.cjs
       - run: bash -n scripts/deploy.sh
       - run: pip install --require-hashes -r requirements-dev.lock
       - run: pip install --no-deps -e .

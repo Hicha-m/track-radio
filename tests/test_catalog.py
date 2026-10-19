@@ -178,12 +178,12 @@ def test_negative_cache_and_manual_choice_survive_worker(db, monkeypatch):
 
     calls = 0
 
-    async def enrich(*args):
+    async def enrich(client, snapshot):
         nonlocal calls
         calls += 1
-        return [], None, None
+        return {**snapshot, "status": "not_found", "automatic_done": True}
 
-    monkeypatch.setattr("app.services.catalog.enrich_entry", enrich)
+    monkeypatch.setattr("app.services.catalog.enrich_progress", enrich)
     asyncio.run(enrichment_round(None, sessions))
     assert entry.status == "not_found"
     asyncio.run(enrichment_round(None, sessions))
@@ -227,11 +227,11 @@ def test_top_track_is_enriched_before_historical_entries(db, monkeypatch):
     def sessions():
         yield db
 
-    async def enrich(client, artist, title, provider):
-        calls.append(title)
-        return [], None, None
+    async def enrich(client, snapshot):
+        calls.append(snapshot["title"])
+        return {**snapshot, "status": "not_found", "automatic_done": True}
 
-    monkeypatch.setattr("app.services.catalog.enrich_entry", enrich)
+    monkeypatch.setattr("app.services.catalog.enrich_progress", enrich)
     asyncio.run(enrichment_round(None, sessions, {top.id: 100}))
     assert calls[0] == "Popular"
     assert len(calls) == 2
