@@ -1,12 +1,15 @@
 import asyncio
+import json
 from datetime import datetime
+from html import escape
 from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
 
-from app.models import Station
-from app.services.html_sources import HTML_ADAPTERS, HtmlConfig
+from app.models import Play, Station
+from app.services.collector import record_metadata
+from app.services.html_sources import HTML_ADAPTERS, HtmlConfig, parse_funradio
 from app.services.metadata import fetch_metadata
 from app.services.station_config import StationConfig, apply_stations
 
@@ -88,9 +91,90 @@ def test_funradio_adapter_preserves_existing_extraction():
     result, _ = collect(
         station(html={"adapter": "funradio"}),
         b'<div data-qect-info="[]"></div><div data-qect-info="'
-        b'{&quot;singer&quot;:&quot;Artist&quot;,&quot;title&quot;:&quot;Song&quot;}"></div>',
+        b'{&quot;singer&quot;:&quot;Artist&quot;,&quot;title&quot;:&quot;Song&quot;,&quot;start&quot;:1}"></div>',
     )
     assert (result.artist, result.title) == ("Artist", "Song")
+
+
+def fun_card(artist, title, start, quote):
+    info = json.dumps({"singer": artist, "title": title, "start": start})
+    # Browsers accept both styles; the website leaves JSON double quotes intact
+    # inside single-quoted attributes and encodes embedded apostrophes.
+    encoded = info.replace("'", "&#39;") if quote == "'" else escape(info, quote=True)
+    return f"<div data-qect-info={quote}{encoded}{quote}></div>".encode()
+
+
+@pytest.mark.parametrize("quote", ["'", '"'])
+def test_funradio_never_skips_newest_card_based_on_html_quotes(quote):
+    html = b"".join(
+        [
+            fun_card("WILLY WILLIAM", "Te Quiero", 1792430655389, quote),
+            fun_card("RIVIERA", "She Doesn't Mind", 1792430179789, '"'),
+            fun_card("BEBE REXHA/DAVID GUETTA", "Sad Girls", 1792429518346, "'"),
+        ]
+    )
+    result, _ = collect(station(html={"adapter": "funradio"}), html)
+    assert (result.artist, result.title) == ("WILLY WILLIAM", "Te Quiero")
+
+
+def test_funradio_selects_latest_timestamp_even_if_cards_are_reordered():
+    html = b"".join(
+        [
+            fun_card("RIVIERA", "She Doesn't Mind", 1792430179789, "'"),
+            fun_card("MILEY CYRUS", "Bass Persuades", 1792431060000, "'"),
+            fun_card("WILLY WILLIAM", "Te Quiero", 1792430655389, '"'),
+        ]
+    )
+    result, _ = collect(station(html={"adapter": "funradio"}), html)
+    assert (result.artist, result.title) == ("MILEY CYRUS", "Bass Persuades")
+
+
+def test_funradio_decodes_entities_once_and_keeps_structure_limit():
+    result, _ = collect(
+        station(html={"adapter": "funradio"}), fun_card("Artist", "A &amp; B", 1, '"')
+    )
+    assert result.title == "A &amp; B"
+    with pytest.raises(ValueError, match="complexe"):
+        collect(station(html={"adapter": "funradio"}), b"<b>x</b>" * 10_001)
+
+
+def test_funradio_ignores_future_cards_and_requires_source_timestamp():
+    now = datetime(2026, 10, 19, 19, 26, tzinfo=ZoneInfo("Europe/Paris"))
+    html = b"".join(
+        [
+            fun_card("MILEY CYRUS", "Bass Persuades", 1792431099477, '"'),
+            fun_card("WILLY WILLIAM", "Te Quiero", 1792430655389, "'"),
+            fun_card("RIVIERA", "She Doesn't Mind", 1792430179789, '"'),
+        ]
+    )
+    assert parse_funradio(html, now)["title"] == "Te Quiero"
+    assert parse_funradio(fun_card("Artist", "No timestamp", None, '"'), now) is None
+
+
+def test_funradio_stale_replies_do_not_create_false_replays(db):
+    radio = station(html={"adapter": "funradio"})
+    db.add(radio)
+    db.commit()
+    observed = [
+        ("RIVIERA", "She Doesn't Mind", 1000),
+        ("BEBE REXHA/DAVID GUETTA", "Sad Girls", 500),
+        ("RIVIERA", "She Doesn't Mind", 1000),
+        ("WILLY WILLIAM", "Te Quiero", 2000),
+        ("RIVIERA", "She Doesn't Mind", 1000),
+        ("WILLY WILLIAM", "Te Quiero", 2000),
+        ("MILEY CYRUS", "Bass Persuades", 3000),
+    ]
+    for artist, title, start in observed:
+        metadata, _ = collect(radio, fun_card(artist, title, start, '"'))
+        record_metadata(db, radio, metadata)
+    assert [p.title for p in db.query(Play).order_by(Play.id)] == [
+        "She Doesn't Mind",
+        "Te Quiero",
+        "Bass Persuades",
+    ]
+    # A later genuine airing of the same title must still be recorded.
+    metadata, _ = collect(radio, fun_card("MILEY CYRUS", "Bass Persuades", 4000, "'"))
+    assert record_metadata(db, radio, metadata)[1]
 
 
 @pytest.mark.parametrize(

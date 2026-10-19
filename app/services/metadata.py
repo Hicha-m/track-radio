@@ -10,7 +10,7 @@ import httpx
 
 from app.config import settings
 from app.models import Station
-from app.services.html_sources import HTML_ADAPTERS, HtmlConfig, parse_html
+from app.services.html_sources import HTML_ADAPTERS, HtmlConfig, parse_funradio, parse_html
 from app.services.network import metadata_client
 
 
@@ -20,6 +20,7 @@ class TrackMetadata:
     title: str
     raw: str
     source: str
+    source_started_ms: int | None = None
 
 
 def split_title(raw: str) -> tuple[str | None, str]:
@@ -116,6 +117,13 @@ async def fetch_html(station: Station, client: httpx.AsyncClient) -> TrackMetada
     now = datetime.now(ZoneInfo("Europe/Paris"))
     url = adapter.url(station.metadata_url, now)
     content = await read_bounded(client, url)
+    if options.adapter == "funradio":
+        info = await asyncio.to_thread(parse_funradio, content, now)
+        if info is None:
+            return None
+        raw = json.dumps(info, ensure_ascii=False)
+        checked = checked_metadata(info["singer"], info["title"], raw, "html")
+        return TrackMetadata(checked.artist, checked.title, raw, "html", info["start"])
     result = await asyncio.to_thread(parse_html, adapter, content, options)
     if result is None:
         return None

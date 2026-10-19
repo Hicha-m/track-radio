@@ -172,6 +172,8 @@ En plus du plafond réseau de 512 Kio, une page analysée par sélecteurs est li
 
 Pour les formats nécessitant un traitement Python particulier, `app/services/html_sources.py` définit le contrat `HtmlAdapter` : `url(base_url, now)` construit l’URL et `parse(content, options)` renvoie `(artiste, titre)` ou `None`. Fun Radio implémente déjà ce contrat pour son URL datée et son attribut contenant du JSON. Pour ajouter un adaptateur, l’implémenter, l’enregistrer dans `HTML_ADAPTERS`, ajouter son nom à `HtmlConfig.adapter` et ses tests, puis reconstruire l’image. La configuration ne peut pas importer ni exécuter du code arbitraire. Chaque adaptateur utilise le téléchargement commun avec ses protections réseau, limites de taille et délai ; les analyses HTML sont sérialisées pour limiter les pics de mémoire.
 
+Pour Fun Radio, les attributs HTML sont lus avec les deux styles de guillemets. La collecte choisit la carte ayant le `start` le plus récent sans dépasser l’heure de la requête ; une carte sans horodatage n’est pas enregistrée. Le JSON brut conserve `singer`, `title` et `start` (millisecondes Unix), ce qui permet de rejeter une réponse antérieure au dernier événement enregistré, même après redémarrage. Une nouvelle diffusion du même titre avec un nouvel horodatage reste distincte. Les dates affichées restent celles de détection locale. Ce correctif ne supprime ni ne réécrit les anciennes détections erronées ; les anciennes lignes sans horodatage source ne permettent pas une déduplication certaine.
+
 ## Protections
 
 Les radios sont gérées dans `config/stations.json`, synchronisé au démarrage et par le collecteur. Garder `.env` privé ; il est exclu de Git et de l’image Docker.

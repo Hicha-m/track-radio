@@ -5,9 +5,7 @@ Le téléchargement reste dans metadata.py pour partager ses protections réseau
 """
 
 import json
-import re
 from datetime import datetime
-from html import unescape
 from html.parser import HTMLParser
 from threading import Lock
 from typing import Literal, Protocol
@@ -113,18 +111,55 @@ class FunRadioAdapter:
         return f"{base_url.rstrip('/')}/{now:%d-%m-%Y}/songs?hour={now:%H}&minute={now:%M}"
 
     def parse(self, content: bytes, options: HtmlConfig) -> tuple[str | None, str] | None:
-        for encoded in re.findall(r'data-qect-info="([^"]+)"', content.decode("utf-8", "replace")):
-            try:
-                info = json.loads(unescape(encoded))
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(info, dict):
-                continue
-            title = info.get("title")
-            artist = info.get("singer")
-            if isinstance(title, str) and title.strip():
-                return artist.strip() or None if isinstance(artist, str) else None, title.strip()
-        return None
+        parser = _FunRadioParser()
+        parser.feed(content.decode("utf-8", "replace"))
+        parser.close()
+        return parser.latest
+
+
+class _FunRadioParser(_StructureGuard):
+    """Read both HTML quoting styles and choose the latest dated card.
+
+    HTMLParser decodes attribute entities exactly once, including apostrophes
+    inside JSON strings. No DOM or executable page scripts are needed.
+    """
+
+    def __init__(self, now_ms=None):
+        super().__init__()
+        self.latest = None
+        self.latest_start = -1
+        self.latest_info = None
+        self.now_ms = now_ms
+
+    def handle_starttag(self, tag, attrs):
+        self.count()
+        encoded = dict(attrs).get("data-qect-info")
+        if not encoded:
+            return
+        try:
+            info = json.loads(encoded)
+        except (ValueError, TypeError):
+            return
+        if not isinstance(info, dict):
+            return
+        title, artist = info.get("title"), info.get("singer")
+        if not isinstance(title, str) or not title.strip():
+            return
+        start = info.get("start")
+        # Historical markup without dates retains the first valid card.
+        start = start if type(start) is int and start > 0 else 0
+        if self.now_ms is not None and (not start or start > self.now_ms):
+            return
+        if start > self.latest_start:
+            self.latest_start = start
+            self.latest = (
+                (artist.strip() or None) if isinstance(artist, str) else None,
+                title.strip(),
+            )
+            self.latest_info = {"singer": self.latest[0], "title": self.latest[1], "start": start}
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
 
 
 HTML_ADAPTERS: dict[str, HtmlAdapter] = {
@@ -139,3 +174,12 @@ _parse_lock = Lock()
 def parse_html(adapter: HtmlAdapter, content: bytes, options: HtmlConfig):
     with _parse_lock:
         return adapter.parse(content, options)
+
+
+def parse_funradio(content: bytes, now: datetime):
+    """Keep the source event time so the collector can reject stale replies."""
+    with _parse_lock:
+        parser = _FunRadioParser(int(now.timestamp() * 1000))
+        parser.feed(content.decode("utf-8", "replace"))
+        parser.close()
+        return parser.latest_info
