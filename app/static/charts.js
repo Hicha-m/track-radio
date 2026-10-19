@@ -1,3 +1,5 @@
+window.RadioPages = window.RadioPages || {};
+window.RadioPages.charts = () => {
 const filters = document.querySelector('#chart-filters');
 const stationSelect = document.querySelector('#chart-station');
 const podium = document.querySelector('#chart-podium');
@@ -23,17 +25,17 @@ function trackUrl(track) {
   return `/recherche?${params}`;
 }
 function cover(track, rank, large = false) {
-  if (track.metadata?.cover_url) {
-    const art = node('img', '', 'cover');
-    art.src = track.metadata.cover_url;
-    art.alt = `Pochette de ${track.title}`;
-    art.loading = 'lazy';
-    art.addEventListener('error', () => art.replaceWith(cover({...track, metadata: null}, rank, large)), {once: true});
-    return art;
-  }
   const art = node('div', '', `cover cover-${(rank - 1) % 6}`);
   art.setAttribute('aria-hidden', 'true');
-  art.append(node('span', (track.artist || track.title).trim().slice(0, 2).toUpperCase()));
+  art.append(node('span', (track.artist || track.title).trim().slice(0, 2).toUpperCase(), 'cover-initials'));
+  if (track.metadata?.cover_url) {
+    const image = node('img', '', 'cover-image');
+    image.src = track.metadata.cover_url;
+    image.alt = '';
+    image.loading = 'lazy';
+    image.addEventListener('error', () => image.remove(), {once: true});
+    art.append(image);
+  }
   if (large) art.append(node('b', String(rank).padStart(2, '0'), 'cover-rank'));
   return art;
 }
@@ -133,6 +135,16 @@ async function loadChart(force = false) {
 filters.addEventListener('submit', event => event.preventDefault());
 filters.querySelectorAll('[data-days]').forEach(button => button.addEventListener('click', () => { days = button.dataset.days; loadChart(); }));
 stationSelect.addEventListener('change', () => loadChart());
-window.setInterval(() => { if (!document.hidden) loadChart(true); }, 30000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) loadChart(true); });
+const timer = window.setInterval(() => { if (!document.hidden) loadChart(true); }, 30000);
+const onVisibility = () => { if (!document.hidden) loadChart(true); };
+document.addEventListener('visibilitychange', onVisibility);
 loadChart();
+
+return () => {
+  chartVersion++;
+  pending?.abort();
+  window.clearInterval(timer);
+  document.removeEventListener('visibilitychange', onVisibility);
+};
+
+};

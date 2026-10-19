@@ -1,3 +1,5 @@
+window.RadioPages = window.RadioPages || {};
+window.RadioPages.search = () => {
 const form = document.querySelector('#explorer-form');
 const results = document.querySelector('#results');
 const statusLine = document.querySelector('#result-status');
@@ -161,7 +163,7 @@ function render(data) {
 
 async function load(reset = false, force = false) {
   window.clearTimeout(debounce);
-  if (!form.reportValidity()) return;
+  if (!form.isConnected || !form.reportValidity()) return;
   if (reset) { page = 1; snapshot = null; }
   if (request) request.abort();
   request = new AbortController();
@@ -255,9 +257,20 @@ document.querySelectorAll('.explore-station').forEach((button) => button.addEven
 previous.addEventListener('click', () => { if (page > 1) { page -= 1; load(); } });
 next.addEventListener('click', () => { page += 1; load(); });
 document.querySelector('#refresh').addEventListener('click', () => load(true, true));
-window.setInterval(() => {
+const timer = window.setInterval(() => {
   if (live.checked && !document.hidden && page === 1 && Date.now() - lastInput > 1000 && !results.contains(document.activeElement)
       && !results.querySelector('details[open]') && !window.getSelection()?.toString()) load(false, true);
 }, 10000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && live.checked && page === 1) load(false, true); });
+const onVisibility = () => { if (!document.hidden && live.checked && page === 1) load(false, true); };
+document.addEventListener('visibilitychange', onVisibility);
 load();
+
+return () => {
+  version++;
+  request?.abort();
+  window.clearTimeout(debounce);
+  window.clearInterval(timer);
+  document.removeEventListener('visibilitychange', onVisibility);
+};
+
+};

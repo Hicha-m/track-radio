@@ -27,9 +27,9 @@ Les données sont dans le volume `radio_data`. `docker compose down` les conserv
 
 ## Classements et recherche
 
-L’accueil présente les 20 titres les plus diffusés sur toutes les radios ou sur une radio choisie, sur 24 heures, 7 jours (par défaut), 30 jours ou tout l’historique. Le classement utilise les passages réellement collectés et s’actualise toutes les 30 secondes lorsque la page est visible. Cliquer sur un titre ouvre ses passages dans la recherche avancée. Les pochettes proviennent du catalogue musical quand une correspondance est validée ; un visuel CSS prend le relais sinon. « Détails / extrait » donne accès à la durée, au fournisseur, à l’extrait et aux paroles disponibles.
+L’accueil présente les 20 titres les plus diffusés sur toutes les radios ou sur une radio choisie, sur 24 heures, 7 jours (par défaut), 30 jours ou tout l’historique. Le classement utilise les passages réellement collectés et s’actualise toutes les 30 secondes lorsque la page est visible. Cliquer sur un titre ouvre ses passages dans la recherche avancée. Les pochettes proviennent du catalogue musical quand une correspondance est validée ; un visuel CSS prend le relais sinon. Les images restent dans un cadre carré et les numéros du podium restent superposés, y compris si une image échoue à charger. « Détails / extrait » donne accès à la durée, au fournisseur, à l’extrait et aux paroles disponibles.
 
-La recherche spécialisée est accessible sur **`/recherche`** depuis la navigation. Le lecteur radio est disponible sur les deux pages ; changer de page interrompt la lecture.
+La recherche spécialisée est accessible sur **`/recherche`** depuis la navigation. Le lecteur radio reste monté pendant la navigation interne : passer du classement à la recherche, ouvrir les passages d’un titre ou utiliser précédent/suivant conserve le même élément audio et le même flux. Une recharge complète de l’onglet ou un lien ouvert dans un autre onglet crée un nouveau lecteur.
 
 ## Cache du navigateur et catalogue musical
 
@@ -211,6 +211,23 @@ docker run --rm track-radio:test
 ```
 
 La CI vérifie Ruff, le formatage, les tests, les dépendances vulnérables et les migrations SQLite. La construction et la publication GHCR dépendent du succès de ces contrôles, avec un démarrage HTTP réel de l’image.
+
+## Vérification de l’interface et du lecteur
+
+Le lecteur dispose de commandes lecture/pause, sourdine et volume sur ordinateur. Sur mobile, il privilégie les informations du morceau, lecture/pause et sourdine ; le volume se règle avec les boutons de l’appareil. La barre réserve l’espace nécessaire et la zone de sécurité en bas d’écran. Le thème clair/sombre continue de fonctionner pendant la navigation.
+
+Un contrôle navigateur reproductible utilise une base temporaire, un serveur sur un port libre, une source WAV simulée et des images simulées. Il ne démarre pas le collecteur et ne modifie ni la base locale ni le VPS. Il vérifie les formats **402×874**, **412×915** et **1280×900**, les cadres carrés et rangs du podium, l’absence de débordement horizontal, la lecture réelle pendant les liens internes et l’historique du navigateur, les commandes et les erreurs de navigation.
+
+```bash
+# Dans l’environnement de développement, pour ce contrôle facultatif :
+pip install playwright==1.64.0
+python -m playwright install chromium
+PYTHONPATH=. python tests/browser_check.py
+# Pour étendre aux moteurs installés avec leurs bibliothèques système :
+# RADIO_BROWSER_ENGINES=chromium,webkit PYTHONPATH=. python tests/browser_check.py
+```
+
+Le test Chromium aux dimensions d’un téléphone ne remplace pas un essai sur un appareil physique. Les captures sont écrites dans `/tmp/radio-chromium-<largeur>.png`. Une erreur de chargement d’une page conserve le lecteur et affiche un message ; un changement de version du site invite à recharger après l’écoute pour éviter de mélanger des scripts de versions différentes.
 
 ## Déploiement automatique sur le VPS
 
