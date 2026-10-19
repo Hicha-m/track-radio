@@ -1,17 +1,19 @@
 name: CD
 on:
-  workflow_call:
-    inputs:
-      revision:
-        required: true
-        type: string
-permissions:
-  contents: read
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - master
+
 concurrency:
   group: production
   cancel-in-progress: false
+
 jobs:
   publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     outputs:
       digest: ${{ steps.publish.outputs.digest }}
@@ -21,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.revision }}
+          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -39,7 +41,8 @@ jobs:
         id: publish
         with:
           context: .
-          build-args: APP_REVISION=${{ inputs.revision }}
+          build-args: | 
+            APP_REVISION=${{ github.event.workflow_run.head_sha }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -75,18 +78,6 @@ jobs:
           ssh "$VPS" "mkdir -m 700 '$release'"
           tar -czf - compose.production.yaml .env.example config/stations.json scripts/deploy.sh |
             ssh "$VPS" "tar -xzf - -C '$release'"
-      - name: Upload optional Spotify credentials
-        env:
-          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
-        run: |
-          if [[ -n "$SPOTIFY_CLIENT_ID" || -n "$SPOTIFY_CLIENT_SECRET" ]]; then
-            [[ "$SPOTIFY_CLIENT_ID" =~ ^[a-zA-Z0-9]+$ ]]
-            [[ "$SPOTIFY_CLIENT_SECRET" =~ ^[a-zA-Z0-9]+$ ]]
-            release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-            printf 'SPOTIFY_CLIENT_ID=%s\nSPOTIFY_CLIENT_SECRET=%s\n' "$SPOTIFY_CLIENT_ID" "$SPOTIFY_CLIENT_SECRET" |
-              ssh "$VPS" "umask 077; cat > '$release/spotify.env'"
-          fi
       - name: Authenticate VPS to GHCR
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,13 +87,13 @@ jobs:
       - name: Deploy validated image
         env:
           IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+          TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
         run: |
           repository="${GITHUB_REPOSITORY,,}"
-          ssh "$VPS" "export DOCKER_CONFIG=\"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\"; cd 'track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'; bash scripts/deploy.sh 'ghcr.io/$repository@$IMAGE_DIGEST'"
-          curl --fail --silent --show-error --retry 5 --retry-delay 3 http://129.151.250.229/health
+          ssh "$VPS" "export DOCKER_CONFIG=\"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\"; export TUNNEL_TOKEN='$TUNNEL_TOKEN'; cd 'track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'; bash scripts/deploy.sh 'ghcr.io/$repository@$IMAGE_DIGEST'"
       - name: Remove temporary credentials
         if: always()
         run: |
-          ssh "$VPS" "rm -f 'track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/spotify.env'"
-          ssh "$VPS" "docker --config \"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\" logout ghcr.io"
+          release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh "$VPS" "rm -rf '$release' \"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\""
 

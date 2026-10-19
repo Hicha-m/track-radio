@@ -57,5 +57,3 @@ services:
 
 volumes:
   radio_data:
-  # Ancien volume conserve pour retour arriere ; aucun PostgreSQL lance par defaut.
-  postgres_data:

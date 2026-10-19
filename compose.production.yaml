@@ -51,6 +51,10 @@ services:
       timeout: 15s
       retries: 3
       start_period: 120s
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
 
 volumes:
   radio_data:
