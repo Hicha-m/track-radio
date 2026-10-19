@@ -6,7 +6,7 @@ x-common: &common
   environment:
     DATABASE_URL: sqlite:////app/data/radio.db
     ARCHIVE_DIRECTORY: /app/data/archives
-    ADMIN_TOKEN: ""
+    ADMIN_TOKEN: ${ADMIN_TOKEN:-}
   volumes:
     - radio_data:/app/data
     - ./config:/app/config:ro
@@ -26,8 +26,7 @@ x-common: &common
 services:
   api:
     <<: *common
-    ports:
-      - "80:8000"
+
     mem_limit: 160m
     cpus: 0.5
     pids_limit: 64
