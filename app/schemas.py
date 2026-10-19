@@ -43,3 +43,4 @@ class StatsOut(BaseModel):
     artist: str | None
     title: str
     plays: int = Field(ge=1)
+    metadata: dict | None = None

@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#fa243c">
   <title>{{ 'Recherche' if is_search else 'Classements' }} · Radio Tracker</title>
-  <script src="/static/theme.js"></script>
-  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/theme.js?v={{ asset_version }}"></script>
+  <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
 </head>
-<body>
+<body data-asset-version="{{ asset_version }}">
   <aside class="sidebar">
     <a class="brand" href="/"><span class="brand-mark">♫</span> Radio Tracker</a>
     <a class="search-shortcut" href="/recherche"><span aria-hidden="true">⌕</span> Rechercher une musique</a>
@@ -60,7 +60,9 @@
     <audio id="radio-player" controls preload="none" {% if selected_station %}src="{{ selected_station.stream_url }}"{% endif %}></audio><span class="player-live"><span class="live-dot"></span> RADIO EN DIRECT</span>
     <span id="player-status" class="sr-only" role="status" aria-live="polite"></span>
   </section>
-  <script src="/static/player.js"></script>
-  <script src="/static/{{ 'dashboard' if is_search else 'charts' }}.js"></script>
+  <script src="/static/cache.js?v={{ asset_version }}"></script>
+  <script src="/static/catalog.js?v={{ asset_version }}"></script>
+  <script src="/static/player.js?v={{ asset_version }}"></script>
+  <script src="/static/{{ 'dashboard' if is_search else 'charts' }}.js?v={{ asset_version }}"></script>
 </body>
 </html>

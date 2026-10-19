@@ -8,6 +8,22 @@ class Base(DeclarativeBase):
     pass
 
 
+class TrackMetadata(Base):
+    __tablename__ = "track_metadata"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    artist: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    title: Mapped[str] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    provider: Mapped[str] = mapped_column(String(20), default="deezer")
+    selected: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    candidates: Mapped[list] = mapped_column(JSON, default=list)
+    lyrics: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    lyrics_candidates: Mapped[list] = mapped_column(JSON, default=list)
+    manual: Mapped[bool] = mapped_column(Boolean, default=False)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class Station(Base):
     __tablename__ = "stations"
     id: Mapped[int] = mapped_column(primary_key=True)

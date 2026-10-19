@@ -58,3 +58,28 @@
   .topbar-actions { width: 100%; justify-content: space-between; gap: 12px; }
   .theme-toggle { font-size: 10px; padding: 5px 8px; }
 }
+
+/* Music catalogue: artwork, previews and corrections. */
+img.cover { object-fit: cover; display: block; }
+.chart-track { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+.chart-track .chart-row { flex: 1; min-width: 0; border: 0; }
+.catalog-button { color: var(--accent, #fa243c); background: transparent; border: 1px solid currentColor; border-radius: 16px; padding: 5px 10px; cursor: pointer; font: inherit; font-size: 12px; }
+.podium-card > .catalog-button { margin: 8px 0; }
+.catalog-dialog { color: var(--text, #222); background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 16px; padding: 24px; width: min(640px, 90vw); max-height: 85vh; overflow: auto; }
+.catalog-dialog::backdrop { background: rgb(0 0 0 / 50%); }
+.catalog-dialog > button:first-child { float: right; }
+.catalog-dialog audio { display: block; max-width: 100%; margin: 12px 0; }
+.catalog-art { width: 140px; height: 140px; object-fit: cover; border-radius: 8px; }
+.catalog-dialog p { margin: 12px 0; }
+.catalog-dialog details { margin-top: 20px; }
+.catalog-editor label { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
+.catalog-editor input, .catalog-editor select { font: inherit; padding: 8px; }
+.catalog-editor .text-button { margin: 8px 12px 8px 0; }
+.candidate { border-top: 1px solid var(--line); padding: 16px 0; }
+.lyrics { white-space: pre-wrap; font: inherit; max-height: 280px; overflow: auto; }
+.music-cell { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 600px) { .chart-track { flex-wrap: wrap; padding-bottom: 8px; } .chart-track .chart-row { flex-basis: 100%; } .music-cell { flex-wrap: wrap; } }
+
+#results[aria-busy=true], #chart-list[aria-busy=true] { opacity: 1; }
+
+.podium-card img.cover { width: 100%; }

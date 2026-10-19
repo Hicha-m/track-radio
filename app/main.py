@@ -1,6 +1,9 @@
+import hashlib
+import os
 import re
 import unicodedata
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -11,19 +14,25 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.catalog_api import router as catalog_router
 from app.config import settings
 from app.database import get_db
 from app.models import Play, Station
 from app.schemas import PlayOut, StationCreate, StationOut, StatsOut
 from app.security import SecurityMiddleware, require_admin
+from app.services.catalog import attach_metadata
 from app.services.explorer import ExploreFilters, explore
 from app.services.network import resolve_public, validate_url
 from app.services.stats import cached_top
 
 app = FastAPI(title="Radio Tracker", version="0.1.0")
 app.add_middleware(SecurityMiddleware)
+app.include_router(catalog_router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+ASSET_VERSION = hashlib.sha256(
+    b"".join(p.read_bytes() for p in sorted(Path("app/static").glob("*")) if p.is_file())
+).hexdigest()[:12]
 DbSession = Annotated[Session, Depends(get_db)]
 
 
@@ -33,9 +42,15 @@ def health(db: DbSession):
     return {"status": "ok"}
 
 
+@app.get("/api/version")
+def version():
+    return {"revision": os.getenv("APP_REVISION", "development"), "assets": ASSET_VERSION}
+
+
 @app.get("/api/explore")
 def explore_database(db: DbSession, filters: Annotated[ExploreFilters, Query()]):
-    return explore(db, filters)
+    result = explore(db, filters)
+    return {**result, "items": attach_metadata(db, result["items"])}
 
 
 @app.get("/api/stations", response_model=list[StationOut])
@@ -138,10 +153,14 @@ def top_tracks(
     until: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ):
-    return [
-        StatsOut(artist=a, title=t, plays=c)
-        for a, t, c in cached_top(db, station_id, since, until, limit)
-    ]
+    enriched = attach_metadata(
+        db,
+        [
+            {"artist": a, "title": t, "plays": c}
+            for a, t, c in cached_top(db, station_id, since, until, limit)
+        ],
+    )
+    return [StatsOut(**track) for track in enriched]
 
 
 def parse_station_id(value: str | None) -> int | None:
@@ -171,5 +190,6 @@ def dashboard(
             "station_id": station_id,
             "selected_station": selected_station,
             "is_search": request.url.path == "/recherche",
+            "asset_version": ASSET_VERSION,
         },
     )

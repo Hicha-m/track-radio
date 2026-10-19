@@ -13,6 +13,7 @@ let debounce = null;
 let resettingFromStation = false;
 let lastInput = 0;
 let shownPage = 1;
+let rendered = null;
 
 function element(tag, text = '', className = '') {
   const node = document.createElement(tag);
@@ -89,6 +90,9 @@ function selectTrack(item) {
 }
 
 function render(data) {
+  const signature = JSON.stringify([form.elements.view.value, data]);
+  if (signature === rendered) return;
+  rendered = signature;
   const tracks = form.elements.view.value === 'tracks';
   const table = document.createElement('table');
   const header = document.createElement('tr');
@@ -117,7 +121,10 @@ function render(data) {
       row.append(td);
     };
     if (!tracks) cell(formatDate(item.detected_at));
-    cell(action(item.title, () => selectTrack(item), 'Voir les passages de cette musique'));
+    const music = element('div', '', 'music-cell');
+    music.append(action(item.title, () => selectTrack(item), 'Voir les passages de cette musique'));
+    music.append(window.TrackCatalog.button(item));
+    cell(music);
     cell(action(item.artist || 'Artiste inconnu', () => selectArtist(item.artist), 'Voir les musiques de cet artiste'));
     if (tracks) {
       cell(Number(item.plays).toLocaleString('fr-FR'));
@@ -152,7 +159,7 @@ function render(data) {
     : 'Aucun résultat. Essayez de retirer un filtre.';
 }
 
-async function load(reset = false) {
+async function load(reset = false, force = false) {
   window.clearTimeout(debounce);
   if (!form.reportValidity()) return;
   if (reset) { page = 1; snapshot = null; }
@@ -168,8 +175,20 @@ async function load(reset = false) {
   document.querySelector('#active-filters').textContent = active.length ? `${active.length} filtre(s) actif(s)` : 'Tout l’historique actif';
   params.set('page', page);
   if (snapshot !== null && page > 1) params.set('snapshot_id', snapshot);
+  params.sort();
+  const cacheKey = `explore:${params}`;
+  const cached = window.RadioCache.get(cacheKey);
+  if (cached) {
+    snapshot = cached.data.snapshot_id;
+    render(cached.data);
+    statusLine.textContent = `Résultats mémorisés · ${new Date(cached.time).toLocaleTimeString('fr-FR')}`;
+    if (!force && Date.now() - cached.time < 60000) {
+      results.setAttribute('aria-busy', 'false');
+      return;
+    }
+  }
   results.setAttribute('aria-busy', 'true');
-  statusLine.textContent = 'Recherche en cours…';
+  if (!cached) statusLine.textContent = 'Recherche en cours…';
   try {
     const response = await fetch(`/api/explore?${params}`, {signal: request.signal, cache: 'no-store'});
     const data = await response.json();
@@ -178,12 +197,14 @@ async function load(reset = false) {
       const detail = typeof data.detail === 'string' ? data.detail : data.detail?.[0]?.msg;
       throw new Error(detail || 'Recherche impossible. Réessayez.');
     }
+    window.RadioCache.put(cacheKey, data);
     snapshot = data.snapshot_id;
     render(data);
+    statusLine.textContent = `${data.items.length} résultat(s) sur cette page · actualisé à ${new Date().toLocaleTimeString('fr-FR')}`;
   } catch (error) {
     if (error.name !== 'AbortError' && current === version) {
       page = shownPage;
-      statusLine.textContent = error.message;
+      statusLine.textContent = `${error.message}${cached ? ' · Résultats mémorisés conservés.' : ''}`;
     }
   } finally {
     if (current === version) results.setAttribute('aria-busy', 'false');
@@ -233,10 +254,10 @@ document.querySelectorAll('.explore-station').forEach((button) => button.addEven
 }));
 previous.addEventListener('click', () => { if (page > 1) { page -= 1; load(); } });
 next.addEventListener('click', () => { page += 1; load(); });
-document.querySelector('#refresh').addEventListener('click', () => load(true));
+document.querySelector('#refresh').addEventListener('click', () => load(true, true));
 window.setInterval(() => {
   if (live.checked && !document.hidden && page === 1 && Date.now() - lastInput > 1000 && !results.contains(document.activeElement)
-      && !results.querySelector('details[open]') && !window.getSelection()?.toString()) load();
+      && !results.querySelector('details[open]') && !window.getSelection()?.toString()) load(false, true);
 }, 10000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && live.checked && page === 1) load(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && live.checked && page === 1) load(false, true); });
 load();

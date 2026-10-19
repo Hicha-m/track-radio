@@ -9,7 +9,7 @@ from app.config import settings
 def require_admin(request: Request):
     expected = settings.admin_token.get_secret_value()
     if not expected:
-        raise HTTPException(503, "Ajout désactivé : configurer ADMIN_TOKEN côté serveur.")
+        raise HTTPException(503, "Administration désactivée : configurer ADMIN_TOKEN côté serveur.")
     supplied = request.headers.get("authorization", "")
     if not secrets.compare_digest(supplied.encode(), f"Bearer {expected}".encode()):
         raise HTTPException(401, "Clé administrateur invalide.")
@@ -22,7 +22,7 @@ class SecurityMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
-        if scope["method"] == "POST":
+        if scope["method"] in {"POST", "PUT", "PATCH"}:
             body = bytearray()
             try:
                 async with asyncio.timeout(10):
@@ -60,7 +60,7 @@ class SecurityMiddleware:
         async def secured_send(message):
             if message["type"] == "http.response.start":
                 policy = (
-                    b"default-src 'self'; media-src http: https:; "
+                    b"default-src 'self'; media-src http: https:; img-src 'self' https:; "
                     b"object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
                 )
                 if scope["path"] in {"/docs", "/redoc", "/docs/oauth2-redirect"}:

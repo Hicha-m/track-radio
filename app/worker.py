@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import SessionLocal
 from app.models import Station
+from app.services.catalog import enrichment_loop, ensure_entry
 from app.services.collector import record_metadata
 from app.services.maintenance import archive_old_plays
 from app.services.metadata import fetch_metadata
@@ -38,7 +39,9 @@ def save_metadata(station_id, metadata):
         station = db.get(Station, station_id)
         if not station or not station.enabled:
             return False
-        _, created = record_metadata(db, station, metadata)
+        play, created = record_metadata(db, station, metadata)
+        ensure_entry(db, play.artist, play.title)
+        db.commit()
         return created
 
 
@@ -107,4 +110,8 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+
+    async def run():
+        await asyncio.gather(main(), enrichment_loop(SessionLocal))
+
+    asyncio.run(run())

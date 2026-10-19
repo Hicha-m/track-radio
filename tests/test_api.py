@@ -27,7 +27,11 @@ def test_filtered_api_functions(db):
     result = plays(db, station_id=station.id, limit=100)
     assert result[0].title == "Track"
     stats = top_tracks(db, station_id=station.id, limit=20)
-    assert stats[0].model_dump() == {"artist": "Artist", "title": "Track", "plays": 1}
+    assert stats[0].model_dump(exclude={"metadata"}) == {
+        "artist": "Artist",
+        "title": "Track",
+        "plays": 1,
+    }
 
 
 def test_create_station_generates_unique_slug(db, monkeypatch):

@@ -7,6 +7,7 @@ let days = new URLSearchParams(location.search).get('days') || '7';
 if (!['1', '7', '30', 'all'].includes(days)) days = '7';
 let pending;
 let chartVersion = 0;
+let renderedChart = null;
 
 function node(tag, text = '', className = '') {
   const result = document.createElement(tag);
@@ -22,7 +23,14 @@ function trackUrl(track) {
   return `/recherche?${params}`;
 }
 function cover(track, rank, large = false) {
-  // Placeholder only: future artwork can replace this node without changing the layout.
+  if (track.metadata?.cover_url) {
+    const art = node('img', '', 'cover');
+    art.src = track.metadata.cover_url;
+    art.alt = `Pochette de ${track.title}`;
+    art.loading = 'lazy';
+    art.addEventListener('error', () => art.replaceWith(cover({...track, metadata: null}, rank, large)), {once: true});
+    return art;
+  }
   const art = node('div', '', `cover cover-${(rank - 1) % 6}`);
   art.setAttribute('aria-hidden', 'true');
   art.append(node('span', (track.artist || track.title).trim().slice(0, 2).toUpperCase()));
@@ -38,6 +46,9 @@ function count(track) {
   return node('span', `${Number(track.plays).toLocaleString('fr-FR')} ${track.plays === 1 ? 'diffusion' : 'diffusions'}`, 'play-count');
 }
 function renderChart(tracks) {
+  const signature = JSON.stringify([stationSelect.value, tracks]);
+  if (signature === renderedChart) return;
+  renderedChart = signature;
   const cards = [];
   const rows = [];
   tracks.forEach((track, index) => {
@@ -50,12 +61,14 @@ function renderChart(tracks) {
       const meta = node('div', '', 'podium-meta');
       meta.append(copy(track), count(track));
       link.append(cover(track, rank, true), meta);
-      card.append(link);
+      card.append(link, window.TrackCatalog.button(track));
       cards.push(card);
     } else {
       link.className = 'chart-row';
       link.append(node('span', String(rank).padStart(2, '0'), 'rank'), cover(track, rank), copy(track), count(track), node('span', '↗', 'row-arrow'));
-      rows.push(link);
+      const row = node('div', '', 'chart-track');
+      row.append(link, window.TrackCatalog.button(track));
+      rows.push(row);
     }
   });
   podium.replaceChildren(...cards);
@@ -63,13 +76,13 @@ function renderChart(tracks) {
   if (!tracks.length) list.append(node('p', 'Aucune diffusion sur cette période. Essayez une autre période ou une autre radio.', 'empty'));
   status.textContent = tracks.length ? `Top ${tracks.length} · Classement par nombre de diffusions observées` : 'Le classement attend ses premiers titres.';
 }
-async function loadChart() {
+async function loadChart(force = false) {
   if (pending) pending.abort();
   pending = new AbortController();
   const version = ++chartVersion;
   const params = new URLSearchParams({limit: '20'});
   if (stationSelect.value) params.set('station_id', stationSelect.value);
-  if (days !== 'all') params.set('since', new Date(Date.now() - Number(days) * 86400000).toISOString());
+  if (days !== 'all') params.set('since', new Date(Math.floor(Date.now() / 30000) * 30000 - Number(days) * 86400000).toISOString());
   const shared = new URLSearchParams({days});
   if (stationSelect.value) shared.set('station_id', stationSelect.value);
   history.replaceState(null, '', `/?${shared}${location.hash}`);
@@ -80,21 +93,37 @@ async function loadChart() {
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', String(active));
   });
+  const cacheKey = `chart:${stationSelect.value}:${days}`;
+  const cached = window.RadioCache.get(cacheKey);
+  if (cached) {
+    renderChart(cached.data);
+    status.textContent = `Classement mémorisé · ${new Date(cached.time).toLocaleTimeString('fr-FR')}`;
+    if (!force && Date.now() - cached.time < 60000) {
+      list.setAttribute('aria-busy', 'false');
+      return;
+    }
+  }
   list.setAttribute('aria-busy', 'true');
-  status.textContent = 'Actualisation du classement…';
+  if (!cached) status.textContent = 'Actualisation du classement…';
   try {
     const response = await fetch(`/api/stats/top?${params}`, {signal: pending.signal, cache: 'no-store'});
     if (!response.ok) throw new Error('Classement indisponible. Réessayez dans quelques instants.');
     const data = await response.json();
-    if (version === chartVersion) renderChart(data);
+    if (version === chartVersion) {
+      window.RadioCache.put(cacheKey, data);
+      renderChart(data);
+      status.textContent = `Top ${data.length} · actualisé à ${new Date().toLocaleTimeString('fr-FR')}`;
+    }
   } catch (error) {
     if (error.name !== 'AbortError' && version === chartVersion) {
-      status.textContent = error.message;
+      status.textContent = `${error.message}${cached ? ' · Classement mémorisé conservé.' : ''}`;
+      if (cached) return;
+      renderedChart = null;
       podium.replaceChildren();
       list.replaceChildren();
       const retry = node('button', 'Réessayer', 'text-button');
       retry.type = 'button';
-      retry.addEventListener('click', loadChart);
+      retry.addEventListener('click', () => loadChart(true));
       list.append(retry);
     }
   } finally {
@@ -103,7 +132,7 @@ async function loadChart() {
 }
 filters.addEventListener('submit', event => event.preventDefault());
 filters.querySelectorAll('[data-days]').forEach(button => button.addEventListener('click', () => { days = button.dataset.days; loadChart(); }));
-stationSelect.addEventListener('change', loadChart);
-window.setInterval(() => { if (!document.hidden) loadChart(); }, 30000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) loadChart(); });
+stationSelect.addEventListener('change', () => loadChart());
+window.setInterval(() => { if (!document.hidden) loadChart(true); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadChart(true); });
 loadChart();

@@ -18,6 +18,8 @@ COPY tests ./tests
 CMD ["pytest", "--cov=app", "--cov-report=term-missing"]
 
 FROM base AS runtime
+ARG APP_REVISION=development
+ENV APP_REVISION=$APP_REVISION
 COPY app ./app
 COPY alembic.ini pyproject.toml ./
 COPY migrations ./migrations

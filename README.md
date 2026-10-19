@@ -27,13 +27,31 @@ Les données sont dans le volume `radio_data`. `docker compose down` les conserv
 
 ## Classements et recherche
 
-L’accueil présente les 20 titres les plus diffusés sur toutes les radios ou sur une radio choisie, sur 24 heures, 7 jours (par défaut), 30 jours ou tout l’historique. Le classement utilise les passages réellement collectés et s’actualise toutes les 30 secondes lorsque la page est visible. Cliquer sur un titre ouvre ses passages dans la recherche avancée. Les pochettes sont des visuels provisoires générés en CSS, sans service externe d’images.
+L’accueil présente les 20 titres les plus diffusés sur toutes les radios ou sur une radio choisie, sur 24 heures, 7 jours (par défaut), 30 jours ou tout l’historique. Le classement utilise les passages réellement collectés et s’actualise toutes les 30 secondes lorsque la page est visible. Cliquer sur un titre ouvre ses passages dans la recherche avancée. Les pochettes proviennent du catalogue musical quand une correspondance est validée ; un visuel CSS prend le relais sinon. « Détails / extrait » donne accès à la durée, au fournisseur, à l’extrait et aux paroles disponibles.
 
 La recherche spécialisée est accessible sur **`/recherche`** depuis la navigation. Le lecteur radio est disponible sur les deux pages ; changer de page interrompt la lecture.
 
+## Cache du navigateur et catalogue musical
+
+Chaque onglet mémorise jusqu’à 40 combinaisons de filtres dans `sessionStorage` (ou en mémoire si le stockage est refusé). Revenir à un filtre affiche immédiatement son résultat connu. Pendant 60 secondes, ce retour évite une requête ; les actualisations automatiques continuent à interroger uniquement notre API, toutes les 30 secondes pour le classement et toutes les 10 secondes pour la recherche lorsque le direct est activé. Un résultat mémorisé plus ancien peut s’afficher pendant sa mise à jour ou une panne, jusqu’à 5 minutes. Les réponses identiques ne reconstruisent pas les lignes. Les fichiers CSS/JS portent une empreinte de contenu : une nouvelle version invalide également ce cache.
+
+Le collecteur enrichit les musiques **en arrière-plan**, indépendamment des filtres et de la collecte radio. Il traite au plus **2 morceaux**, puis attend **20 secondes**. Chaque morceau peut demander une recherche Deezer, une fiche détaillée et une recherche LRCLIB. Les 100 titres du classement global des 7 derniers jours passent en priorité ; cette priorité est recalculée chaque minute. Le reste de l’historique est inscrit dans la file par lots de 200 passages, sans charger la base entière. Une erreur d’enrichissement n’arrête pas la collecte des radios.
+
+Les résultats sont conservés dans SQLite : nouvelle vérification après 6 heures pour les correspondances automatiques, 7 jours pour les résultats absents ou ambigus, 15 minutes pour une erreur. Une réponse HTTP 429 ou 503 suspend les requêtes vers ce fournisseur selon `Retry-After` (15 minutes par défaut, entre 1 minute et 24 heures). L’extrait validé est résolu au clic, avec un cache de 60 secondes, pour renouveler les URL Deezer temporaires. L’audio est lu depuis le fournisseur, sans être stocké par le serveur.
+
+Un identifiant interne stable est calculé à partir de l’artiste et du titre, avec normalisation de la casse, des accents et des espaces. Un même titre sur plusieurs radios partage sa fiche ; chaque passage reste conservé. L’identifiant de l’enregistrement est son ISRC lorsque disponible, sinon `deezer:<id>` ou `itunes:<id>`. Il permet de repérer les libellés qui renvoient au même enregistrement. **Les classements continuent à regrouper par artiste/titre collectés** : aucune fusion approximative ou suppression des passages n’est effectuée.
+
+La sélection automatique exige un seul candidat correspondant à l’artiste et au titre. Les mentions remix/live/radio edit ne sont pas retirées pour forcer un rapprochement. Plusieurs candidats, un invité différent, un artiste inconnu ou un résultat douteux restent à vérifier. Les paroles ne sont automatiquement liées qu’en cas de correspondance unique avec une durée à deux secondes près.
+
+Dans « Détails / extrait » → « Corriger les informations », une administration authentifiée permet de modifier la recherche, choisir Deezer ou Apple Music via l’API iTunes, choisir les paroles LRCLIB, retirer une mauvaise correspondance ou relancer l’automatisme. La clé `ADMIN_TOKEN` est saisie pour l’opération et n’est pas stockée dans le navigateur. Un choix manuel est conservé ; une recherche manuelle suspend l’automatisme pour préserver les propositions pendant la vérification. Changer d’enregistrement retire les anciennes paroles pour éviter de les attribuer à une autre version. La correction concerne la fiche musicale ; elle ne réécrit pas les métadonnées brutes des radios.
+
+Le déploiement HTTP actuel désactive déjà l’administration dans `compose.production.yaml`. Les corrections y restent donc désactivées. Pour les activer, utiliser une configuration HTTPS avec un `ADMIN_TOKEN` non vide ; aucune clé n’est ajoutée automatiquement au VPS. Deezer et l’API de recherche iTunes ne nécessitent pas de secret dans cette intégration. Spotify n’est pas intégré à ce stade : son authentification serveur demande un Client ID et un Client Secret pour obtenir un jeton d’accès, conformément à sa [documentation](https://developer.spotify.com/documentation/web-api/tutorials/client-credentials-flow). Aucun identifiant Spotify communiqué dans le chat n’a été enregistré dans le projet.
+
+Les sauvegardes `scripts/transfer.py` comprennent le catalogue, les propositions, les paroles et les choix manuels. Les anciennes sauvegardes sans catalogue restent importables. La migration `0004` crée uniquement une table de métadonnées et conserve les passages existants.
+
 ## Explorer la base en direct
 
-La page affiche un explorateur sans bouton « Filtrer » : les champs de recherche se combinent et les résultats se mettent à jour après 350 ms de frappe. Les changements de listes et de dates s’appliquent immédiatement. L’actualisation automatique vérifie les nouveaux résultats toutes les 10 secondes lorsque la page est visible, avec un cache serveur de 3 secondes maximum. Les radios restent collectées à leur propre cadence.
+La page affiche un explorateur sans bouton « Filtrer » : les champs de recherche se combinent et les résultats se mettent à jour après 350 ms de frappe. Les changements de listes et de dates s’appliquent immédiatement. L’actualisation automatique vérifie les nouveaux résultats toutes les 10 secondes lorsque la page est visible, avec un cache serveur de 3 secondes maximum pour les résultats de recherche. Les radios restent collectées à leur propre cadence.
 
 - **Passages** : chaque diffusion, sa station, sa date, sa source, sa dernière observation et ses métadonnées brutes.
 - **Musiques** : regroupement par artiste et titre, nombre de passages, nombre de stations et première/dernière diffusion.
@@ -125,6 +143,11 @@ Les passages dont la dernière observation date de plus de `RETENTION_DAYS=180` 
 Documentation interactive : http://127.0.0.1:8080/docs
 
 - `GET /api/explore?view=plays&artist=etoile&page_size=50` (mêmes filtres que l’interface ; `view=tracks` pour les musiques)
+- `GET /api/version` : révision de l’image et empreinte des fichiers statiques
+- `GET /api/catalog?artist=Mosimann&title=Soon` : fiche et propositions stockées, sans recherche externe
+- `GET /api/catalog/{track_id}/preview` : redirection vers l’extrait de la version validée
+- `POST /api/catalog/{track_id}/search` : recherche authentifiée, corps `{ "provider": "deezer", "artist": "Mosimann", "title": "Soon" }` (`itunes` et `lrclib` disponibles)
+- `POST /api/catalog/{track_id}/correction` : choix authentifié via `candidate_id`, retrait via `null`, ou relance via `{ "automatic": true }`
 - `GET /api/stations`
 - `POST /api/stations` avec authentification et `{"name":"Ma radio","stream_url":"https://…","enabled":true}`
 - `GET /api/plays?station_id=1&since=2026-10-01T00:00:00Z&until=2026-10-02T00:00:00Z&limit=100`
@@ -244,3 +267,9 @@ Les fichiers `requirements.lock` et `requirements-dev.lock` verrouillent les dé
 ## Santé des conteneurs
 
 `healthy` correspond à un contrôle périodique indépendant de l’affichage du site. Pendant un démarrage lent, ce contrôle peut échouer alors que le serveur devient ensuite disponible. L’API dispose d’un délai initial de 120 secondes et le contrôle d’un plafond de 15 secondes ; il utilise directement `127.0.0.1`, sans proxy ni résolution de nom. Le contrôle du collecteur vérifie l’âge de son fichier de progression avec la bibliothèque standard, sans charger l’application et ses dépendances. Pour diagnostiquer une erreur persistante : `docker inspect --format '{{json .State.Health}}' track-radio-api-1` et `docker compose logs --tail 50 api collector`.
+
+## Vérification du déploiement et référence visuelle
+
+Le 19 octobre 2026, une comparaison HTTP de l’accueil, de `style.css` et de `charts.js` a donné les mêmes empreintes entre `http://127.0.0.1:8081/` et `http://129.151.250.229/`. Le dernier workflow du commit `51e8048` était réussi, déploiement compris. Aucune modification du VPS n’a été effectuée. La nouvelle route `/api/version` et les URL des assets avec empreinte permettront d’identifier les versions lors des prochains déploiements par CD. Une différence visuelle malgré des fichiers identiques peut notamment provenir du cache du navigateur, du thème ou de la largeur de la fenêtre ; cela n’établit pas à lui seul un échec du CD.
+
+Le fichier Figma fourni (`7Otth1wuOkPBCOUzTUSGWt`) expose une page `Cover` avec un cadre de présentation et des images d’écrans iPhone. Il ne contient pas de bibliothèque de composants ou d’écrans éditables permettant une vérification détaillée. L’interface actuelle reprend des conventions Apple Music (accent rose, pochettes, listes, lecteur), mais une conformité écran par écran ne peut pas être certifiée avec cette seule couverture. Aucun écran n’a été reconstruit à partir des images de présentation.

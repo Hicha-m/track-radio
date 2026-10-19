@@ -58,3 +58,43 @@ def test_incomplete_import_rolls_back_all_rows(tmp_path, monkeypatch):
     with engine.connect() as connection:
         assert connection.scalar(select(func.count()).select_from(Station)) == 0
     engine.dispose()
+
+
+def test_metadata_and_manual_correction_survive_backup(tmp_path, monkeypatch):
+    from sqlalchemy.orm import Session
+
+    from app.models import TrackMetadata
+    from app.services.catalog import ensure_entry
+
+    engine = make_engine(f"sqlite:///{tmp_path / 'metadata.db'}")
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(transfer, "engine", engine)
+    with Session(engine) as db:
+        entry = ensure_entry(db, "Mosimann", "Soon")
+        entry.manual = True
+        entry.selected = {"provider": "deezer", "provider_id": "42"}
+        entry.lyrics = {"plain": "Words", "provider": "lrclib"}
+        key = entry.id
+        db.commit()
+    path = tmp_path / "metadata.gz"
+    transfer.export_data(path)
+    with engine.begin() as conn:
+        conn.execute(TrackMetadata.__table__.delete())
+    transfer.import_data(path)
+    with Session(engine) as db:
+        restored = db.get(TrackMetadata, key)
+        assert restored.manual
+        assert restored.selected["provider_id"] == "42"
+        assert restored.lyrics["plain"] == "Words"
+    engine.dispose()
+
+
+def test_old_archive_without_metadata_imports(tmp_path, monkeypatch):
+    engine = make_engine(f"sqlite:///{tmp_path / 'legacy.db'}")
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(transfer, "engine", engine)
+    path = tmp_path / "legacy.gz"
+    with gzip.open(path, "wt") as output:
+        output.write(json.dumps({"counts": {"stations": 0, "plays": 0}}) + "\n")
+    transfer.import_data(path)
+    engine.dispose()

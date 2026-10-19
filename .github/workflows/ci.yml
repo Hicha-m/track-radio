@@ -15,7 +15,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: node --check app/static/dashboard.js
+      - run: for script in app/static/*.js; do node --check "$script"; done
+      - run: node --test tests/cache.test.cjs
       - run: bash -n scripts/deploy.sh
       - run: pip install --require-hashes -r requirements-dev.lock
       - run: pip install --no-deps -e .
@@ -46,7 +47,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - name: Build and smoke test runtime
         run: |
-          docker build --target runtime -t radio-smoke .
+          docker build --target runtime --build-arg APP_REVISION="$GITHUB_SHA" -t radio-smoke .
           docker run -d --name radio-smoke --memory=160m --cpus=0.5 -p 127.0.0.1:8080:8000 -e DATABASE_URL=sqlite:////app/data/radio.db radio-smoke
           trap 'docker logs radio-smoke; docker rm -f radio-smoke' EXIT
           for attempt in $(seq 1 30); do
@@ -56,6 +57,7 @@ jobs:
           curl --fail --silent 'http://127.0.0.1:8080/?station_id=&hours=24' > /dev/null
           curl --fail --silent http://127.0.0.1:8080/static/dashboard.js > /dev/null
           curl --fail --silent 'http://127.0.0.1:8080/api/explore?view=tracks' > /dev/null
+          curl --fail --silent http://127.0.0.1:8080/api/version | python -c 'import json,os,sys; assert json.load(sys.stdin)["revision"] == os.environ["GITHUB_SHA"]'
       - uses: docker/login-action@v3
         if: github.event_name != 'pull_request'
         with:
@@ -73,6 +75,7 @@ jobs:
         id: publish
         with:
           context: .
+          build-args: APP_REVISION=${{ github.sha }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
