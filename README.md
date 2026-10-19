@@ -25,6 +25,12 @@ docker stats --no-stream
 
 Les données sont dans le volume `radio_data`. `docker compose down` les conserve. Ne pas utiliser `down --volumes` pour un simple redémarrage.
 
+## Classements et recherche
+
+L’accueil présente les 20 titres les plus diffusés sur toutes les radios ou sur une radio choisie, sur 24 heures, 7 jours (par défaut), 30 jours ou tout l’historique. Le classement utilise les passages réellement collectés et s’actualise toutes les 30 secondes lorsque la page est visible. Cliquer sur un titre ouvre ses passages dans la recherche avancée. Les pochettes sont des visuels provisoires générés en CSS, sans service externe d’images.
+
+La recherche spécialisée est accessible sur **`/recherche`** depuis la navigation. Le lecteur radio est disponible sur les deux pages ; changer de page interrompt la lecture.
+
 ## Explorer la base en direct
 
 La page affiche un explorateur sans bouton « Filtrer » : les champs de recherche se combinent et les résultats se mettent à jour après 350 ms de frappe. Les changements de listes et de dates s’appliquent immédiatement. L’actualisation automatique vérifie les nouveaux résultats toutes les 10 secondes lorsque la page est visible, avec un cache serveur de 3 secondes maximum. Les radios restent collectées à leur propre cadence.

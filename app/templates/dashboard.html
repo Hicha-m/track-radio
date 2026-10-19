@@ -3,79 +3,64 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Radio Tracker</title>
+  <meta name="theme-color" content="#fa243c">
+  <title>{{ 'Recherche' if is_search else 'Classements' }} · Radio Tracker</title>
+  <script src="/static/theme.js"></script>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header>
-    <div><span class="eyebrow">EN DIRECT</span><h1>Radio Tracker</h1><p>Écouter, suivre et comparer les radios.</p></div>
-    <a href="/docs">API ↗</a>
-  </header>
-  <main>
-    <section class="player panel" data-station-id="{{ station_id or '' }}">
-      <div class="player-copy">
-        <span class="eyebrow">LECTEUR</span>
-        <strong id="player-name">{{ selected_station.name if selected_station else 'Choisissez une radio' }}</strong>
-        <div class="now-playing" aria-live="polite">
-          <span>EN LECTURE</span>
-          <strong id="track-title">Sélectionnez une radio</strong>
-          <small id="track-artist"></small>
-        </div>
-      </div>
-      <audio id="radio-player" controls preload="none" {% if selected_station %}src="{{ selected_station.stream_url }}"{% endif %}></audio>
-    </section>
-    <section class="stations">
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark">♫</span> Radio Tracker</a>
+    <a class="search-shortcut" href="/recherche"><span aria-hidden="true">⌕</span> Rechercher une musique</a>
+    <p class="nav-label">DÉCOUVRIR</p>
+    <nav aria-label="Navigation principale">
+      <a href="/" class="nav-item {{ 'active' if not is_search else '' }}" {% if not is_search %}aria-current="page"{% endif %}><span aria-hidden="true">▥</span> Classements</a>
+      <a href="/#radios" class="nav-item"><span aria-hidden="true">◉</span> Radios</a>
+      <a href="/recherche" class="nav-item {{ 'active' if is_search else '' }}" {% if is_search %}aria-current="page"{% endif %}><span aria-hidden="true">⌕</span> Recherche avancée</a>
+    </nav>
+    <div class="sidebar-bottom"><span class="live-dot"></span> Au rythme des radios<p>Vos titres. Toutes les fréquences.</p></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><a href="/recherche">Explorer les diffusions <span aria-hidden="true">↗</span></a><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
+    <main>
+      {% if is_search %}
+      <div class="page-heading"><span class="eyebrow">VOTRE EXPLORATEUR MUSICAL</span><h1>Recherche avancée</h1><p>Retrouvez un titre, un artiste ou un passage à la radio.</p></div>
+      {% include 'search.html' %}
+      {% else %}
+      <div class="page-heading"><span class="eyebrow">LE POULS DES RADIOS</span><h1>Classements</h1><p>Les titres qui font vibrer les ondes.</p></div>
+      <section class="chart-hero" aria-label="Le classement radio">
+        <div class="hero-copy"><span class="hero-kicker">EN ROTATION</span><h2>Sur toutes<br>les ondes.</h2><p>Les musiques les plus diffusées.<br>Toutes vos radios, un seul classement.</p><a class="hero-button" href="#classement">Découvrir le top <span aria-hidden="true">↓</span></a></div>
+        <div class="hero-art" aria-hidden="true"><div class="record"><div class="record-label">radio<br><b>hits.</b><span>VOL. 01</span></div></div><span class="art-caption">LES TITRES DU MOMENT</span></div>
+      </section>
+      <section id="classement" class="chart-section" aria-labelledby="chart-title">
+        <div class="section-heading"><div><h2 id="chart-title">Les plus diffusés</h2><p id="chart-subtitle">Toutes les radios · 7 derniers jours</p></div><span class="update-badge"><span class="live-dot"></span> Actualisé automatiquement</span></div>
+        <form id="chart-filters" class="chart-filters"><div class="period-tabs" role="group" aria-label="Période du classement"><button type="button" data-days="1" aria-pressed="false">24 heures</button><button type="button" data-days="7" class="active" aria-pressed="true">7 jours</button><button type="button" data-days="30" aria-pressed="false">30 jours</button><button type="button" data-days="all" aria-pressed="false">Tout l’historique</button></div><label class="station-filter"><span class="sr-only">Radio du classement</span><select id="chart-station"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}" {% if station.id == station_id %}selected{% endif %}>{{ station.name }}</option>{% endfor %}</select></label></form>
+        <p id="chart-status" class="hint" role="status" aria-live="polite">Chargement du classement…</p>
+        <div id="chart-podium" class="podium"></div>
+        <div id="chart-list" class="chart-list" aria-busy="true"></div>
+        <a class="more-link" href="/recherche?view=tracks&sort=frequency">Explorer toute la base musicale <span aria-hidden="true">→</span></a>
+      </section>
+      <section id="radios" class="radio-section" aria-labelledby="radios-title"><div class="section-heading"><div><h2 id="radios-title">À chaque radio, son univers.</h2><p>Écoutez le direct ou découvrez son classement.</p></div><span class="station-count">{{ stations|length }} radios</span></div>
+      {% endif %}
+      <div class="stations {{ 'search-stations' if is_search else '' }}">
       {% for station in stations %}
-      <article class="{{ 'selected' if station.id == station_id else '' }}">
-        <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}">▶</button>
-        <div><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ 'Suivie' if station.enabled else 'Écoute seule' }}</small></div><button type="button" class="text-button explore-station" data-id="{{ station.id }}">Voir les musiques</button>
-      </article>
-      {% endfor %}
-    </section>
-    <section class="panel explorer" aria-labelledby="explorer-title">
-      <div class="explorer-heading">
-        <div><span class="eyebrow">BASE MUSICALE</span><h2 id="explorer-title">Explorer les diffusions</h2></div>
-        <label class="live-toggle"><input id="live" type="checkbox" checked> Actualisation auto · 10 s</label>
+        <article class="station-card {{ 'selected' if station.id == station_id else '' }}">
+          <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}"><span aria-hidden="true">▶</span></button>
+          <div class="station-copy"><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ 'Radio suivie' if station.enabled else 'Écoute seule' }}</small></div>
+          <a class="station-chart" href="/?station_id={{ station.id }}#classement" aria-label="Classement de {{ station.name }}">↗</a>
+        </article>
+      {% else %}<p class="empty">Aucune radio configurée pour le moment.</p>{% endfor %}
       </div>
-      <div class="view-tabs" role="group" aria-label="Vue des résultats">
-        <button type="button" class="active" data-view="plays" aria-pressed="true">Passages</button>
-        <button type="button" data-view="tracks" aria-pressed="false">Musiques</button>
-      </div>
-      <form id="explorer-form" autocomplete="off">
-        <input type="hidden" name="view" value="plays">
-        <div class="search-line"><label>Rechercher<input name="q" type="search" maxlength="200" placeholder="Titre, artiste ou station…"></label></div>
-        <div class="filter-grid">
-          <label>Station<select name="station_id"><option value="">Toutes les stations</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
-          <label>Artiste<input name="artist" type="search" maxlength="300" placeholder="Tous les artistes"></label>
-          <label>Musique<input name="title" type="search" maxlength="500" placeholder="Tous les titres"></label>
-          <label>Trier par<select name="sort"><option value="newest">Plus récent</option><option value="oldest">Plus ancien</option><option value="artist">Artiste A–Z</option><option value="title">Titre A–Z</option><option value="station" data-only="plays">Station A–Z</option><option value="frequency" data-only="tracks">Plus diffusé</option></select></label>
-        </div>
-        <details class="advanced-filters"><summary>Dates et filtres avancés</summary>
-          <div class="filter-grid">
-            <label>Diffusé après<input name="since" type="datetime-local"></label>
-            <label>Diffusé avant<input name="until" type="datetime-local"></label>
-            <label>Dernière observation après<input name="seen_since" type="datetime-local"></label>
-            <label>Dernière observation avant<input name="seen_until" type="datetime-local"></label>
-            <label>Source<select name="source"><option value="">Toutes les sources</option><option value="icy">ICY</option><option value="json">JSON</option><option value="html">HTML</option></select></label>
-            <label>Artiste renseigné<select name="artist_status"><option value="any">Indifférent</option><option value="known">Oui</option><option value="missing">Non</option></select></label>
-            <label>Suivi de la station<select name="enabled"><option value="">Indifférent</option><option value="true">Actif</option><option value="false">Désactivé</option></select></label>
-            <label>Texte des métadonnées<input name="raw" type="search" maxlength="200" placeholder="Contenu brut"></label>
-            <label>Nombre minimum de passages<input name="min_plays" type="number" min="1" value="1" disabled></label>
-            <label>Résultats par page<select name="page_size"><option>25</option><option selected>50</option><option>100</option></select></label>
-          </div>
-          <label class="checkbox"><input name="exact" type="checkbox"> Correspondance exacte pour artiste et musique</label>
-          <p class="hint">Dates dans votre fuseau horaire. La borne « avant » est exclusive. Les filtres se combinent.</p>
-        </details>
-        <div class="filter-footer"><span id="active-filters" class="hint">Tout l’historique actif</span><button type="reset" class="text-button">Réinitialiser</button></div>
-      </form>
-      <div class="result-heading"><p id="result-status" role="status" aria-live="polite">Chargement des passages…</p><button id="refresh" type="button" class="text-button">Actualiser</button></div>
-      <div id="results" class="table-wrap" aria-busy="true"></div>
-      <nav class="pagination" aria-label="Pages de résultats"><button id="previous-page" type="button" disabled>← Précédent</button><span id="page-label">Page 1</span><button id="next-page" type="button" disabled>Suivant →</button></nav>
-      <p class="hint">Cliquez sur un artiste, un titre ou une station dans les résultats pour explorer ses passages.</p>
-      <noscript>Activez JavaScript pour explorer les passages et actualiser les résultats.</noscript>
-    </section>
-  </main>
-  <footer>Le lecteur utilise le flux officiel de la radio. Aucun audio n'est enregistré.</footer>
-  <script src="/static/dashboard.js"></script>
+      {% if not is_search %}</section>{% endif %}
+      <footer>Radio Tracker · La musique se découvre aussi à la radio.<br><span>Lecture depuis les flux officiels. Aucun audio enregistré.</span></footer>
+    </main>
+  </div>
+  <section class="player" aria-label="Lecteur radio" data-station-id="{{ station_id or '' }}">
+    <div class="player-cover" aria-hidden="true">♫</div><div class="player-copy"><strong id="track-title">Sélectionnez une radio</strong><small id="track-artist"></small><span id="player-name">{{ selected_station.name if selected_station else 'Le direct vous attend' }}</span></div>
+    <audio id="radio-player" controls preload="none" {% if selected_station %}src="{{ selected_station.stream_url }}"{% endif %}></audio><span class="player-live"><span class="live-dot"></span> RADIO EN DIRECT</span>
+    <span id="player-status" class="sr-only" role="status" aria-live="polite"></span>
+  </section>
+  <script src="/static/player.js"></script>
+  <script src="/static/{{ 'dashboard' if is_search else 'charts' }}.js"></script>
 </body>
 </html>

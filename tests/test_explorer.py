@@ -147,9 +147,17 @@ def test_text_search_sorts_by_actual_date_for_backfilled_plays(client, history, 
     assert [item["id"] for item in items] == [rows[2].id, rows[1].id, rows[0].id, old.id]
 
 
-def test_dashboard_replaces_old_controls_with_explorer(client):
-    html = client.get("/").text
+def test_search_has_dedicated_page_and_preserves_explorer(client):
+    home = client.get("/").text
+    assert 'id="chart-filters"' in home
+    assert 'id="chart-list"' in home
+    assert 'id="explorer-form"' not in home
+    assert 'href="/recherche"' in home
+    html = client.get("/recherche?view=tracks&artist=Test").text
     assert 'id="explorer-form"' in html
+    assert 'id="chart-filters"' not in html
+    assert 'name="artist"' in html
+    assert 'name="since"' in html
     assert 'id="show-add"' not in html
     assert 'id="add-dialog"' not in html
     assert 'name="hours"' not in html

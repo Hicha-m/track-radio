@@ -154,6 +154,7 @@ def parse_station_id(value: str | None) -> int | None:
 
 
 @app.get("/", response_class=HTMLResponse)
+@app.get("/recherche", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     db: DbSession,
@@ -169,5 +170,6 @@ def dashboard(
             "stations": stations_list,
             "station_id": station_id,
             "selected_station": selected_station,
+            "is_search": request.url.path == "/recherche",
         },
     )

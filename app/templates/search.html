@@ -1,0 +1,42 @@
+    <section class="panel explorer" aria-labelledby="explorer-title">
+      <div class="explorer-heading">
+        <div><span class="eyebrow">BASE MUSICALE</span><h2 id="explorer-title">Explorer les diffusions</h2></div>
+        <label class="live-toggle"><input id="live" type="checkbox" checked> Actualisation auto · 10 s</label>
+      </div>
+      <div class="view-tabs" role="group" aria-label="Vue des résultats">
+        <button type="button" class="active" data-view="plays" aria-pressed="true">Passages</button>
+        <button type="button" data-view="tracks" aria-pressed="false">Musiques</button>
+      </div>
+      <form id="explorer-form" autocomplete="off">
+        <input type="hidden" name="view" value="plays">
+        <div class="search-line"><label>Rechercher<input name="q" type="search" maxlength="200" placeholder="Titre, artiste ou station…"></label></div>
+        <div class="filter-grid">
+          <label>Station<select name="station_id"><option value="">Toutes les stations</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+          <label>Artiste<input name="artist" type="search" maxlength="300" placeholder="Tous les artistes"></label>
+          <label>Musique<input name="title" type="search" maxlength="500" placeholder="Tous les titres"></label>
+          <label>Trier par<select name="sort"><option value="newest">Plus récent</option><option value="oldest">Plus ancien</option><option value="artist">Artiste A–Z</option><option value="title">Titre A–Z</option><option value="station" data-only="plays">Station A–Z</option><option value="frequency" data-only="tracks">Plus diffusé</option></select></label>
+        </div>
+        <details class="advanced-filters"><summary>Dates et filtres avancés</summary>
+          <div class="filter-grid">
+            <label>Diffusé après<input name="since" type="datetime-local"></label>
+            <label>Diffusé avant<input name="until" type="datetime-local"></label>
+            <label>Dernière observation après<input name="seen_since" type="datetime-local"></label>
+            <label>Dernière observation avant<input name="seen_until" type="datetime-local"></label>
+            <label>Source<select name="source"><option value="">Toutes les sources</option><option value="icy">ICY</option><option value="json">JSON</option><option value="html">HTML</option></select></label>
+            <label>Artiste renseigné<select name="artist_status"><option value="any">Indifférent</option><option value="known">Oui</option><option value="missing">Non</option></select></label>
+            <label>Suivi de la station<select name="enabled"><option value="">Indifférent</option><option value="true">Actif</option><option value="false">Désactivé</option></select></label>
+            <label>Texte des métadonnées<input name="raw" type="search" maxlength="200" placeholder="Contenu brut"></label>
+            <label>Nombre minimum de passages<input name="min_plays" type="number" min="1" value="1" disabled></label>
+            <label>Résultats par page<select name="page_size"><option>25</option><option selected>50</option><option>100</option></select></label>
+          </div>
+          <label class="checkbox"><input name="exact" type="checkbox"> Correspondance exacte pour artiste et musique</label>
+          <p class="hint">Dates dans votre fuseau horaire. La borne « avant » est exclusive. Les filtres se combinent.</p>
+        </details>
+        <div class="filter-footer"><span id="active-filters" class="hint">Tout l’historique actif</span><button type="reset" class="text-button">Réinitialiser</button></div>
+      </form>
+      <div class="result-heading"><p id="result-status" role="status" aria-live="polite">Chargement des passages…</p><button id="refresh" type="button" class="text-button">Actualiser</button></div>
+      <div id="results" class="table-wrap" aria-busy="true"></div>
+      <nav class="pagination" aria-label="Pages de résultats"><button id="previous-page" type="button" disabled>← Précédent</button><span id="page-label">Page 1</span><button id="next-page" type="button" disabled>Suivant →</button></nav>
+      <p class="hint">Cliquez sur un artiste, un titre ou une station dans les résultats pour explorer ses passages.</p>
+      <noscript>Activez JavaScript pour explorer les passages et actualiser les résultats.</noscript>
+    </section>
