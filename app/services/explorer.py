@@ -91,11 +91,11 @@ def conditions(filters, unicode=True):
                     "le": column.__le__,
                 }[compare](value)
             )
-    if filters.q:
+    for term in filters.q.split():
         values.append(
             or_(
                 *(
-                    text_match(column, filters.q, unicode=unicode)
+                    text_match(column, term, unicode=unicode)
                     for column in (Play.title, Play.artist, Station.name)
                 )
             )

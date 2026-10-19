@@ -29,7 +29,7 @@ Db = Annotated[Session, Depends(get_db)]
 
 class Search(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    provider: Literal["deezer", "itunes", "lrclib"] = "deezer"
+    provider: Literal["deezer", "itunes", "spotify", "lrclib"] = "deezer"
     artist: str = Field("", max_length=300)
     title: str = Field(min_length=1, max_length=500)
 
@@ -80,6 +80,14 @@ async def search(key: str, payload: Search, db: Db):
                 candidates = await search_provider(
                     client, payload.provider, payload.artist, payload.title
                 )
+    except httpx.HTTPStatusError as error:
+        if payload.provider == "spotify" and error.response.status_code == 403:
+            raise HTTPException(
+                502,
+                "Spotify refuse l’accès au catalogue pour cette application. "
+                "Choisissez un autre fournisseur.",
+            ) from error
+        raise HTTPException(502, "Fournisseur indisponible, réessayez plus tard.") from error
     except (httpx.HTTPError, ValueError, KeyError, TypeError, TimeoutError) as error:
         raise HTTPException(502, "Fournisseur indisponible, réessayez plus tard.") from error
     entry = find(db, key)

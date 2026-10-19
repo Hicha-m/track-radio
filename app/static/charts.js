@@ -17,13 +17,6 @@ function node(tag, text = '', className = '') {
   result.className = className;
   return result;
 }
-function trackUrl(track) {
-  const params = new URLSearchParams({view: 'plays', title: track.title, exact: 'true', sort: 'newest'});
-  if (track.artist) params.set('artist', track.artist);
-  else params.set('artist_status', 'missing');
-  if (stationSelect.value) params.set('station_id', stationSelect.value);
-  return `/recherche?${params}`;
-}
 function cover(track, rank, large = false) {
   const art = node('div', '', `cover cover-${(rank - 1) % 6}`);
   art.setAttribute('aria-hidden', 'true');
@@ -55,21 +48,24 @@ function renderChart(tracks) {
   const rows = [];
   tracks.forEach((track, index) => {
     const rank = index + 1;
-    const link = node('a');
-    link.href = trackUrl(track);
-    link.setAttribute('aria-label', `${rank}. ${track.title}, ${track.artist || 'Artiste inconnu'}, ${track.plays} diffusions. Voir les passages`);
+    const link = node('button');
+    link.type = 'button';
+    const detailTrack = {...track, station_id: stationSelect.value || null};
+    link.addEventListener('click', () => window.TrackCatalog.open(detailTrack));
+    link.setAttribute('aria-label', `${rank}. ${track.title}, ${track.artist || 'Artiste inconnu'}, ${track.plays} diffusions. Ouvrir les détails`);
     if (index < 3) {
       const card = node('article', '', 'podium-card');
+      link.className = 'podium-detail';
       const meta = node('div', '', 'podium-meta');
       meta.append(copy(track), count(track));
       link.append(cover(track, rank, true), meta);
-      card.append(link, window.TrackCatalog.button(track));
+      card.append(link, window.TrackCatalog.playButton(track));
       cards.push(card);
     } else {
       link.className = 'chart-row';
-      link.append(node('span', String(rank).padStart(2, '0'), 'rank'), cover(track, rank), copy(track), count(track), node('span', '↗', 'row-arrow'));
+      link.append(node('span', String(rank).padStart(2, '0'), 'rank'), cover(track, rank), copy(track), count(track), node('span', '›', 'row-arrow'));
       const row = node('div', '', 'chart-track');
-      row.append(link, window.TrackCatalog.button(track));
+      row.append(link, window.TrackCatalog.playButton(track));
       rows.push(row);
     }
   });

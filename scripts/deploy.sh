@@ -40,6 +40,19 @@ chmod 644 config/stations.json
 if [[ ! -f .env ]]; then
   cp "$release/.env.example" .env
 fi
+# Optional credentials arrive from GitHub Secrets, never from the source tree.
+if [[ -f "$release/spotify.env" ]]; then
+  if ! [[ $(wc -l < "$release/spotify.env") -eq 2 ]] ||
+      ! grep -Eq '^SPOTIFY_CLIENT_ID=[a-zA-Z0-9]+$' "$release/spotify.env" ||
+      ! grep -Eq '^SPOTIFY_CLIENT_SECRET=[a-zA-Z0-9]+$' "$release/spotify.env"; then
+    echo 'Invalid Spotify credential file' >&2
+    exit 1
+  fi
+  sed -i '/^SPOTIFY_CLIENT_ID=/d; /^SPOTIFY_CLIENT_SECRET=/d' .env
+  printf '\n' >> .env
+  cat "$release/spotify.env" >> .env
+  rm -f "$release/spotify.env"
+fi
 printf 'RADIO_IMAGE=%s\n' "$image" > image.env
 # Compose reads the pinned image on future manual restarts, too.
 sed -i '/^RADIO_IMAGE=/d' .env

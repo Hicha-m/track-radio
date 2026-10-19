@@ -11,7 +11,7 @@
 <body data-asset-version="{{ asset_version }}">
   <aside class="sidebar">
     <a class="brand" href="/"><span class="brand-mark">♫</span> Radio Tracker</a>
-    <a class="search-shortcut" href="/recherche"><span aria-hidden="true">⌕</span> Rechercher une musique</a>
+    <button class="search-shortcut" type="button" data-open-search><span aria-hidden="true">⌕</span> Rechercher une musique <kbd>⌘ K</kbd></button>
     <p class="nav-label">DÉCOUVRIR</p>
     <nav aria-label="Navigation principale">
       <a href="/" class="nav-item {{ 'active' if not is_search else '' }}" {% if not is_search %}aria-current="page"{% endif %}><span aria-hidden="true">▥</span> Classements</a>
@@ -21,7 +21,7 @@
     <div class="sidebar-bottom"><span class="live-dot"></span> Au rythme des radios<p>Vos titres. Toutes les fréquences.</p></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><a href="/recherche">Explorer les diffusions <span aria-hidden="true">↗</span></a><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
+    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><button class="quick-search-toggle" type="button" data-open-search aria-label="Rechercher une musique">⌕</button><a href="/recherche">Explorer les diffusions <span aria-hidden="true">↗</span></a><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
     <main id="page-content">
       {% if is_search %}
       <div class="page-heading"><span class="eyebrow">VOTRE EXPLORATEUR MUSICAL</span><h1>Recherche avancée</h1><p>Retrouvez un titre, un artiste ou un passage à la radio.</p></div>
@@ -68,6 +68,7 @@
   </section>
   <script src="/static/cache.js?v={{ asset_version }}"></script>
   <script src="/static/catalog.js?v={{ asset_version }}"></script>
+  <script src="/static/search.js?v={{ asset_version }}"></script>
   <script src="/static/player.js?v={{ asset_version }}"></script>
   <p id="navigation-status" class="navigation-status" role="status" hidden></p>
   <script src="/static/charts.js?v={{ asset_version }}"></script>

@@ -178,8 +178,31 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         navigation.get_by_role("link", name="Classements").click()
                         expect(page.locator("h1")).to_have_text("Classements")
                         assert_uninterrupted()
+                        page.locator("#chart-list .chart-row").first.click()
+                        expect(page.locator(".catalog-dialog")).to_be_visible()
+                        assert_uninterrupted()
+                        page.keyboard.press("Escape")
+                        expect(page.locator(".catalog-dialog")).not_to_be_visible()
+                        page.keyboard.press("Control+k")
+                        expect(page.locator(".music-search-dialog")).to_be_visible()
+                        page.keyboard.press("Escape")
+                        page.locator(".quick-search-toggle").click()
+                        expect(page.locator(".music-search-dialog")).to_be_visible()
+                        page.locator(".music-search-dialog input").fill("Mosimann Soon")
+                        expect(page.locator(".music-search-result")).to_have_count(1)
+                        page.screenshot(
+                            path=f"/tmp/radio-search-{browser.browser_type.name}-{width}.png"
+                        )
+                        assert_uninterrupted()
+                        page.locator(".music-search-result").click()
+                        expect(page.locator(".catalog-dialog")).to_be_visible()
+                        expect(page.locator(".music-search-dialog")).not_to_be_visible()
+                        assert_uninterrupted()
+                        page.keyboard.press("Escape")
                         # Click through a track and follow browser history in both directions.
-                        page.locator(".podium-card > a").first.click()
+                        page.locator(".podium-detail").first.click()
+                        expect(page.locator(".catalog-dialog")).to_be_visible()
+                        page.locator(".catalog-search-link").click()
                         expect(page.locator("h1")).to_have_text("Recherche avancée")
                         expect(page.locator("#results tbody tr")).to_have_count(1)
                         assert_uninterrupted()
@@ -197,6 +220,24 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         assert page.locator("#radio-player").evaluate("(e) => e.paused")
                         page.locator("#player-toggle").click()
                         page.wait_for_function('!document.querySelector("#radio-player").paused')
+                        navigation.get_by_role("link", name="Classements").click()
+                        expect(page.locator("h1")).to_have_text("Classements")
+                        page.route(
+                            "**/api/catalog/*/preview",
+                            lambda route: route.fulfill(
+                                content_type="audio/wav", body=audio_buffer.getvalue()
+                            ),
+                        )
+                        page.locator("#chart-list .preview-button").first.click()
+                        expect(page.locator("#chart-list .preview-button").first).to_have_attribute(
+                            "aria-pressed", "true"
+                        )
+                        assert page.locator("#radio-player").evaluate("e => e.paused")
+                        expect(page.locator(".catalog-dialog")).not_to_be_visible()
+                        page.locator("#chart-list .preview-button").first.click()
+                        expect(page.locator(".row-preview-audio")).to_have_count(0)
+                        page.locator("#player-toggle").click()
+                        page.wait_for_function('!document.querySelector("#radio-player").paused')
                         # A failed page request must leave the live player running.
                         page.route(
                             "**/recherche",
@@ -211,6 +252,10 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.unroute("**/recherche")
                         navigation.get_by_role("link", name="Classements").click()
                         expect(page.locator("h1")).to_have_text("Classements")
+                        expect(page.locator("#page-content")).not_to_have_attribute(
+                            "aria-busy", "true"
+                        )
+                        expect(page.locator(".podium-card")).to_have_count(3)
                         page.locator(".podium").scroll_into_view_if_needed()
                         page.screenshot(path=f"/tmp/radio-{browser.browser_type.name}-{width}.png")
                         assert not errors, errors

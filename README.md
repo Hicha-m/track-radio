@@ -27,7 +27,7 @@ Les données sont dans le volume `radio_data`. `docker compose down` les conserv
 
 ## Classements et recherche
 
-L’accueil présente les 20 titres les plus diffusés sur toutes les radios ou sur une radio choisie, sur 24 heures, 7 jours (par défaut), 30 jours ou tout l’historique. Le classement utilise les passages réellement collectés et s’actualise toutes les 30 secondes lorsque la page est visible. Cliquer sur un titre ouvre ses passages dans la recherche avancée. Les pochettes proviennent du catalogue musical quand une correspondance est validée ; un visuel CSS prend le relais sinon. Les images restent dans un cadre carré et les numéros du podium restent superposés, y compris si une image échoue à charger. « Détails / extrait » donne accès à la durée, au fournisseur, à l’extrait et aux paroles disponibles.
+L’accueil présente les 20 titres les plus diffusés sur toutes les radios ou sur une radio choisie, sur 24 heures, 7 jours (par défaut), 30 jours ou tout l’historique. Le classement utilise les passages réellement collectés et s’actualise toutes les 30 secondes lorsque la page est visible. Cliquer sur un titre ouvre ses passages dans la recherche avancée. Les pochettes proviennent du catalogue musical quand une correspondance est validée ; un visuel CSS prend le relais sinon. Les images restent dans un cadre carré et les numéros du podium restent superposés, y compris si une image échoue à charger. Cliquer sur un titre du classement ouvre sa fiche avec durée, fournisseur, extrait et paroles disponibles. Le bouton ▶ adjacent lance seulement l’extrait ; il est désactivé si le fournisseur n’en propose pas. Depuis la fiche, « Voir les diffusions de ce titre » ouvre sa recherche exacte.
 
 La recherche spécialisée est accessible sur **`/recherche`** depuis la navigation. Le lecteur radio reste monté pendant la navigation interne : passer du classement à la recherche, ouvrir les passages d’un titre ou utiliser précédent/suivant conserve le même élément audio et le même flux. Une recharge complète de l’onglet ou un lien ouvert dans un autre onglet crée un nouveau lecteur.
 
@@ -43,9 +43,9 @@ Un identifiant interne stable est calculé à partir de l’artiste et du titre,
 
 La sélection automatique exige un seul candidat correspondant à l’artiste et au titre. Les mentions remix/live/radio edit ne sont pas retirées pour forcer un rapprochement. Plusieurs candidats, un invité différent, un artiste inconnu ou un résultat douteux restent à vérifier. Les paroles ne sont automatiquement liées qu’en cas de correspondance unique avec une durée à deux secondes près.
 
-Dans « Détails / extrait » → « Corriger les informations », une administration authentifiée permet de modifier la recherche, choisir Deezer ou Apple Music via l’API iTunes, choisir les paroles LRCLIB, retirer une mauvaise correspondance ou relancer l’automatisme. La clé `ADMIN_TOKEN` est saisie pour l’opération et n’est pas stockée dans le navigateur. Un choix manuel est conservé ; une recherche manuelle suspend l’automatisme pour préserver les propositions pendant la vérification. Changer d’enregistrement retire les anciennes paroles pour éviter de les attribuer à une autre version. La correction concerne la fiche musicale ; elle ne réécrit pas les métadonnées brutes des radios.
+Dans la fiche du titre → « Corriger les informations », une administration authentifiée permet de modifier la recherche, choisir Deezer, Apple Music via l’API iTunes ou Spotify, choisir les paroles LRCLIB, retirer une mauvaise correspondance ou relancer l’automatisme. La clé `ADMIN_TOKEN` est saisie pour l’opération et n’est pas stockée dans le navigateur. Un choix manuel est conservé ; une recherche manuelle suspend l’automatisme pour préserver les propositions pendant la vérification. Changer d’enregistrement retire les anciennes paroles pour éviter de les attribuer à une autre version. La correction concerne la fiche musicale ; elle ne réécrit pas les métadonnées brutes des radios.
 
-Le déploiement HTTP actuel désactive déjà l’administration dans `compose.production.yaml`. Les corrections y restent donc désactivées. Pour les activer, utiliser une configuration HTTPS avec un `ADMIN_TOKEN` non vide ; aucune clé n’est ajoutée automatiquement au VPS. Deezer et l’API de recherche iTunes ne nécessitent pas de secret dans cette intégration. Spotify n’est pas intégré à ce stade : son authentification serveur demande un Client ID et un Client Secret pour obtenir un jeton d’accès, conformément à sa [documentation](https://developer.spotify.com/documentation/web-api/tutorials/client-credentials-flow). Aucun identifiant Spotify communiqué dans le chat n’a été enregistré dans le projet.
+Le déploiement HTTP actuel désactive déjà l’administration dans `compose.production.yaml`. Les corrections y restent donc désactivées. Pour les activer, utiliser une configuration HTTPS avec un `ADMIN_TOKEN` non vide ; aucune clé n’est ajoutée automatiquement au VPS. Deezer et l’API de recherche iTunes ne nécessitent pas de secret dans cette intégration. Spotify est intégré comme fournisseur de recherche manuelle : configurer `SPOTIFY_CLIENT_ID` et `SPOTIFY_CLIENT_SECRET` dans le `.env` privé ou dans l’environnement serveur. Le jeton OAuth est obtenu côté serveur, conservé uniquement en mémoire jusqu’à son expiration avec une marge de 60 secondes, puis renouvelé. Une réponse 401 provoque un seul renouvellement et nouvel essai ; un refus 403 n’est pas réessayé et ne devient pas un faux résultat « morceau absent ». La recherche utilise au maximum 10 résultats et ne fabrique pas d’extrait si Spotify n’en fournit pas. Les identifiants et jetons ne sont jamais renvoyés au navigateur. La collecte automatique reste sur Deezer par défaut. Lors de la vérification du 19 octobre 2026, l’authentification Spotify a réussi mais la recherche de morceaux a renvoyé 403 : l’accès au catalogue reste à résoudre côté fournisseur. Voir la [documentation OAuth Spotify](https://developer.spotify.com/documentation/web-api/tutorials/client-credentials-flow). Aucun identifiant réel n’est versionné ; seules les variables vides figurent dans `.env.example`.
 
 Les sauvegardes `scripts/transfer.py` comprennent le catalogue, les propositions, les paroles et les choix manuels. Les anciennes sauvegardes sans catalogue restent importables. La migration `0004` crée uniquement une table de métadonnées et conserve les passages existants.
 
@@ -212,6 +212,10 @@ docker run --rm track-radio:test
 
 La CI vérifie Ruff, le formatage, les tests, les dépendances vulnérables et les migrations SQLite. La construction et la publication GHCR dépendent du succès de ces contrôles, avec un démarrage HTTP réel de l’image.
 
+## Recherche rapide
+
+Le raccourci de la barre latérale, la loupe de l’en-tête et `Ctrl+K` / `⌘K` ouvrent une fenêtre centrée. Elle recherche les morceaux collectés, par titre ou artiste, après 250 ms de pause et à partir de deux caractères. Les mots peuvent se répartir entre artiste et titre : « Mosimann Soon » retrouve le morceau, quel que soit leur ordre. Elle affiche jusqu’à 12 résultats, avec pochette, fiche au clic et aperçu disponible via ▶. « Voir tous les résultats » ouvre la recherche avancée avec la requête conservée. La saisie interroge notre API et son cache navigateur, sans appeler Spotify, Deezer ou iTunes. Fermer la fenêtre et ouvrir une fiche ne coupent pas la radio ; démarrer explicitement un extrait la met en pause.
+
 ## Vérification de l’interface et du lecteur
 
 Le lecteur dispose de commandes lecture/pause, sourdine et volume sur ordinateur. Sur mobile, il privilégie les informations du morceau, lecture/pause et sourdine ; le volume se règle avec les boutons de l’appareil. La barre réserve l’espace nécessaire et la zone de sécurité en bas d’écran. Le thème clair/sombre continue de fonctionner pendant la navigation.
@@ -231,7 +235,12 @@ Le test Chromium aux dimensions d’un téléphone ne remplace pas un essai sur 
 
 ## Déploiement automatique sur le VPS
 
-Après un push sur la branche par défaut (actuellement `master`), le job `deploy`
+Les responsabilités sont séparées :
+
+- `.github/workflows/ci.yml` exécute les contrôles Python/JS, l’audit, les migrations et le démarrage de l’image Docker ; il ne publie aucune image et ne possède aucun code SSH.
+- `.github/workflows/cd.yml` est un workflow réutilisable appelé uniquement après succès de la CI sur un push de la branche par défaut. Il publie puis déploie exactement le commit validé, épinglé par digest. Une pull request ou un échec des tests ne lance pas le CD.
+
+Après un push sur la branche par défaut (actuellement `master`), la CI appelle donc le CD. Son job `deploy`
 attend la publication et installe l’image identifiée par son digest sur
 `ubuntu@129.151.250.229`. Aucun clonage ni build sur le VPS. Le site est servi
 sur le port 80, sans modifier le service existant sur 8080. L’administration HTTP
@@ -254,6 +263,42 @@ ssh-keygen -F 129.151.250.229 -f "$HOME\.ssh\known_hosts" |
 Ne pas utiliser une collecte `ssh-keyscan` non vérifiée pour établir la confiance.
 La CD utilise le `GITHUB_TOKEN` temporaire pour télécharger l’image GHCR, puis
 déconnecte le registre. Aucun token personnel GHCR nécessaire.
+
+### Configurer Spotify dans GitHub Actions
+
+Créer ou renouveler les identifiants dans le [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), puis utiliser le Client ID et le Client Secret de la **même application**. Si seul le secret est renouvelé, le Client ID reste celui de cette application. Remplacer les anciens identifiants partagés par les nouveaux, sans les copier dans le README, un commit, une issue ou une conversation.
+
+1. Ouvrir les [secrets Actions du dépôt Hicha-m/track-radio](https://github.com/Hicha-m/track-radio/settings/secrets/actions).
+2. Dans **Settings → Secrets and variables → Actions → Secrets**, cliquer sur **New repository secret**.
+3. Créer les deux **Repository secrets** ci-dessous. Utiliser l’onglet Secrets, pas Variables ; aucun Environment GitHub spécifique n’est requis par le workflow actuel.
+
+| Nom exact | Valeur à renseigner |
+| --- | --- |
+| `SPOTIFY_CLIENT_ID` | Client ID de l’application Spotify |
+| `SPOTIFY_CLIENT_SECRET` | Client Secret de la même application |
+
+Si ces noms existent déjà, utiliser **Update** pour remplacer leurs valeurs. Les deux doivent être présents ensemble. Deezer et iTunes restent utilisables sans eux.
+
+Alternative avec GitHub CLI : les commandes suivantes demandent la valeur de façon interactive, sans la mettre dans la commande ou son historique :
+
+```bash
+gh secret set SPOTIFY_CLIENT_ID --repo Hicha-m/track-radio
+gh secret set SPOTIFY_CLIENT_SECRET --repo Hicha-m/track-radio
+# Vérifier uniquement les noms et dates, jamais les valeurs :
+gh secret list --repo Hicha-m/track-radio
+```
+
+Le code est déjà prévu pour ces noms : `ci.yml` transmet les secrets au workflow réutilisable avec `secrets: inherit`, et `cd.yml` les lit via `${{ secrets.SPOTIFY_CLIENT_ID }}` et `${{ secrets.SPOTIFY_CLIENT_SECRET }}`. Le CD les transmet par SSH dans un fichier privé temporaire ; `scripts/deploy.sh` les installe dans le `.env` du VPS sans les afficher, puis supprime ce fichier. Une étape de nettoyage supprime aussi le fichier temporaire si le déploiement échoue. Ils ne sont inclus ni dans le code ni dans l’image Docker. Sans ces secrets, une configuration serveur existante reste conservée.
+
+Ajouter ou modifier un secret ne déclenche pas un déploiement : les nouveaux identifiants seront pris en compte au prochain CD réussi **utilisant cette version des workflows**, après publication des changements sur la branche par défaut. Aucun changement manuel du VPS n’est nécessaire. Pour une rotation, remplacer les valeurs GitHub, déployer, puis vérifier le fonctionnement avant de retirer les anciens accès lorsque Spotify permet leur coexistence.
+
+**Accès depuis un agent ou en local :** GitHub ne permet pas de relire les valeurs enregistrées dans les secrets. Un agent peut vérifier leurs noms et le résultat des jobs ; les workflows autorisés peuvent les utiliser sans qu’on les recopie dans le chat. Les secrets GitHub ne sont pas automatiquement injectés dans cet espace de travail ni dans Docker Compose local : pour tester localement, renseigner séparément les mêmes variables dans le `.env` privé ignoré par Git, ou les fournir via l’environnement d’exécution. Ne pas extraire les valeurs via les logs ou une sortie de workflow.
+
+**Dépannage :** si un seul secret est renseigné, le CD refuse cette configuration partielle. Une authentification OAuth réussie suivie d’un `403` sur la recherche signale un refus d’accès au catalogue ; enregistrer les identifiants dans GitHub ne corrige pas à lui seul ce refus. Vérifier l’accès de l’application auprès de Spotify. La correction manuelle des fiches musicales reste soumise à `ADMIN_TOKEN` et à la configuration HTTPS décrite plus haut.
+
+Référence : [utiliser les secrets dans GitHub Actions](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets).
+
+### Installation et mises à jour du serveur
 
 Le premier démarrage crée une base vide. Les fichiers runtime et le `.env`
 privé sont installés dans `~/track-radio`, les données dans le volume Docker

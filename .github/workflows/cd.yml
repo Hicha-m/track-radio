@@ -1,0 +1,108 @@
+name: CD
+on:
+  workflow_call:
+    inputs:
+      revision:
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: production
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=sha
+      - uses: docker/build-push-action@v6
+        id: publish
+        with:
+          context: .
+          build-args: APP_REVISION=${{ inputs.revision }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    env:
+      VPS: ubuntu@129.151.250.229
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision }}
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_KEY"
+          test -n "$KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          printf 'Host *\n  BatchMode yes\n  StrictHostKeyChecking yes\n  ConnectTimeout 15\n' > ~/.ssh/config
+      - name: Upload runtime configuration
+        run: |
+          release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh "$VPS" "mkdir -m 700 '$release'"
+          tar -czf - compose.production.yaml .env.example config/stations.json scripts/deploy.sh |
+            ssh "$VPS" "tar -xzf - -C '$release'"
+      - name: Upload optional Spotify credentials
+        env:
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+        run: |
+          if [[ -n "$SPOTIFY_CLIENT_ID" || -n "$SPOTIFY_CLIENT_SECRET" ]]; then
+            [[ "$SPOTIFY_CLIENT_ID" =~ ^[a-zA-Z0-9]+$ ]]
+            [[ "$SPOTIFY_CLIENT_SECRET" =~ ^[a-zA-Z0-9]+$ ]]
+            release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            printf 'SPOTIFY_CLIENT_ID=%s\nSPOTIFY_CLIENT_SECRET=%s\n' "$SPOTIFY_CLIENT_ID" "$SPOTIFY_CLIENT_SECRET" |
+              ssh "$VPS" "umask 077; cat > '$release/spotify.env'"
+          fi
+      - name: Authenticate VPS to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh "$VPS" \
+            "docker --config \"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\" login ghcr.io -u '${{ github.actor }}' --password-stdin"
+      - name: Deploy validated image
+        env:
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          ssh "$VPS" "export DOCKER_CONFIG=\"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\"; cd 'track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'; bash scripts/deploy.sh 'ghcr.io/$repository@$IMAGE_DIGEST'"
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 http://129.151.250.229/health
+      - name: Remove temporary credentials
+        if: always()
+        run: |
+          ssh "$VPS" "rm -f 'track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/spotify.env'"
+          ssh "$VPS" "docker --config \"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\" logout ghcr.io"
+

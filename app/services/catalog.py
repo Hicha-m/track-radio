@@ -75,11 +75,14 @@ def safe_url(value):
     return None
 
 
-async def fetch_json(client, url, params=None):
+async def fetch_json(client, url, params=None, **options):
     host = urlsplit(url).hostname
     if _provider_pauses.get(host, 0) > monotonic():
         raise ProviderCooldown("Fournisseur en attente après limitation")
-    async with asyncio.timeout(12), client.stream("GET", url, params=params) as response:
+    async with (
+        asyncio.timeout(12),
+        client.stream(options.pop("method", "GET"), url, params=params, **options) as response,
+    ):
         if response.status_code in {429, 503}:
             _provider_pauses[host] = monotonic() + retry_seconds(
                 response.headers.get("retry-after")
@@ -97,6 +100,10 @@ async def fetch_json(client, url, params=None):
 
 
 async def search_provider(client, provider, artist, title):
+    if provider == "spotify":
+        from app.services.spotify import search_spotify
+
+        return await search_spotify(client, artist, title)
     query = f"{artist or ''} {title}".strip()
     if provider == "deezer":
         data = await fetch_json(client, "https://api.deezer.com/search", {"q": query, "limit": 15})
@@ -287,7 +294,11 @@ async def enrichment_round(client, session_factory, priorities=None):
         )
         pending = [(e.id, e.artist, e.title, e.provider) for e in entries]
     for key, artist, title, provider in pending:
-        host = "api.deezer.com" if provider == "deezer" else "itunes.apple.com"
+        host = {
+            "deezer": "api.deezer.com",
+            "itunes": "itunes.apple.com",
+            "spotify": "api.spotify.com",
+        }[provider]
         if _provider_pauses.get(host, 0) > monotonic():
             continue
         try:

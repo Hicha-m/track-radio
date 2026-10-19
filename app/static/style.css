@@ -144,3 +144,45 @@ img.cover { object-fit: cover; display: block; }
   .player-volume { width: 44px; flex-basis: 44px; }
   .player-volume button { flex-basis: 44px; width: 44px; height: 44px; }
 }
+
+/* The whole title opens its sheet; the adjacent control only plays an excerpt. */
+.podium-detail, .chart-row { border: 0; background: transparent; color: inherit; font: inherit; text-align: left; width: 100%; }
+.podium-detail { display: block; padding: 0; }
+.podium-detail:hover .cover { filter: brightness(1.06); }
+.podium-card { position: relative; }
+.podium-card > .preview-button { position: absolute; top: 8px; right: 8px; z-index: 3; background: var(--surface); box-shadow: 0 2px 10px #0002; }
+.chart-track .chart-row { width: auto; }
+.preview-button { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; padding: 0; margin: 0 8px 0 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--accent); font-size: 16px; }
+.preview-button:hover { background: var(--surface-hover); }
+.row-preview-audio { display: none; }
+.catalog-search-link { display: inline-flex; margin: 10px 0; padding: 8px 12px; border-radius: 8px; background: var(--station-bg); color: var(--accent); }
+
+/* Centred catalogue search, with the same controls on mobile and desktop. */
+button.search-shortcut { width: 100%; text-align: left; background: var(--surface); cursor: pointer; }
+.search-shortcut kbd { margin-left: auto; white-space: nowrap; font: inherit; }
+.quick-search-toggle { background: var(--surface); color: var(--accent); border: 1px solid var(--line); border-radius: 8px; width: 36px; height: 32px; font-size: 24px; line-height: 1; }
+.music-search-dialog { width: min(640px, calc(100vw - 32px)); max-width: calc(100vw - 32px); max-height: min(740px, 85dvh); margin: auto; padding: 24px; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 20px 80px #0003; }
+.music-search-dialog::backdrop { background: #0006; backdrop-filter: blur(6px); }
+.music-search-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.music-search-input input { font-size: 17px; padding: 14px 16px; background: var(--surface-alt); }
+.music-search-dialog > .hint { margin: 16px 0 8px; }
+.music-search-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+.music-search-result { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 12px 0; border: 0; background: transparent; color: var(--text); text-align: left; }
+.music-search-result:hover { background: var(--row-hover); }
+.search-result-art { position: relative; flex: 0 0 48px; width: 48px; height: 48px; display: grid; place-items: center; overflow: hidden; border-radius: 8px; background: var(--station-bg); color: var(--accent); }
+.search-result-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.music-search-result .track-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.music-search-more { display: block; margin-top: 16px; color: var(--accent); text-align: center; }
+.music-search-more[hidden] { display: none; }
+@media (max-width: 760px) {
+  .chart-track { flex-wrap: nowrap; }
+  .chart-track .chart-row { flex-basis: auto; }
+  .chart-track .play-count { display: none; }
+  .chart-track { gap: 4px; padding-bottom: 0; }
+  .preview-button { flex-basis: 36px; width: 36px; height: 36px; margin-right: 4px; }
+  .podium-card > .preview-button { top: 6px; right: 2px; }
+  .music-search-dialog { padding: 20px; }
+  .music-search-title { font-size: 25px; }
+  .topbar-actions { gap: 8px; }
+  .quick-search-toggle { flex: 0 0 32px; }
+}

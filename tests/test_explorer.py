@@ -161,3 +161,11 @@ def test_search_has_dedicated_page_and_preserves_explorer(client):
     assert 'id="show-add"' not in html
     assert 'id="add-dialog"' not in html
     assert 'name="hours"' not in html
+
+
+def test_quick_search_combines_words_across_artist_and_title(client, history):
+    data = client.get("/api/explore", params={"view": "tracks", "q": "ete etoile"}).json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["artist"] == "ÉTOILE"
+    assert data["items"][0]["plays"] == 3
+    assert client.get("/api/explore", params={"q": "etoile missing"}).json()["items"] == []

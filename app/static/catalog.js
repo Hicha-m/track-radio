@@ -7,10 +7,65 @@ window.TrackCatalog = (() => {
     result.className = className;
     return result;
   }
-  function button(track) {
-    const result = el('button', 'Détails / extrait', 'catalog-button');
+  function searchUrl(track) {
+    const params = new URLSearchParams({view: 'plays', title: track.title, exact: 'true', sort: 'newest'});
+    if (track.station_id) params.set('station_id', track.station_id);
+    if (track.artist) params.set('artist', track.artist);
+    else params.set('artist_status', 'missing');
+    return `/recherche?${params}`;
+  }
+  let rowAudio;
+  let activePreviewButton;
+  function stopPreview() {
+    const previous = rowAudio;
+    rowAudio = null;
+    previous?.pause();
+    if (previous) { previous.removeAttribute('src'); previous.load(); previous.remove(); }
+    if (activePreviewButton) {
+      activePreviewButton.textContent = '▶';
+      activePreviewButton.setAttribute('aria-pressed', 'false');
+    }
+    activePreviewButton = null;
+  }
+  function playButton(track) {
+    const result = el('button', '▶', 'preview-button');
     result.type = 'button';
-    result.setAttribute('aria-label', `Détails et extrait de ${track.title}`);
+    result.setAttribute('aria-label', `Écouter un extrait de ${track.title}`);
+    result.setAttribute('aria-pressed', 'false');
+    result.disabled = !track.metadata?.preview_url;
+    result.title = result.disabled ? 'Aucun extrait disponible' : 'Écouter un extrait';
+    result.addEventListener('click', async event => {
+      event.stopPropagation();
+      if (activePreviewButton === result) { stopPreview(); return; }
+      stopPreview();
+      activePreviewButton = result;
+      rowAudio = preview(`/api/catalog/${track.metadata.track_id}/preview`, true);
+      rowAudio.className = 'row-preview-audio';
+      rowAudio.controls = false;
+      rowAudio.addEventListener('ended', () => { if (rowAudio === audio) stopPreview(); }, {once: true});
+      rowAudio.addEventListener('error', () => {
+        if (rowAudio !== audio) return;
+        stopPreview();
+        result.title = 'Extrait indisponible. Ouvrez les détails pour consulter le fournisseur.';
+        document.querySelector('#player-status').textContent = result.title;
+      }, {once: true});
+      document.body.append(rowAudio);
+      const audio = rowAudio;
+      audio.addEventListener('pause', () => { if (rowAudio === audio) stopPreview(); }, {once: true});
+      try {
+        await audio.play();
+        if (rowAudio === audio) {
+          result.textContent = 'Ⅱ';
+          result.setAttribute('aria-pressed', 'true');
+        }
+      } catch (_) { if (rowAudio === audio) stopPreview(); }
+    });
+    return result;
+  }
+  function button(track) {
+    const result = el('button', 'Détails', 'catalog-button');
+    result.type = 'button';
+    result.setAttribute('aria-label', `Détails de ${track.title}`);
     result.addEventListener('click', () => open(track));
     return result;
   }
@@ -24,14 +79,14 @@ window.TrackCatalog = (() => {
     img.addEventListener('error', () => img.remove(), {once: true});
     return img;
   }
-  function preview(url) {
+  function preview(url, compact = false) {
     const audio = el('audio');
     audio.controls = true;
     audio.preload = 'none';
     audio.src = url;
     audio.addEventListener('error', () => {
       const message = el('p', 'Extrait indisponible. Réessayez plus tard ou ouvrez le fournisseur.', 'hint');
-      audio.replaceWith(message);
+      if (!compact) audio.replaceWith(message);
     }, {once: true});
     audio.addEventListener('play', () => {
       document.querySelectorAll('audio').forEach(other => { if (other !== audio) other.pause(); });
@@ -39,6 +94,7 @@ window.TrackCatalog = (() => {
     return audio;
   }
   async function open(track) {
+    stopPreview();
     const current = ++serial;
     if (dialog) { dialog.close(); dialog.remove(); }
     dialog = el('dialog', '', 'catalog-dialog');
@@ -54,7 +110,9 @@ window.TrackCatalog = (() => {
     const content = el('div');
     const message = el('p', 'Chargement des informations…', 'hint');
     message.setAttribute('role', 'status');
-    panel.append(close, heading, el('p', track.artist || 'Artiste inconnu'), message, content);
+    const search = el('a', 'Voir les diffusions de ce titre', 'catalog-search-link');
+    search.href = searchUrl(track);
+    panel.append(close, heading, el('p', track.artist || 'Artiste inconnu'), message, search, content);
     document.body.append(panel);
     panel.showModal();
     try {
@@ -71,7 +129,7 @@ window.TrackCatalog = (() => {
         if (data.preview_url) content.append(preview(`/api/catalog/${data.track_id}/preview`));
         else content.append(el('p', 'Aucun extrait disponible pour cette version.'));
         if (data.url) {
-          const link = el('a', `Ouvrir sur ${data.provider === 'itunes' ? 'Apple Music' : 'Deezer'}`, 'cell-link');
+          const link = el('a', `Ouvrir sur ${({itunes: 'Apple Music', deezer: 'Deezer', spotify: 'Spotify'})[data.provider] || data.provider}`, 'cell-link');
           link.href = data.url;
           link.target = '_blank';
           link.rel = 'noopener noreferrer';
@@ -106,7 +164,7 @@ window.TrackCatalog = (() => {
     tokenInput.autocomplete = 'off';
     const token = field('Clé administrateur', tokenInput);
     const provider = field('Fournisseur', el('select'));
-    [['deezer', 'Deezer'], ['itunes', 'Apple Music (iTunes)'], ['lrclib', 'Paroles (LRCLIB)']].forEach(([value, label]) => {
+    [['deezer', 'Deezer'], ['itunes', 'Apple Music (iTunes)'], ['spotify', 'Spotify'], ['lrclib', 'Paroles (LRCLIB)']].forEach(([value, label]) => {
       const option = el('option', label);
       option.value = value;
       provider.append(option);
@@ -184,5 +242,6 @@ window.TrackCatalog = (() => {
     details.append(form, feedback, candidates, reject, automatic);
     return details;
   }
-  return {button};
+  window.addEventListener('radio:pagechange', stopPreview);
+  return {button, open, playButton, searchUrl, stopPreview};
 })();
