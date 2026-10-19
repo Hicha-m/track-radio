@@ -4,6 +4,10 @@
   let request;
   let debounce;
   let version = 0;
+  let refresh;
+  let lastKey = '';
+  let lastUpdated = 0;
+  let scroll = 0;
   function el(tag, text = '', className = '') {
     const node = document.createElement(tag);
     node.textContent = text;
@@ -12,7 +16,11 @@
   }
   function open() {
     if (dialog?.open) { dialog.querySelector('input').focus(); return; }
-    dialog?.remove();
+    if (dialog) {
+      dialog.showModal(); dialog.querySelector('input').focus({preventScroll: true}); dialog.scrollTop = scroll;
+      if (Date.now() - lastUpdated > 60000 || lastKey !== `${dialog.querySelector('input').value.trim()}:${window.MusicFilters.key()}`) refresh();
+      return;
+    }
     dialog = el('dialog', '', 'music-search-dialog');
     dialog.setAttribute('aria-labelledby', 'music-search-title');
     const title = el('h2', 'Rechercher', 'music-search-title');
@@ -29,6 +37,7 @@
     input.placeholder = 'Un titre, un artiste…';
     input.maxLength = 200;
     input.autocomplete = 'off';
+    try { input.value = sessionStorage.getItem('radio-search-query') || ''; } catch (_) { /* Optional. */ }
     label.append(input);
     const status = el('p', 'Retrouvez les musiques diffusées sur vos radios.', 'hint');
     status.setAttribute('role', 'status');
@@ -37,7 +46,7 @@
     more.hidden = true;
     dialog.append(header, label, status, results, more);
     dialog.addEventListener('close', () => {
-      window.TrackCatalog.stopPreview();
+      scroll = dialog.scrollTop;
       version++;
       request?.abort();
       clearTimeout(debounce);
@@ -51,12 +60,12 @@
       results.removeAttribute('aria-busy');
       more.hidden = true;
       if (q.length < 2) { status.textContent = 'Saisissez au moins deux caractères.'; return; }
-      const params = new URLSearchParams({view: 'tracks', q, sort: 'frequency', page_size: '12'});
+      const params = window.MusicFilters.apply(new URLSearchParams({view: 'tracks', q, sort: 'frequency', page_size: '12'}));
       request = new AbortController();
       status.textContent = 'Recherche…';
       results.setAttribute('aria-busy', 'true');
       try {
-        const key = `quick-search:${q}`;
+        const key = `quick-search:${q}:${window.MusicFilters.key()}`;
         const cached = window.RadioCache.get(key);
         let data = cached && Date.now() - cached.time < 60000 ? cached.data : null;
         if (!data) {
@@ -83,24 +92,29 @@
           const text = el('span', '', 'track-copy');
           text.append(el('strong', track.title), el('small', track.artist || 'Artiste inconnu'));
           detail.append(art, text);
-          detail.addEventListener('click', () => { panel.close(); window.TrackCatalog.open(track); });
+          detail.addEventListener('click', () => { panel.close(); window.TrackCatalog.open(track, {onBack: open}); });
           row.append(detail, window.TrackCatalog.playButton(track));
           results.append(row);
         }
         more.href = `/recherche?${new URLSearchParams({view: 'tracks', q, sort: 'frequency'})}`;
         more.hidden = !data.items.length;
+        lastKey = `${q}:${window.MusicFilters.key()}`; lastUpdated = Date.now();
       } catch (error) { if (error.name !== 'AbortError' && current === version) status.textContent = error.message; }
       finally { if (current === version) results.removeAttribute('aria-busy'); }
     }
     input.addEventListener('input', () => {
+      try { sessionStorage.setItem('radio-search-query', input.value); } catch (_) { /* Optional. */ }
       clearTimeout(debounce);
       request?.abort();
       version++;
       debounce = setTimeout(search, 250);
     });
+    refresh = search;
+    window.RadioDialogs.dismissOutside(dialog);
     document.body.append(dialog);
     dialog.showModal();
     input.focus();
+    if (input.value.trim().length >= 2) search();
   }
   document.addEventListener('click', event => {
     if (event.target.closest('[data-open-search]')) { event.preventDefault(); open(); }
@@ -110,5 +124,7 @@
       event.preventDefault(); open();
     }
   });
+  window.addEventListener('radio:filterschange', () => { if (dialog?.open) refresh(); });
+  window.QuickSearch = {open};
   window.addEventListener('radio:pagechange', () => { if (dialog?.open) dialog.close(); });
 })();

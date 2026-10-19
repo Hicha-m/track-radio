@@ -6,20 +6,23 @@ from sqlalchemy import func, select
 
 from app.config import settings
 from app.models import Play
+from app.services.exclusions import exclusion_conditions
 
 _cache = OrderedDict()
 _lock = Lock()
 
 
-def cached_top(db, station_id, since, until, limit):
-    key = (db.get_bind(), station_id, since, until, limit)
+def cached_top(db, station_id, since, until, limit, exclusions=""):
+    key = (db.get_bind(), station_id, since, until, limit, exclusions)
     # Bound cache size even when every caller supplies different timestamps.
     with _lock:
         now = monotonic()
         if key in _cache and _cache[key][0] > now:
             _cache.move_to_end(key)
             return _cache[key][1]
-        query = select(Play.artist, Play.title, func.count(Play.id))
+        query = select(Play.artist, Play.title, func.count(Play.id)).where(
+            *exclusion_conditions(exclusions, db.get_bind().dialect.name == "sqlite")
+        )
         if station_id:
             query = query.where(Play.station_id == station_id)
         if since:

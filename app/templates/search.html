@@ -1,6 +1,6 @@
     <section class="panel explorer" aria-labelledby="explorer-title">
       <div class="explorer-heading">
-        <div><span class="eyebrow">BASE MUSICALE</span><h2 id="explorer-title">Explorer les diffusions</h2></div>
+        <div><span class="eyebrow">BASE MUSICALE</span><h2 id="explorer-title">Historique des diffusions</h2><p class="hint">Retrouvez les titres passés à la radio, leurs horaires et leur nombre de passages. Filtrez par station, artiste ou date.</p></div>
         <label class="live-toggle"><input id="live" type="checkbox" checked> Actualisation auto · 10 s</label>
       </div>
       <div class="view-tabs" role="group" aria-label="Vue des résultats">
@@ -34,6 +34,7 @@
         </details>
         <div class="filter-footer"><span id="active-filters" class="hint">Tout l’historique actif</span><button type="reset" class="text-button">Réinitialiser</button></div>
       </form>
+      <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués</button><span>Exporter les résultats filtrés :</span><a data-export-format="csv" download>CSV</a><a data-export-format="json" download>JSON</a></div>
       <div class="result-heading"><p id="result-status" role="status" aria-live="polite">Chargement des passages…</p><button id="refresh" type="button" class="text-button">Actualiser</button></div>
       <div id="results" class="table-wrap" aria-busy="true"></div>
       <nav class="pagination" aria-label="Pages de résultats"><button id="previous-page" type="button" disabled>← Précédent</button><span id="page-label">Page 1</span><button id="next-page" type="button" disabled>Suivant →</button></nav>

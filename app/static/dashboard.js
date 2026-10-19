@@ -52,7 +52,7 @@ function paramsFromForm() {
       params.set(key, value === 'on' ? 'true' : value);
     }
   }
-  return params;
+  return window.MusicFilters.apply(params);
 }
 
 function setView(view) {
@@ -125,7 +125,7 @@ function render(data) {
     if (!tracks) cell(formatDate(item.detected_at));
     const music = element('div', '', 'music-cell');
     music.append(action(item.title, () => selectTrack(item), 'Voir les passages de cette musique'));
-    music.append(window.TrackCatalog.button(item));
+    music.append(window.TrackCatalog.button(item), window.TrackCatalog.playButton(item));
     cell(music);
     cell(action(item.artist || 'Artiste inconnu', () => selectArtist(item.artist), 'Voir les musiques de cet artiste'));
     if (tracks) {
@@ -169,6 +169,7 @@ async function load(reset = false, force = false) {
   request = new AbortController();
   const current = ++version;
   const params = paramsFromForm();
+  window.MusicFilters.exports(params);
   const shared = params.toString();
   history.replaceState(null, '', `${location.pathname}${shared ? `?${shared}` : ''}`);
   const active = [...params].filter(([key, value]) => !['view', 'sort', 'page_size', 'artist_status', 'min_plays'].includes(key) && value);
@@ -263,6 +264,8 @@ const timer = window.setInterval(() => {
 }, 10000);
 const onVisibility = () => { if (!document.hidden && live.checked && page === 1) load(false, true); };
 document.addEventListener('visibilitychange', onVisibility);
+const onFilters = () => load(true, true);
+window.addEventListener('radio:filterschange', onFilters);
 load();
 
 return () => {
@@ -271,6 +274,7 @@ return () => {
   window.clearTimeout(debounce);
   window.clearInterval(timer);
   document.removeEventListener('visibilitychange', onVisibility);
+  window.removeEventListener('radio:filterschange', onFilters);
 };
 
 };

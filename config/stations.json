@@ -2,7 +2,8 @@
   {
     "name": "Skyrock",
     "slug": "skyrock",
-    "stream_url": "https://icecast.skyrock.net/s/natio_mp3_128k"
+    "stream_url": "https://icecast.skyrock.net/s/natio_mp3_128k",
+    "website_url": "https://www.skyrock.fm/"
   },
   {
     "name": "NRJ",
@@ -11,7 +12,8 @@
     "source_type": "json",
     "metadata_url": "https://players.nrjaudio.fm/wr_api/live/fr?act=get_plist&id_wr=158&fmt=json&sg_memory=",
     "json_artist_path": "itms.0.art",
-    "json_title_path": "itms.0.tit"
+    "json_title_path": "itms.0.tit",
+    "website_url": "https://www.nrj.fr/"
   },
   {
     "name": "Europe 2",
@@ -20,7 +22,8 @@
     "source_type": "json",
     "metadata_url": "https://www.europe2.fr/cetait-quoi-ce-titre/history?idplayer=1&player_id=1&limit=8&ts=&date_diffusion=",
     "json_artist_path": "nowplaying.0.artist",
-    "json_title_path": "nowplaying.0.title"
+    "json_title_path": "nowplaying.0.title",
+    "website_url": "https://www.europe2.fr/"
   },
   {
     "name": "Fun Radio",
@@ -28,7 +31,10 @@
     "stream_url": "http://icecast.funradio.fr/fun-1-44-128?listen=radio-tracker",
     "source_type": "html",
     "metadata_url": "https://www.funradio.fr/quel-est-ce-titre",
-    "html": {"adapter": "funradio"}
+    "html": {
+      "adapter": "funradio"
+    },
+    "website_url": "https://www.funradio.fr/"
   },
   {
     "name": "Mouv'",
@@ -36,6 +42,7 @@
     "stream_url": "https://icecast.radiofrance.fr/mouv-midfi.mp3",
     "source_type": "json",
     "metadata_url": "https://api.radiofrance.fr/livemeta/live/6/transistor_mouv_player",
-    "json_title_path": "now.secondLine"
+    "json_title_path": "now.secondLine",
+    "website_url": "https://www.radiofrance.fr/mouv"
   }
 ]

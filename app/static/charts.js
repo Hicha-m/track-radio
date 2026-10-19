@@ -81,6 +81,10 @@ async function loadChart(force = false) {
   const params = new URLSearchParams({limit: '20'});
   if (stationSelect.value) params.set('station_id', stationSelect.value);
   if (days !== 'all') params.set('since', new Date(Math.floor(Date.now() / 30000) * 30000 - Number(days) * 86400000).toISOString());
+  window.MusicFilters.apply(params);
+  const exportParams = new URLSearchParams(params);
+  exportParams.set('view', 'tracks'); exportParams.set('sort', 'frequency');
+  window.MusicFilters.exports(exportParams);
   const shared = new URLSearchParams({days});
   if (stationSelect.value) shared.set('station_id', stationSelect.value);
   history.replaceState(null, '', `/?${shared}${location.hash}`);
@@ -91,7 +95,7 @@ async function loadChart(force = false) {
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', String(active));
   });
-  const cacheKey = `chart:${stationSelect.value}:${days}`;
+  const cacheKey = `chart:${stationSelect.value}:${days}:${window.MusicFilters.key()}`;
   const cached = window.RadioCache.get(cacheKey);
   if (cached) {
     renderChart(cached.data);
@@ -134,6 +138,8 @@ stationSelect.addEventListener('change', () => loadChart());
 const timer = window.setInterval(() => { if (!document.hidden) loadChart(true); }, 30000);
 const onVisibility = () => { if (!document.hidden) loadChart(true); };
 document.addEventListener('visibilitychange', onVisibility);
+const onFilters = () => loadChart(true);
+window.addEventListener('radio:filterschange', onFilters);
 loadChart();
 
 return () => {
@@ -141,6 +147,7 @@ return () => {
   pending?.abort();
   window.clearInterval(timer);
   document.removeEventListener('visibilitychange', onVisibility);
+  window.removeEventListener('radio:filterschange', onFilters);
 };
 
 };

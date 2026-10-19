@@ -66,6 +66,25 @@ def metadata(
     return {**public_metadata(entry), "candidates": entry.candidates, "lyrics": entry.lyrics}
 
 
+@router.get("/spotify-match")
+async def spotify_match(
+    db: Db,
+    artist: str = Query("", max_length=300),
+    title: str = Query(..., min_length=1, max_length=500),
+):
+    # Only resolve titles already in the catalogue, rather than expose a search proxy.
+    entry = db.get(TrackMetadata, identity(artist, title))
+    if entry is None:
+        return {"status": "pending", "track": None}
+    selected = entry.selected or {}
+    if selected.get("provider") == "spotify" and safe_url(selected.get("url")):
+        return {"status": "found", "track": selected}
+    db.commit()
+    from app.services.spotify import first_result
+
+    return await first_result(artist, title)
+
+
 @router.post("/{key}/search", dependencies=[Depends(require_admin)])
 async def search(key: str, payload: Search, db: Db):
     find(db, key)

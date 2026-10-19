@@ -70,3 +70,34 @@ async def search_spotify(client, artist, title):
         for track in data.get("tracks", {}).get("items", [])[:10]
         if track and track.get("id") and track.get("name")
     ]
+
+
+# Public links reuse results; denied access must not trigger a request per dialog.
+_first_cache = {}
+_first_lock = asyncio.Lock()
+_unavailable_until = 0
+
+
+async def first_result(artist, title):
+    global _unavailable_until
+    key = (artist, title)
+    async with _first_lock:
+        cached = _first_cache.get(key)
+        if cached and cached[0] > monotonic():
+            return cached[1]
+        if _unavailable_until > monotonic():
+            return {"status": "unavailable", "track": None}
+        try:
+            async with httpx.AsyncClient(timeout=12) as client:
+                tracks = await search_spotify(client, artist, title)
+            result = {
+                "status": "found" if tracks else "not_found",
+                "track": tracks[0] if tracks else None,
+            }
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, TimeoutError):
+            _unavailable_until = monotonic() + 60
+            return {"status": "unavailable", "track": None}
+        if len(_first_cache) >= 256:
+            _first_cache.pop(next(iter(_first_cache)))
+        _first_cache[key] = (monotonic() + 3600, result)
+        return result

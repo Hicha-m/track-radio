@@ -21,7 +21,7 @@
     <div class="sidebar-bottom"><span class="live-dot"></span> Au rythme des radios<p>Vos titres. Toutes les fréquences.</p></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><button class="quick-search-toggle" type="button" data-open-search aria-label="Rechercher une musique">⌕</button><a href="/recherche">Explorer les diffusions <span aria-hidden="true">↗</span></a><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
+    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><button class="quick-search-toggle" type="button" data-open-search aria-label="Rechercher une musique">⌕</button><a href="/recherche">Historique des diffusions <span aria-hidden="true">↗</span></a><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
     <main id="page-content">
       {% if is_search %}
       <div class="page-heading"><span class="eyebrow">VOTRE EXPLORATEUR MUSICAL</span><h1>Recherche avancée</h1><p>Retrouvez un titre, un artiste ou un passage à la radio.</p></div>
@@ -35,6 +35,7 @@
       <section id="classement" class="chart-section" aria-labelledby="chart-title">
         <div class="section-heading"><div><h2 id="chart-title">Les plus diffusés</h2><p id="chart-subtitle">Toutes les radios · 7 derniers jours</p></div><span class="update-badge"><span class="live-dot"></span> Actualisé automatiquement</span></div>
         <form id="chart-filters" class="chart-filters"><div class="period-tabs" role="group" aria-label="Période du classement"><button type="button" data-days="1" aria-pressed="false">24 heures</button><button type="button" data-days="7" class="active" aria-pressed="true">7 jours</button><button type="button" data-days="30" aria-pressed="false">30 jours</button><button type="button" data-days="all" aria-pressed="false">Tout l’historique</button></div><label class="station-filter"><span class="sr-only">Radio du classement</span><select id="chart-station"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}" {% if station.id == station_id %}selected{% endif %}>{{ station.name }}</option>{% endfor %}</select></label></form>
+        <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués</button><span>Exporter les titres filtrés :</span><a data-export-format="csv" download>CSV</a><a data-export-format="json" download>JSON</a></div>
         <p id="chart-status" class="hint" role="status" aria-live="polite">Chargement du classement…</p>
         <div id="chart-podium" class="podium"></div>
         <div id="chart-list" class="chart-list" aria-busy="true"></div>
@@ -63,10 +64,14 @@
       <span id="playback-label" class="playback-label">Choisissez une radio</span>
     </div>
     <div class="player-volume"><button id="player-mute" type="button" aria-label="Couper le son" aria-pressed="false"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4 5 9H2v6h3l6 5Z"/><path class="volume-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="mute-slash" d="m16 9 6 6m0-6-6 6"/></svg></button><label><span class="sr-only">Volume</span><input id="player-volume" type="range" min="0" max="1" step="0.01" value="1"></label></div>
+    <button id="player-return-radio" class="text-button" type="button" hidden>Reprendre la radio</button>
+    <div id="player-seek" class="player-seek" hidden><time id="player-elapsed">0:00</time><input id="player-progress" type="range" min="0" max="1000" step="1" value="0" aria-label="Avancement de l’extrait"><time id="player-duration">0:00</time></div>
     <span class="player-live"><span class="live-dot"></span> EN DIRECT</span>
     <span id="player-status" class="sr-only" role="status" aria-live="polite"></span>
   </section>
   <script src="/static/cache.js?v={{ asset_version }}"></script>
+  <script src="/static/dialogs.js?v={{ asset_version }}"></script>
+  <script src="/static/filters.js?v={{ asset_version }}"></script>
   <script src="/static/catalog.js?v={{ asset_version }}"></script>
   <script src="/static/search.js?v={{ asset_version }}"></script>
   <script src="/static/player.js?v={{ asset_version }}"></script>

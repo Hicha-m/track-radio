@@ -30,6 +30,7 @@ class Station(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True)
     slug: Mapped[str] = mapped_column(String(100), unique=True)
     stream_url: Mapped[str] = mapped_column(Text)
+    website_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_type: Mapped[str] = mapped_column(String(20), default="icy")
     metadata_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     json_artist_path: Mapped[str | None] = mapped_column(String(200), nullable=True)

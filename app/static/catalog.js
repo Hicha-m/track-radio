@@ -14,52 +14,18 @@ window.TrackCatalog = (() => {
     else params.set('artist_status', 'missing');
     return `/recherche?${params}`;
   }
-  let rowAudio;
-  let activePreviewButton;
-  function stopPreview() {
-    const previous = rowAudio;
-    rowAudio = null;
-    previous?.pause();
-    if (previous) { previous.removeAttribute('src'); previous.load(); previous.remove(); }
-    if (activePreviewButton) {
-      activePreviewButton.textContent = '▶';
-      activePreviewButton.setAttribute('aria-pressed', 'false');
-    }
-    activePreviewButton = null;
-  }
-  function playButton(track) {
+  function playButton(track, source = null) {
+    const url = source || (track.metadata?.preview_url ? `/api/catalog/${track.metadata.track_id}/preview` : track.preview_url);
     const result = el('button', '▶', 'preview-button');
     result.type = 'button';
+    result.dataset.previewKey = window.RadioPlayer.key(track, url || '');
+    result.dataset.previewTitle = track.title;
     result.setAttribute('aria-label', `Écouter un extrait de ${track.title}`);
     result.setAttribute('aria-pressed', 'false');
-    result.disabled = !track.metadata?.preview_url;
-    result.title = result.disabled ? 'Aucun extrait disponible' : 'Écouter un extrait';
-    result.addEventListener('click', async event => {
-      event.stopPropagation();
-      if (activePreviewButton === result) { stopPreview(); return; }
-      stopPreview();
-      activePreviewButton = result;
-      rowAudio = preview(`/api/catalog/${track.metadata.track_id}/preview`, true);
-      rowAudio.className = 'row-preview-audio';
-      rowAudio.controls = false;
-      rowAudio.addEventListener('ended', () => { if (rowAudio === audio) stopPreview(); }, {once: true});
-      rowAudio.addEventListener('error', () => {
-        if (rowAudio !== audio) return;
-        stopPreview();
-        result.title = 'Extrait indisponible. Ouvrez les détails pour consulter le fournisseur.';
-        document.querySelector('#player-status').textContent = result.title;
-      }, {once: true});
-      document.body.append(rowAudio);
-      const audio = rowAudio;
-      audio.addEventListener('pause', () => { if (rowAudio === audio) stopPreview(); }, {once: true});
-      try {
-        await audio.play();
-        if (rowAudio === audio) {
-          result.textContent = 'Ⅱ';
-          result.setAttribute('aria-pressed', 'true');
-        }
-      } catch (_) { if (rowAudio === audio) stopPreview(); }
-    });
+    result.disabled = !url;
+    result.title = url ? 'Écouter un extrait' : 'Aucun extrait disponible';
+    result.addEventListener('click', event => { event.stopPropagation(); window.RadioPlayer.preview(track, url); });
+    queueMicrotask(() => window.RadioPlayer.sync());
     return result;
   }
   function button(track) {
@@ -79,30 +45,20 @@ window.TrackCatalog = (() => {
     img.addEventListener('error', () => img.remove(), {once: true});
     return img;
   }
-  function preview(url, compact = false) {
-    const audio = el('audio');
-    audio.controls = true;
-    audio.preload = 'none';
-    audio.src = url;
-    audio.addEventListener('error', () => {
-      const message = el('p', 'Extrait indisponible. Réessayez plus tard ou ouvrez le fournisseur.', 'hint');
-      if (!compact) audio.replaceWith(message);
-    }, {once: true});
-    audio.addEventListener('play', () => {
-      document.querySelectorAll('audio').forEach(other => { if (other !== audio) other.pause(); });
-    });
-    return audio;
+  function preview(url, track) {
+    const controls = el('div', '', 'preview-entry');
+    controls.append(playButton(track, url), el('span', 'Écouter l’extrait'));
+    return controls;
   }
-  async function open(track) {
-    stopPreview();
+  async function open(track, options = {}) {
     const current = ++serial;
     if (dialog) { dialog.close(); dialog.remove(); }
     dialog = el('dialog', '', 'catalog-dialog');
     const panel = dialog;
-    const close = el('button', 'Fermer', 'text-button');
+    const close = el('button', 'Fermer', 'text-button catalog-close');
     close.type = 'button';
     close.addEventListener('click', () => panel.close());
-    panel.addEventListener('close', () => panel.querySelectorAll('audio').forEach(a => a.pause()));
+    window.RadioDialogs.dismissOutside(panel);
     const heading = el('h2', track.title);
     const headingId = `catalog-title-${current}`;
     heading.id = headingId;
@@ -112,7 +68,31 @@ window.TrackCatalog = (() => {
     message.setAttribute('role', 'status');
     const search = el('a', 'Voir les diffusions de ce titre', 'catalog-search-link');
     search.href = searchUrl(track);
+    if (options.onBack) {
+      const back = el('button', '← Retour à la recherche', 'text-button catalog-back'); back.type = 'button';
+      back.onclick = () => { panel.close(); options.onBack(); };
+      panel.append(back);
+    }
     panel.append(close, heading, el('p', track.artist || 'Artiste inconnu'), message, search, content);
+    const spotify = el('a', 'Rechercher sur Spotify', 'catalog-search-link');
+    spotify.href = `https://open.spotify.com/search/${encodeURIComponent(`${track.artist || ''} ${track.title}`.trim())}`;
+    spotify.target = '_blank'; spotify.rel = 'noopener noreferrer';
+    const hide = el('button', 'Masquer ce titre', 'text-button'); hide.type = 'button';
+    hide.onclick = () => { try { window.MusicFilters.hide(track); panel.close(); } catch (error) { message.textContent = error.message; } };
+    const spotifyStatus = el('p', '', 'hint');
+    const footer = el('div', '', 'catalog-footer');
+    footer.append(hide);
+    panel.append(spotify, spotifyStatus, footer);
+    const spotifyParams = new URLSearchParams({artist: track.artist || '', title: track.title});
+    fetch(`/api/catalog/spotify-match?${spotifyParams}`).then(response => response.ok ? response.json() : null).then(result => {
+      if (current !== serial || !result) return;
+      if (result.track?.url) {
+        spotify.href = result.track.url;
+        spotify.textContent = `Premier résultat Spotify : ${result.track.title} · ${result.track.artist}`;
+      } else if (result.status === 'unavailable') {
+        spotifyStatus.textContent = 'Lien direct Spotify indisponible. La recherche sur Spotify reste accessible.';
+      }
+    }).catch(() => {});
     document.body.append(panel);
     panel.showModal();
     try {
@@ -126,7 +106,7 @@ window.TrackCatalog = (() => {
       if (data.cover_url) content.append(artwork(data.cover_url, data.title));
       if (data.provider_id) {
         content.append(el('p', `${data.artist} · ${data.title} · ${duration(data.duration)}`));
-        if (data.preview_url) content.append(preview(`/api/catalog/${data.track_id}/preview`));
+        if (data.preview_url) content.append(preview(`/api/catalog/${data.track_id}/preview`, {...track, metadata: data}));
         else content.append(el('p', 'Aucun extrait disponible pour cette version.'));
         if (data.url) {
           const link = el('a', `Ouvrir sur ${({itunes: 'Apple Music', deezer: 'Deezer', spotify: 'Spotify'})[data.provider] || data.provider}`, 'cell-link');
@@ -209,7 +189,7 @@ window.TrackCatalog = (() => {
         const row = el('article', '', 'candidate');
         if (c.cover_url) row.append(artwork(c.cover_url, c.title));
         row.append(el('p', `${c.artist} — ${c.title} · ${c.album || ''} · ${duration(c.duration)}`));
-        if (c.preview_url) row.append(preview(c.preview_url));
+        if (c.preview_url) row.append(preview(c.preview_url, c));
         if (lyrics) row.append(el('pre', c.plain || c.synced || 'Instrumental', 'lyrics'));
         const choose = el('button', 'Choisir cette version', 'text-button');
         choose.type = 'button';
@@ -242,6 +222,5 @@ window.TrackCatalog = (() => {
     details.append(form, feedback, candidates, reject, automatic);
     return details;
   }
-  window.addEventListener('radio:pagechange', stopPreview);
-  return {button, open, playButton, searchUrl, stopPreview};
+  return {button, open, playButton, searchUrl};
 })();

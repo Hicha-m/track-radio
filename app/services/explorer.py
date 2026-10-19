@@ -6,14 +6,15 @@ from threading import Lock
 from time import monotonic
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from sqlalchemy import String, cast, func, or_, select
 
 from app.models import Play, Station
+from app.services.exclusions import ExclusionFilters, exclusion_conditions
 from app.services.search_text import normalize_search
 
 
-class ExploreFilters(BaseModel):
+class ExploreFilters(ExclusionFilters):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     view: Literal["plays", "tracks"] = "plays"
     station_id: int | None = Field(None, ge=1, le=2**63 - 1)
@@ -71,7 +72,7 @@ def text_match(column, value, exact=False, unicode=True):
 
 
 def conditions(filters, unicode=True):
-    values = []
+    values = exclusion_conditions(filters.exclusions, unicode)
     for column, value, compare in (
         (Play.station_id, filters.station_id, "eq"),
         (Play.source, filters.source, "eq"),
@@ -129,7 +130,7 @@ def explore(db, filters):
     return result
 
 
-def query_results(db, filters):
+def result_query(db, filters):
     snapshot = filters.snapshot_id
     if snapshot is None:
         snapshot = db.scalar(select(func.max(Play.id))) or 0
@@ -194,11 +195,14 @@ def query_results(db, filters):
             "title": (func.lower(Play.title), date_order.desc(), Play.id.desc()),
             "station": (Station.name, date_order.desc(), Play.id.desc()),
         }.get(filters.sort, (date_order.desc(), Play.id.desc()))
+    return query.order_by(*order), snapshot
+
+
+def query_results(db, filters):
+    query, snapshot = result_query(db, filters)
     rows = list(
         db.execute(
-            query.order_by(*order)
-            .offset((filters.page - 1) * filters.page_size)
-            .limit(filters.page_size + 1)
+            query.offset((filters.page - 1) * filters.page_size).limit(filters.page_size + 1)
         ).mappings()
     )
     items = [

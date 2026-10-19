@@ -100,12 +100,26 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page = browser.new_page(viewport={"width": width, "height": height})
                         errors = []
                         page.on("pageerror", lambda error, errors=errors: errors.append(str(error)))
-                        page.route(
-                            "https://example.com/live",
-                            lambda route: route.fulfill(
-                                content_type="audio/wav", body=audio_buffer.getvalue()
-                            ),
-                        )
+
+                        def audio_response(route):
+                            body = audio_buffer.getvalue()
+                            headers = {"Accept-Ranges": "bytes"}
+                            requested = route.request.headers.get("range")
+                            if requested:
+                                start, _, end = requested.removeprefix("bytes=").partition("-")
+                                first = int(start or 0)
+                                last = min(int(end) if end else len(body) - 1, len(body) - 1)
+                                headers["Content-Range"] = f"bytes {first}-{last}/{len(body)}"
+                                route.fulfill(
+                                    status=206,
+                                    content_type="audio/wav",
+                                    headers=headers,
+                                    body=body[first : last + 1],
+                                )
+                            else:
+                                route.fulfill(content_type="audio/wav", headers=headers, body=body)
+
+                        page.route("https://example.com/live", audio_response)
 
                         def cover(route):
                             if "broken.svg" in route.request.url:
@@ -121,6 +135,19 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                                 )
 
                         page.route("https://cdn-images.dzcdn.net/**", cover)
+                        page.route(
+                            "**/api/catalog/spotify-match?**",
+                            lambda route: route.fulfill(
+                                json={
+                                    "status": "found",
+                                    "track": {
+                                        "title": "Uber",
+                                        "artist": "KeBlack, Franglish, Mauvais Djo",
+                                        "url": "https://open.spotify.com/track/7DstNl9Mumkt3ujs7V84qq",
+                                    },
+                                }
+                            ),
+                        )
                         page.goto(base_url + "/")
                         expect(page.locator(".podium-card")).to_have_count(3)
                         expect(page.locator(".cover-rank")).to_have_text(["01", "02", "03"])
@@ -147,6 +174,9 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                                 const player = document.querySelector('#radio-player');
                                 return !player.paused && player.currentTime > 0.1;
                             }"""
+                        )
+                        expect(page.locator(".player-cover img")).to_have_attribute(
+                            "src", "https://cdn-images.dzcdn.net/test-cover.svg"
                         )
                         page.evaluate("""() => {
                             window.retainedPlayer = document.querySelector('#radio-player');
@@ -180,6 +210,18 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         assert_uninterrupted()
                         page.locator("#chart-list .chart-row").first.click()
                         expect(page.locator(".catalog-dialog")).to_be_visible()
+                        expect(
+                            page.locator('.catalog-dialog a[href*="/track/7Dst"]')
+                        ).to_be_visible()
+                        expect(page.locator(".catalog-footer button")).to_have_text(
+                            "Masquer ce titre"
+                        )
+                        assert page.locator(".catalog-footer").evaluate("""e => {
+                            const button = e.querySelector('button').getBoundingClientRect();
+                            const footer = e.getBoundingClientRect();
+                            return Math.abs(button.right - footer.right) < 2
+                                && e === e.parentElement.lastElementChild;
+                        }""")
                         assert_uninterrupted()
                         page.keyboard.press("Escape")
                         expect(page.locator(".catalog-dialog")).not_to_be_visible()
@@ -198,11 +240,27 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(page.locator(".catalog-dialog")).to_be_visible()
                         expect(page.locator(".music-search-dialog")).not_to_be_visible()
                         assert_uninterrupted()
-                        page.keyboard.press("Escape")
+                        page.get_by_role("button", name="← Retour à la recherche").click()
+                        expect(page.locator(".music-search-dialog")).to_be_visible()
+                        expect(page.locator(".music-search-dialog input")).to_have_value(
+                            "Mosimann Soon"
+                        )
+                        expect(page.locator(".music-search-result")).to_have_count(1)
+                        page.mouse.click(5, 5)
+                        expect(page.locator(".music-search-dialog")).not_to_be_visible()
+                        page.locator(".quick-search-toggle").click()
+                        expect(page.locator(".music-search-dialog input")).to_have_value(
+                            "Mosimann Soon"
+                        )
+                        page.locator(".music-search-result").click()
+                        expect(page.locator(".catalog-dialog")).to_be_visible()
+                        page.mouse.click(5, 5)
+                        expect(page.locator(".catalog-dialog")).not_to_be_visible()
+                        assert_uninterrupted()
                         # Click through a track and follow browser history in both directions.
                         page.locator(".podium-detail").first.click()
                         expect(page.locator(".catalog-dialog")).to_be_visible()
-                        page.locator(".catalog-search-link").click()
+                        page.locator(".catalog-search-link").first.click()
                         expect(page.locator("h1")).to_have_text("Recherche avancée")
                         expect(page.locator("#results tbody tr")).to_have_count(1)
                         assert_uninterrupted()
@@ -219,25 +277,88 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.locator("#player-toggle").click()
                         assert page.locator("#radio-player").evaluate("(e) => e.paused")
                         page.locator("#player-toggle").click()
-                        page.wait_for_function('!document.querySelector("#radio-player").paused')
+                        page.wait_for_function(
+                            '() => !document.querySelector("#radio-player").paused'
+                        )
                         navigation.get_by_role("link", name="Classements").click()
                         expect(page.locator("h1")).to_have_text("Classements")
-                        page.route(
-                            "**/api/catalog/*/preview",
-                            lambda route: route.fulfill(
-                                content_type="audio/wav", body=audio_buffer.getvalue()
-                            ),
-                        )
+                        page.route("**/api/catalog/*/preview", audio_response)
                         page.locator("#chart-list .preview-button").first.click()
                         expect(page.locator("#chart-list .preview-button").first).to_have_attribute(
                             "aria-pressed", "true"
                         )
-                        assert page.locator("#radio-player").evaluate("e => e.paused")
-                        expect(page.locator(".catalog-dialog")).not_to_be_visible()
+                        assert page.evaluate(
+                            'document.querySelector("#radio-player") === window.retainedPlayer '
+                            "&& !retainedPlayer.paused"
+                        )
+                        expect(page.locator("audio")).to_have_count(1)
+                        expect(page.locator(".player")).to_have_attribute("data-mode", "preview")
+                        expect(page.locator("#player-seek")).to_be_visible()
+                        expect(page.locator(".player-live")).not_to_be_visible()
+                        page.wait_for_function(
+                            '() => document.querySelector("#radio-player").duration > 0'
+                        )
+                        page.locator("#player-progress").evaluate(
+                            """e => {
+                                e.value=500;
+                                e.dispatchEvent(new Event('input',{bubbles:true}));
+                            }"""
+                        )
+                        page.wait_for_function(
+                            '() => document.querySelector("#radio-player").currentTime >= 59',
+                            timeout=2000,
+                        )
+                        page.locator("#player-volume").evaluate(
+                            """e => {
+                                e.value=.25;
+                                e.dispatchEvent(new Event('input',{bubbles:true}));
+                            }"""
+                        )
+                        assert (
+                            abs(page.locator("#radio-player").evaluate("e => e.volume") - 0.25)
+                            < 0.01
+                        )
+                        page.screenshot(
+                            path=f"/tmp/radio-preview-{browser.browser_type.name}-{width}.png"
+                        )
                         page.locator("#chart-list .preview-button").first.click()
-                        expect(page.locator(".row-preview-audio")).to_have_count(0)
-                        page.locator("#player-toggle").click()
-                        page.wait_for_function('!document.querySelector("#radio-player").paused')
+                        assert page.locator("#radio-player").evaluate("e => e.paused")
+                        page.locator("#chart-list .preview-button").first.click()
+                        page.wait_for_function(
+                            '() => !document.querySelector("#radio-player").paused'
+                        )
+                        page.locator("#player-return-radio").click()
+                        expect(page.locator(".player")).to_have_attribute("data-mode", "radio")
+                        expect(page.locator("#player-seek")).not_to_be_visible()
+                        page.wait_for_function(
+                            '() => !document.querySelector("#radio-player").paused'
+                        )
+                        assert (
+                            abs(page.locator("#radio-player").evaluate("e => e.volume") - 0.25)
+                            < 0.01
+                        )
+                        # Hiding and restoring a title changes ranking and export before pagination.
+                        page.locator(".podium-detail").nth(2).click()
+                        page.get_by_role("button", name="Masquer ce titre", exact=True).click()
+                        expect(page.locator(".podium-detail").nth(2)).not_to_contain_text(
+                            "Track Four"
+                        )
+                        export_url = page.locator('[data-export-format="json"]').get_attribute(
+                            "href"
+                        )
+                        response = page.request.get("http://127.0.0.1:" + str(port) + export_url)
+                        exported = response.json()
+                        assert exported["count"] == 4, exported
+                        assert not any(t["title"] == "Track Four" for t in exported["items"])
+                        with page.expect_download() as download:
+                            page.locator('[data-export-format="csv"]').click()
+                        assert download.value.suggested_filename.endswith(".csv")
+                        page.locator("[data-open-exclusions]").click()
+                        expect(page.locator(".exclusions-dialog")).to_be_visible()
+                        page.get_by_role("button", name="Réafficher", exact=True).click()
+                        page.mouse.click(5, 5)
+                        expect(page.locator(".exclusions-dialog")).not_to_be_visible()
+                        expect(page.locator(".podium-detail").nth(2)).to_contain_text("Track Four")
                         # A failed page request must leave the live player running.
                         page.route(
                             "**/recherche",

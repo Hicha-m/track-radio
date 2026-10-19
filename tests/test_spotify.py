@@ -127,3 +127,61 @@ def test_forbidden_provider_search_keeps_existing_metadata(db, client, monkeypat
     db.refresh(entry)
     assert entry.selected["provider"] == "deezer"
     assert entry.manual is False
+
+
+def test_first_result_is_cached_and_never_saved_as_a_validated_recording(monkeypatch):
+    monkeypatch.setattr(spotify, "_first_cache", {})
+    monkeypatch.setattr(spotify, "_unavailable_until", 0)
+    calls = []
+    first = {
+        "title": "Uber",
+        "artist": "Franglish, KeBlack, Mauvais djo",
+        "url": "https://open.spotify.com/track/7DstNl9Mumkt3ujs7V84qq",
+    }
+
+    async def search(client, artist, title):
+        calls.append((artist, title))
+        return [first, {"title": "Autre version"}]
+
+    monkeypatch.setattr(spotify, "search_spotify", search)
+
+    async def run():
+        for _ in range(2):
+            result = await spotify.first_result("KeBlack, Franglish, Mauvais Djo", "Uber")
+            assert result == {"status": "found", "track": first}
+
+    asyncio.run(run())
+    assert len(calls) == 1
+
+
+def test_public_resolution_preserves_search_on_provider_failure(client, db, monkeypatch):
+    from app.services.catalog import ensure_entry
+
+    monkeypatch.setattr(spotify, "_first_cache", {})
+    monkeypatch.setattr(spotify, "_unavailable_until", 0)
+    calls = []
+
+    async def denied(client, artist, title):
+        calls.append(title)
+        raise httpx.HTTPStatusError(
+            "Forbidden",
+            request=httpx.Request("GET", "https://api.spotify.com/v1/search"),
+            response=httpx.Response(403),
+        )
+
+    monkeypatch.setattr(spotify, "search_spotify", denied)
+    entry = ensure_entry(db, "KeBlack, Franglish, Mauvais Djo", "Uber")
+    db.commit()
+    for _ in range(2):
+        response = client.get(
+            "/api/catalog/spotify-match",
+            params={
+                "artist": entry.artist,
+                "title": entry.title,
+            },
+        )
+        assert response.json() == {"status": "unavailable", "track": None}
+    assert len(calls) == 1
+    assert entry.selected is None
+    assert not entry.manual
+    assert client.get("/api/catalog/spotify-match?title=unknown").json()["status"] == "pending"

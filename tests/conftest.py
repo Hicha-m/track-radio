@@ -28,7 +28,7 @@ def db():
 
 
 @pytest.fixture
-def client(db, monkeypatch):
+def client(db):
     from app.database import get_db
     from app.main import app
     from app.services.explorer import _cache as explorer_cache
@@ -44,7 +44,6 @@ def client(db, monkeypatch):
             db.rollback()
 
     app.dependency_overrides[get_db] = request_session
-    monkeypatch.setattr("app.main.resolve_public", lambda url: "93.184.216.34")
     with TestClient(app) as result:
         yield result
     app.dependency_overrides.clear()

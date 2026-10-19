@@ -19,6 +19,7 @@ class StationConfig(BaseModel):
     slug: str = Field(min_length=1, max_length=90, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
     name: str = Field(min_length=2, max_length=100)
     stream_url: str = Field(max_length=2048)
+    website_url: str | None = Field(None, max_length=2048)
     enabled: bool = True
     source_type: Literal["icy", "json", "html"] = "icy"
     metadata_url: str | None = Field(None, max_length=2048)
@@ -26,7 +27,7 @@ class StationConfig(BaseModel):
     json_title_path: str | None = Field(None, max_length=200)
     html: HtmlConfig | None = None
 
-    @field_validator("stream_url", "metadata_url")
+    @field_validator("stream_url", "metadata_url", "website_url")
     @classmethod
     def public_url(cls, value):
         if value is not None:
