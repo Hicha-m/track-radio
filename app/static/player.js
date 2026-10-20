@@ -51,6 +51,10 @@
     return Number.isFinite(value) && value >= 0 ? `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}` : '0:00';
   }
   function sync() {
+    document.querySelectorAll('.station-logo').forEach(img => {
+      img.onerror = () => img.remove();
+      if (img.complete && !img.naturalWidth) img.remove();
+    });
     const playing = !audio.paused && !audio.ended && !audio.error;
     toggle.disabled = !audio.getAttribute('src');
     toggle.setAttribute('aria-label', playing ? 'Mettre en pause' : mode === 'preview' ? 'Écouter l’extrait' : 'Écouter la radio');
@@ -99,7 +103,7 @@
     const current = ++metadataVersion;
     if (mode !== 'radio' || !radio?.id) return;
     try {
-      const response = await fetch(`/api/plays?station_id=${encodeURIComponent(radio.id)}&limit=1`, {cache: 'no-store'});
+      const response = await window.MusicFilters.fetch(`/api/plays?station_id=${encodeURIComponent(radio.id)}&limit=1`, {cache: 'no-store'});
       if (!response.ok) return;
       const [track] = await response.json();
       if (current !== metadataVersion || mode !== 'radio') return;
@@ -173,6 +177,12 @@
   ['timeupdate', 'loadedmetadata', 'durationchange', 'emptied', 'seeked'].forEach(event => audio.addEventListener(event, syncProgress));
   audio.addEventListener('volumechange', syncVolume);
   window.addEventListener('radio:pagechange', sync);
+  window.addEventListener('radio:globalfilterschange', () => {
+    if (mode === 'radio') {
+      metadataVersion++; title.textContent = 'Titre indisponible'; artist.textContent = '';
+      showArtwork({}, radio); refreshNowPlaying();
+    }
+  });
   window.RadioPlayer = {preview, key, sync};
   if (radio) { showArtwork({}, radio); refreshNowPlaying(); }
   window.setInterval(() => { if (!document.hidden && mode === 'radio') refreshNowPlaying(); }, 20000);

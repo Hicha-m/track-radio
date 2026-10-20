@@ -52,7 +52,7 @@
       <div class="stations {{ 'search-stations' if is_search else '' }}">
       {% for station in stations %}
         <article class="station-card {{ 'selected' if station.id == station_id else '' }}">
-          <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}"><span aria-hidden="true">▶</span></button>
+          <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}"><span aria-hidden="true">▶</span><img class="station-logo" src="/api/stations/{{ station.id }}/artwork" alt="" loading="lazy" referrerpolicy="no-referrer"></button>
           <div class="station-copy"><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ 'Radio suivie' if station.enabled else 'Écoute seule' }}</small></div>
           <a class="station-chart" href="/?station_id={{ station.id }}#classement" aria-label="Classement de {{ station.name }}">↗</a>
         </article>

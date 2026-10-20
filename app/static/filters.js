@@ -1,9 +1,13 @@
-// Personal exclusions stay in this browser and are sent as filters, never deletions.
+// Personal exclusions stay in this browser. Global exclusions are enforced by the server.
 window.MusicFilters = (() => {
   let hidden = [];
   let dialog;
+  let revision = null;
+  let checking;
+  let generation = 0;
   const storageKey = 'radio-hidden-tracks-v1';
   const same = (a, b) => (a.artist || '').toLocaleLowerCase() === (b.artist || '').toLocaleLowerCase() && a.title.toLocaleLowerCase() === b.title.toLocaleLowerCase();
+  const admin = () => !!window.RadioAdmin?.authenticated();
   try {
     const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
     if (Array.isArray(stored)) hidden = stored.filter(t => t && typeof t.title === 'string' && t.title.length > 0 && t.title.length <= 500 && (t.artist == null || (typeof t.artist === 'string' && t.artist.length <= 300))).slice(0, 50);
@@ -17,16 +21,56 @@ window.MusicFilters = (() => {
     return params;
   }
   function labels() {
-    document.querySelectorAll('[data-open-exclusions]').forEach(b => { b.textContent = `Titres masqués (${hidden.length})`; });
+    document.querySelectorAll('[data-open-exclusions]').forEach(b => { b.textContent = admin() ? 'Titres masqués pour tous' : `Titres masqués (${hidden.length})`; });
   }
-  function save() {
-    try { localStorage.setItem(storageKey, JSON.stringify(hidden)); } catch (_) { /* Optional. */ }
+  function changed() {
+    generation++;
+    window.RadioCache.clear();
     labels();
     window.dispatchEvent(new Event('radio:filterschange'));
   }
-  function hide(track) {
+  function acceptRevision(value) {
+    if (typeof value !== 'string' || value === revision) return;
+    revision = value;
+    changed();
+    window.dispatchEvent(new Event('radio:globalfilterschange'));
+  }
+  async function refresh() {
+    if (checking) return checking;
+    const current = generation;
+    checking = fetch('/api/exclusions/revision', {cache: 'no-store', credentials: 'same-origin'})
+      .then(async response => {
+        if (!response.ok) throw new Error('Masquage global indisponible. Réessayez.');
+        const data = await response.json();
+        if (current === generation) acceptRevision(data.revision);
+      }).finally(() => { checking = null; });
+    return checking;
+  }
+  async function filteredFetch(url, options = {}) {
+    if (revision === null) await refresh();
+    const current = generation;
+    const response = await fetch(url, {...options, cache: 'no-store'});
+    const json = response.json.bind(response);
+    response.json = async () => {
+      const data = await json();
+      if (current !== generation) throw new DOMException('Filtres modifiés', 'AbortError');
+      return data;
+    };
+    return response;
+  }
+  function save() {
+    try { localStorage.setItem(storageKey, JSON.stringify(hidden)); } catch (_) { /* Optional. */ }
+    changed();
+  }
+  async function hide(track, global = admin()) {
     const item = {artist: (track.artist || '').trim() || null, title: track.title.trim()};
-    if (!item.title || hidden.some(t => same(t, item))) return;
+    if (!item.title) throw new Error('Saisissez un titre.');
+    if (global) {
+      const data = await window.RadioAdmin.request('/api/admin/exclusions', item);
+      acceptRevision(data.revision);
+      return;
+    }
+    if (hidden.some(t => same(t, item))) return;
     if (hidden.length >= 50 || JSON.stringify([...hidden, item]).length > 11000) throw new Error('La liste est pleine. Retirez un titre masqué.');
     hidden.push(item); save();
   }
@@ -38,50 +82,109 @@ window.MusicFilters = (() => {
       link.href = `/api/export?${selection}`;
     });
   }
-  function open() {
-    dialog?.remove();
-    dialog = el('dialog', '', 'exclusions-dialog');
-    dialog.setAttribute('aria-labelledby', 'exclusions-title');
-    const heading = el('h2', 'Titres masqués'); heading.id = 'exclusions-title';
-    const close = el('button', 'Fermer', 'text-button'); close.type = 'button'; close.onclick = () => dialog.close();
-    const note = el('p', 'Cette liste est conservée sur cet appareil. Les passages restent enregistrés.', 'hint');
+  async function open() {
+    dialog?.close(); dialog?.remove();
+    const panel = el('dialog', '', 'exclusions-dialog'); dialog = panel;
+    const global = admin();
+    panel.setAttribute('aria-labelledby', 'exclusions-title');
+    const heading = el('h2', global ? 'Titres masqués pour tous' : 'Mes titres masqués'); heading.id = 'exclusions-title';
+    const close = el('button', 'Fermer', 'text-button'); close.type = 'button'; close.onclick = () => panel.close();
+    const note = el('p', global
+      ? 'Cette liste s’applique à tous, y compris aux administrateurs. Les passages restent enregistrés.'
+      : 'Votre liste reste sur cet appareil et s’ajoute au masquage global. Elle ne peut pas réafficher un titre masqué pour tous.', 'hint');
     const list = el('div');
+    const personal = el('div');
     const status = el('p', '', 'hint'); status.setAttribute('role', 'status');
-    function render() {
-      list.replaceChildren();
+    let entries = [];
+    let listVersion = 0;
+    function renderPersonal() {
+      personal.replaceChildren();
+      if (global) personal.append(el('h3', 'Mes exclusions personnelles sur cet appareil'));
       hidden.forEach((track, index) => {
         const row = el('div', '', 'hidden-track');
-        const restore = el('button', 'Réafficher', 'text-button'); restore.type = 'button';
-        restore.onclick = () => { hidden.splice(index, 1); save(); render(); };
-        row.append(el('span', `${track.title} · ${track.artist || 'Artiste inconnu'}`), restore); list.append(row);
+        const restore = el('button', 'Retirer de ma liste', 'text-button'); restore.type = 'button';
+        restore.onclick = () => { hidden.splice(index, 1); save(); renderPersonal(); };
+        row.append(el('span', `${track.title} · ${track.artist || 'Artiste inconnu'}`), restore); personal.append(row);
       });
-      if (!hidden.length) list.append(el('p', 'Aucun titre masqué.', 'hint'));
+      if (!hidden.length) personal.append(el('p', 'Aucun titre masqué personnellement.', 'hint'));
+      if (global) personal.append(el('p', 'Retirer une exclusion personnelle ne change pas la liste globale.', 'hint'));
+    }
+    async function renderGlobal() {
+      if (!global) return;
+      const current = ++listVersion;
+      const data = await window.RadioAdmin.request('/api/admin/exclusions');
+      if (!panel.isConnected || !panel.open || current !== listVersion) return;
+      entries = data.items;
+      list.replaceChildren();
+      for (const track of entries) {
+        const row = el('div', '', 'hidden-track');
+        const restore = el('button', 'Réafficher pour tous', 'text-button'); restore.type = 'button';
+        restore.onclick = async () => {
+          restore.disabled = true;
+          try {
+            const result = await window.RadioAdmin.request(`/api/admin/exclusions/${track.id}`, {}, 'DELETE');
+            acceptRevision(result.revision);
+            await renderGlobal();
+            status.textContent = 'Masquage global retiré. Les exclusions personnelles restent actives.';
+          } catch (error) { status.textContent = error.message; }
+          finally { restore.disabled = !admin(); }
+        };
+        row.append(el('span', `${track.title} · ${track.artist || 'Artiste inconnu'}`), restore); list.append(row);
+      }
+      if (!entries.length) list.append(el('p', 'Aucun titre masqué pour tous.', 'hint'));
     }
     const form = el('form', '', 'exclusion-form');
     const title = el('input'); title.placeholder = 'Titre exact'; title.required = true; title.maxLength = 500;
     const artist = el('input'); artist.placeholder = 'Artiste (vide si inconnu)'; artist.maxLength = 300;
     const titleLabel = el('label', 'Titre'); titleLabel.append(title);
     const artistLabel = el('label', 'Artiste'); artistLabel.append(artist);
-    const add = el('button', 'Masquer ce titre', 'text-button'); add.type = 'submit';
+    const add = el('button', global ? 'Masquer pour tous' : 'Masquer pour moi', 'text-button'); add.type = 'submit';
     form.append(titleLabel, artistLabel, add);
-    form.onsubmit = event => {
-      event.preventDefault();
-      try { hide({title: title.value, artist: artist.value}); form.reset(); render(); status.textContent = 'Filtre enregistré.'; }
-      catch (error) { status.textContent = error.message; }
-    };
-    const preset = el('button', 'Masquer Mouv’, NRJ / Hit Music Only ! et Les Dédicaces', 'text-button'); preset.type = 'button';
-    preset.onclick = () => {
+    form.onsubmit = async event => {
+      event.preventDefault(); add.disabled = true;
       try {
-        [{artist: null, title: 'Mouv’'}, {artist: 'Hit Music Only !', title: 'NRJ'}, {artist: 'SKYROCK', title: 'Les Dédicaces'}].forEach(hide);
-        render(); status.textContent = 'Annonces ajoutées aux titres masqués.';
+        await hide({title: title.value, artist: artist.value}, global);
+        form.reset(); renderPersonal(); await renderGlobal(); status.textContent = 'Filtre enregistré.';
       } catch (error) { status.textContent = error.message; }
+      finally { add.disabled = admin() !== global; }
     };
-    dialog.append(close, heading, note, list, form, preset, status);
-    window.RadioDialogs.dismissOutside(dialog);
-    document.body.append(dialog); render(); dialog.showModal();
+    const preset = el('button', `Masquer ${global ? 'pour tous' : 'pour moi'} Mouv’, NRJ / Hit Music Only ! et Les Dédicaces`, 'text-button'); preset.type = 'button';
+    preset.onclick = async () => {
+      preset.disabled = true;
+      try {
+        for (const track of [{artist: null, title: 'Mouv’'}, {artist: 'Hit Music Only !', title: 'NRJ'}, {artist: 'SKYROCK', title: 'Les Dédicaces'}]) await hide(track, global);
+        renderPersonal(); await renderGlobal(); status.textContent = 'Annonces ajoutées aux titres masqués.';
+      } catch (error) { status.textContent = error.message; }
+      finally { preset.disabled = admin() !== global; }
+    };
+    const onAdmin = () => {
+      if (admin() !== global) {
+        add.disabled = true; preset.disabled = true;
+        if (global) {
+          panel.querySelectorAll('button').forEach(button => { if (button !== close) button.disabled = true; });
+          status.textContent = 'Session administrateur expirée. Reconnectez-vous pour modifier la liste globale.';
+        } else panel.close();
+      }
+    };
+    const onGlobal = () => { if (panel.open) renderGlobal().catch(error => { status.textContent = error.message; }); };
+    window.addEventListener('radio:adminchange', onAdmin);
+    window.addEventListener('radio:globalfilterschange', onGlobal);
+    panel.addEventListener('close', () => {
+      window.removeEventListener('radio:adminchange', onAdmin);
+      window.removeEventListener('radio:globalfilterschange', onGlobal);
+    }, {once: true});
+    panel.append(close, heading, note, list, form, preset, personal, status);
+    window.RadioDialogs.dismissOutside(panel);
+    document.body.append(panel); renderPersonal(); panel.showModal();
+    try { await renderGlobal(); } catch (error) { status.textContent = error.message; }
   }
   document.addEventListener('click', event => { if (event.target.closest('[data-open-exclusions]')) open(); });
-  window.addEventListener('radio:pagechange', labels);
+  const check = () => refresh().catch(() => { /* A later check retries; do not trust old cached results. */ window.RadioCache.clear(); });
+  window.addEventListener('radio:pagechange', () => { labels(); check(); });
+  window.addEventListener('radio:adminchange', labels);
+  window.addEventListener('focus', check);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  window.setInterval(() => { if (!document.hidden) check(); }, 30000);
   labels();
-  return {apply, hide, exports, key: () => JSON.stringify(hidden)};
+  return {apply, hide, exports, refresh, fetch: filteredFetch, key: () => `${revision}:${JSON.stringify(hidden)}`};
 })();

@@ -18,7 +18,7 @@
   {
     "name": "Europe 2",
     "slug": "europe2",
-    "stream_url": "http://europe2.lmn.fm/europe2.mp3",
+    "stream_url": "https://europe2.lmn.fm/europe2.mp3",
     "source_type": "json",
     "metadata_url": "https://www.europe2.fr/cetait-quoi-ce-titre/history?idplayer=1&player_id=1&limit=8&ts=&date_diffusion=",
     "json_artist_path": "nowplaying.0.artist",
@@ -28,7 +28,7 @@
   {
     "name": "Fun Radio",
     "slug": "fun-radio",
-    "stream_url": "http://icecast.funradio.fr/fun-1-44-128?listen=radio-tracker",
+    "stream_url": "https://icecast.funradio.fr/fun-1-44-128?listen=radio-tracker",
     "source_type": "html",
     "metadata_url": "https://www.funradio.fr/quel-est-ce-titre",
     "html": {

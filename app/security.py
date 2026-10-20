@@ -58,12 +58,9 @@ class SecurityMiddleware:
                         b"img-src 'self' https://fastapi.tiangolo.com data:"
                     )
                 headers = list(message.get("headers", []))
-                if (
-                    scope["path"].startswith("/api/admin")
-                    or scope["path"].startswith("/admin")
-                    or scope["path"] == "/api/catalog/spotify-match"
-                    or (scope["path"].startswith("/api/catalog") and scope["method"] != "GET")
-                ):
+                if scope["path"].startswith(
+                    ("/api/admin", "/admin", "/api/catalog", "/api/stats", "/api/exclusions")
+                ) or scope["path"] in {"/api/explore", "/api/plays", "/api/export"}:
                     headers = [(k, v) for k, v in headers if k.lower() != b"cache-control"]
                     headers.append((b"cache-control", b"no-store"))
                 message["headers"] = headers + [

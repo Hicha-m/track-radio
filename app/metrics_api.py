@@ -15,7 +15,12 @@ from sqlalchemy.orm import Session, aliased
 
 from app.database import get_db
 from app.models import Play, Station, TrackMetadata
-from app.services.exclusions import ExclusionFilters, exclusion_conditions
+from app.services.exclusions import (
+    ExclusionFilters,
+    exclusion_conditions,
+    global_condition,
+    global_revision,
+)
 from app.services.track_identity import identity
 
 router = APIRouter(prefix="/api/stats")
@@ -204,6 +209,7 @@ def compute(db, kind, filters, now):
                     other.station_id == filters.station_b,
                     other.detected_at >= since,
                     other.detected_at < now,
+                    global_condition(other.artist, other.title, sqlite),
                     func.abs(seconds) <= 300,
                 ),
             )
@@ -295,7 +301,7 @@ def metrics(
     db: Db,
     filters: Annotated[MetricsFilters, Query()],
 ):
-    key = (db.get_bind(), kind, filters.model_dump_json())
+    key = (db.get_bind(), global_revision(db), kind, filters.model_dump_json())
     with _lock:
         cached = _cache.get(key)
         if cached and cached[0] > monotonic():

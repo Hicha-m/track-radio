@@ -9,12 +9,13 @@ from pathlib import Path
 from sqlalchemy import DateTime, MetaData, Table, func, insert, inspect, select
 
 from app.database import engine
-from app.models import Play, Station, TrackMetadata
+from app.models import GlobalExclusion, Play, Station, TrackMetadata
 
 TABLES = {
     "stations": Station.__table__,
     "plays": Play.__table__,
     "track_metadata": TrackMetadata.__table__,
+    "global_exclusions": GlobalExclusion.__table__,
 }
 
 
@@ -28,7 +29,7 @@ def export_data(path):
         connection = connection.execution_options(yield_per=250)
         for name in TABLES:
             if not inspect(connection).has_table(name):
-                if name == "track_metadata":
+                if name in {"track_metadata", "global_exclusions"}:
                     continue  # Backup an installation from before metadata migration.
                 raise ValueError(f"Table manquante : {name}")
             counts[name] = 0
@@ -78,8 +79,9 @@ def import_data(path):
                 counts[table.name] += 1
         # Older archives contain only stations and plays. Missing metadata is allowed
         # only when there were no metadata rows in the archive.
-        if manifest is not None and "track_metadata" not in manifest:
-            manifest = {**manifest, "track_metadata": 0}
+        if manifest is not None:
+            for optional in ("track_metadata", "global_exclusions"):
+                manifest.setdefault(optional, 0)
         if manifest != counts:
             raise ValueError("Export incomplet : les comptes ne correspondent pas.")
     print(json.dumps(counts))

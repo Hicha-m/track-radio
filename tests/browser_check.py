@@ -155,6 +155,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                                 )
 
                         page.route("https://cdn-images.dzcdn.net/**", cover)
+                        page.route("**/api/stations/*/artwork", cover)
                         page.route(
                             "**/api/catalog/spotify-match?**",
                             lambda route: route.fulfill(
@@ -188,7 +189,12 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         assert page.evaluate(
                             "document.documentElement.scrollWidth <= innerWidth"
                         ), width
-                        page.locator(".station-play").click()
+                        station_button = page.locator(".station-play")
+                        station_button.scroll_into_view_if_needed()
+                        page.wait_for_function(
+                            "document.querySelector('.station-logo')?.naturalWidth > 0"
+                        )
+                        station_button.click()
                         page.wait_for_function(
                             """() => {
                                 const player = document.querySelector('#radio-player');
@@ -198,6 +204,13 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(page.locator(".player-cover img")).to_have_attribute(
                             "src", "https://cdn-images.dzcdn.net/test-cover.svg"
                         )
+                        expect(station_button.locator("span")).to_have_text("Ⅱ")
+                        # A broken station image restores the plain playback button.
+                        station_button.locator("img").evaluate(
+                            "img => { img.src = 'https://cdn-images.dzcdn.net/broken.svg'; }"
+                        )
+                        expect(station_button.locator("img")).to_have_count(0)
+                        expect(station_button.locator("span")).to_have_text("Ⅱ")
                         page.evaluate("""() => {
                             window.retainedPlayer = document.querySelector('#radio-player');
                             window.pauseEvents = 0;
@@ -234,7 +247,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.screenshot(
                             path=f"/tmp/radio-track-stats-{browser.browser_type.name}-{width}.png"
                         )
-                        page.get_by_role("button", name="Masquer ce titre", exact=True).click()
+                        page.get_by_role("button", name="Masquer pour moi", exact=True).click()
                         expect(
                             page.locator('[data-metric="diversity"] tbody td').nth(1)
                         ).to_have_text("4")
@@ -242,7 +255,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             page.locator('[data-metric="diversity"] tbody td').nth(2)
                         ).to_have_text("4")
                         page.locator("[data-open-exclusions]").click()
-                        page.get_by_role("button", name="Réafficher", exact=True).click()
+                        page.get_by_role("button", name="Retirer de ma liste", exact=True).click()
                         page.keyboard.press("Escape")
                         expect(
                             page.locator('[data-metric="diversity"] tbody td').nth(1)
@@ -368,7 +381,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             path=f"/tmp/radio-track-detail-{browser.browser_type.name}-{width}.png"
                         )
                         expect(page.locator(".catalog-footer button")).to_have_text(
-                            "Masquer ce titre"
+                            "Masquer pour tous"
                         )
                         assert page.locator(".catalog-footer").evaluate("""e => {
                             const button = e.querySelector('button').getBoundingClientRect();
@@ -493,7 +506,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         )
                         # Hiding and restoring a title changes ranking and export before pagination.
                         page.locator(".podium-detail").nth(2).click()
-                        page.get_by_role("button", name="Masquer ce titre", exact=True).click()
+                        page.get_by_role("button", name="Masquer pour tous", exact=True).click()
                         expect(page.locator(".podium-detail").nth(2)).not_to_contain_text(
                             "Track Four"
                         )
@@ -509,7 +522,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         assert download.value.suggested_filename.endswith(".csv")
                         page.locator("[data-open-exclusions]").click()
                         expect(page.locator(".exclusions-dialog")).to_be_visible()
-                        page.get_by_role("button", name="Réafficher", exact=True).click()
+                        page.get_by_role("button", name="Réafficher pour tous", exact=True).click()
                         page.mouse.click(5, 5)
                         expect(page.locator(".exclusions-dialog")).not_to_be_visible()
                         expect(page.locator(".podium-detail").nth(2)).to_contain_text("Track Four")

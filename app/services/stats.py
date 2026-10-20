@@ -6,14 +6,14 @@ from sqlalchemy import func, select
 
 from app.config import settings
 from app.models import Play
-from app.services.exclusions import exclusion_conditions
+from app.services.exclusions import exclusion_conditions, global_revision
 
 _cache = OrderedDict()
 _lock = Lock()
 
 
 def cached_top(db, station_id, since, until, limit, exclusions=""):
-    key = (db.get_bind(), station_id, since, until, limit, exclusions)
+    key = (db.get_bind(), global_revision(db), station_id, since, until, limit, exclusions)
     # Bound cache size even when every caller supplies different timestamps.
     with _lock:
         now = monotonic()

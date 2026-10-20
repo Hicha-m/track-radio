@@ -32,6 +32,8 @@
       if (html.body.dataset.assetVersion !== document.body.dataset.assetVersion) {
         throw new Error('Une nouvelle version est disponible. Rechargez la page après votre écoute.');
       }
+      await window.MusicFilters.refresh();
+      if (current !== generation) return;
       cleanup?.();
       document.querySelectorAll('.catalog-dialog, .admin-edit-dialog').forEach(dialog => { dialog.close(); dialog.remove(); });
       main.replaceWith(document.importNode(next, true));
@@ -63,6 +65,7 @@
     navigate(url);
   });
   window.addEventListener('popstate', () => navigate(new URL(location.href), false));
-  mount();
-  window.RadioAdmin.refresh();
+  Promise.all([window.RadioAdmin.refresh(), window.MusicFilters.refresh()])
+    .catch(error => { notice.textContent = error.message; notice.hidden = false; })
+    .finally(mount);
 })();

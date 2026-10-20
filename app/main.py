@@ -22,7 +22,7 @@ from app.models import Play, Station, TrackMetadata
 from app.schemas import PlayOut, StationOut, StatsOut
 from app.security import SecurityMiddleware
 from app.services.catalog import attach_metadata
-from app.services.exclusions import canonical_exclusions
+from app.services.exclusions import canonical_exclusions, exclusion_conditions, global_revision
 from app.services.explorer import ExploreFilters, explore
 from app.services.stats import cached_top
 
@@ -50,6 +50,13 @@ def health(db: DbSession):
 @app.get("/api/version")
 def version():
     return {"revision": os.getenv("APP_REVISION", "development"), "assets": ASSET_VERSION}
+
+
+@app.get("/api/exclusions/revision")
+def exclusions_revision(db: DbSession):
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse({"revision": global_revision(db)}, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/explore")
@@ -82,7 +89,12 @@ def plays(
     until: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
 ):
-    query = play_query(station_id, since, until).order_by(Play.detected_at.desc()).limit(limit)
+    query = (
+        play_query(station_id, since, until)
+        .where(*exclusion_conditions("", db.get_bind().dialect.name == "sqlite"))
+        .order_by(Play.detected_at.desc())
+        .limit(limit)
+    )
     rows = db.execute(query)
     enriched = attach_metadata(
         db,

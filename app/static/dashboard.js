@@ -179,7 +179,7 @@ async function load(reset = false, force = false) {
   params.set('page', page);
   if (snapshot !== null && page > 1) params.set('snapshot_id', snapshot);
   params.sort();
-  const cacheKey = `explore:${params}`;
+  const cacheKey = `explore:${window.MusicFilters.key()}:${params}`;
   const cached = window.RadioCache.get(cacheKey);
   if (cached) {
     snapshot = cached.data.snapshot_id;
@@ -193,7 +193,7 @@ async function load(reset = false, force = false) {
   results.setAttribute('aria-busy', 'true');
   if (!cached) statusLine.textContent = 'Recherche en cours…';
   try {
-    const response = await fetch(`/api/explore?${params}`, {signal: request.signal, cache: 'no-store'});
+    const response = await window.MusicFilters.fetch(`/api/explore?${params}`, {signal: request.signal, cache: 'no-store'});
     const data = await response.json();
     if (current !== version) return;
     if (!response.ok) {

@@ -10,7 +10,7 @@ from pydantic import ConfigDict, Field, model_validator
 from sqlalchemy import String, cast, func, or_, select
 
 from app.models import Play, Station, TrackMetadata
-from app.services.exclusions import ExclusionFilters, exclusion_conditions
+from app.services.exclusions import ExclusionFilters, exclusion_conditions, global_revision
 from app.services.search_text import normalize_search
 
 
@@ -132,7 +132,7 @@ def conditions(filters, unicode=True):
 
 
 def explore(db, filters):
-    key = (db.get_bind(), filters.model_dump_json())
+    key = (db.get_bind(), global_revision(db), filters.model_dump_json())
     with _lock:
         cached = _cache.get(key)
         if cached and cached[0] > monotonic():

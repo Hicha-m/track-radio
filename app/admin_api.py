@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import Session, load_only
 
 from app.admin_sessions import (
@@ -19,7 +19,7 @@ from app.admin_sessions import (
 )
 from app.config import settings
 from app.database import get_db
-from app.models import Play, Station, TrackMetadata
+from app.models import GlobalExclusion, Play, Station, TrackMetadata
 from app.security import require_admin
 from app.services.catalog import public_metadata
 from app.services.explorer import text_match
@@ -186,3 +186,59 @@ def catalogue_entry(key: str, db: Db):
     if entry is None:
         raise HTTPException(404, "Fiche introuvable.")
     return admin_metadata(entry)
+
+
+class GlobalHiddenTrack(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    artist: str | None = Field(None, max_length=300)
+    title: str = Field(min_length=1, max_length=500)
+
+
+@router.get("/exclusions")
+def global_exclusions(db: Db):
+    from app.services.exclusions import global_revision
+
+    entries = db.scalars(
+        select(GlobalExclusion).order_by(GlobalExclusion.title, GlobalExclusion.id)
+    )
+    return {
+        "items": [{"id": t.id, "artist": t.artist, "title": t.title} for t in entries],
+        "revision": global_revision(db),
+    }
+
+
+@router.post("/exclusions")
+def hide_globally(payload: GlobalHiddenTrack, db: Db):
+    from sqlalchemy.exc import IntegrityError
+
+    from app.services.exclusions import exclusion_id, global_revision, normalized_pair
+
+    artist = payload.artist or None
+    key = exclusion_id(artist, payload.title)
+    if db.get(GlobalExclusion, key) is None:
+        a, t = normalized_pair(artist, payload.title)
+        db.add(
+            GlobalExclusion(
+                id=key,
+                artist=artist,
+                title=payload.title,
+                artist_normalized=a,
+                title_normalized=t,
+            )
+        )
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            if db.get(GlobalExclusion, key) is None:
+                raise
+    return {"id": key, "revision": global_revision(db)}
+
+
+@router.delete("/exclusions/{key}")
+def restore_globally(key: str, db: Db):
+    from app.services.exclusions import global_revision
+
+    db.execute(delete(GlobalExclusion).where(GlobalExclusion.id == key))
+    db.commit()
+    return {"revision": global_revision(db)}

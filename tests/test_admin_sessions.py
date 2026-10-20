@@ -133,6 +133,48 @@ def test_login_rotates_cookie_and_keeps_session_count_bounded(browser_client, db
     )
 
 
+def test_bearer_attempts_share_login_budget_across_routes_and_expire(browser_client, monkeypatch):
+    from app import admin_sessions
+
+    client = browser_client
+    now = 1000.0
+    monkeypatch.setattr(admin_sessions, "monotonic", lambda: now)
+    valid = {"Authorization": "Bearer test-admin-token"}
+    invalid = {"Authorization": "Bearer wrong"}
+    # Authenticated API requests do not consume the guessing budget.
+    for _ in range(10):
+        assert client.get("/api/admin/access", headers=valid).status_code == 200
+    assert client.get("/api/admin/access", headers=invalid).status_code == 401
+    for _ in range(4):
+        assert (
+            client.post("/api/admin/login", json={"token": "wrong"}, headers=ORIGIN).status_code
+            == 401
+        )
+    for path in ("/api/admin/access", "/api/admin/stations", "/api/catalog/spotify-match"):
+        response = client.get(path, headers=valid)
+        assert response.status_code == 429
+        assert int(response.headers["retry-after"]) == 900
+    now += 901
+    assert client.get("/api/admin/access", headers=valid).status_code == 200
+    assert client.get("/api/admin/access", headers=invalid).status_code == 401
+
+
+def test_bearer_global_budget_covers_different_ips(browser_client):
+    from fastapi import HTTPException
+    from starlette.requests import Request
+
+    from app.admin_sessions import login_budget
+
+    for index in range(100):
+        request = Request({"type": "http", "client": (f"192.0.2.{index}", 1234)})
+        login_budget(request)
+    response = browser_client.get("/api/admin/access", headers={"Authorization": "Bearer wrong"})
+    assert response.status_code == 429
+    with pytest.raises(HTTPException) as blocked:
+        login_budget(Request({"type": "http", "client": ("192.0.2.200", 1234)}))
+    assert blocked.value.status_code == 429
+
+
 def test_cookie_correction_requires_csrf_and_invalidates_read_caches(browser_client, db):
     from app.services.catalog import ensure_entry
 

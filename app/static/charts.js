@@ -108,7 +108,7 @@ async function loadChart(force = false) {
   list.setAttribute('aria-busy', 'true');
   if (!cached) status.textContent = 'Actualisation du classement…';
   try {
-    const response = await fetch(`/api/stats/top?${params}`, {signal: pending.signal, cache: 'no-store'});
+    const response = await window.MusicFilters.fetch(`/api/stats/top?${params}`, {signal: pending.signal, cache: 'no-store'});
     if (!response.ok) throw new Error('Classement indisponible. Réessayez dans quelques instants.');
     const data = await response.json();
     if (version === chartVersion) {

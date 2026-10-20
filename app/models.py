@@ -8,6 +8,16 @@ class Base(DeclarativeBase):
     pass
 
 
+class GlobalExclusion(Base):
+    __tablename__ = "global_exclusions"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    artist: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    title: Mapped[str] = mapped_column(String(500))
+    artist_normalized: Mapped[str] = mapped_column(Text)
+    title_normalized: Mapped[str] = mapped_column(Text)
+    __table_args__ = (Index("ix_global_exclusions_match", "artist_normalized", "title_normalized"),)
+
+
 class AdminSession(Base):
     __tablename__ = "admin_sessions"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)

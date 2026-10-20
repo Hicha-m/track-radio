@@ -1,6 +1,7 @@
 window.TrackCatalog = (() => {
   let dialog;
   let serial = 0;
+  window.addEventListener('radio:globalfilterschange', () => { serial++; dialog?.close(); });
   function el(tag, text = '', className = '') {
     const result = document.createElement(tag);
     result.textContent = text;
@@ -74,17 +75,23 @@ window.TrackCatalog = (() => {
     const edit = el('button', 'Modifier', 'text-button catalog-modify'); edit.type = 'button'; edit.hidden = true;
     panel.append(close, heading, artist, edit, message, content);
     const hide = el('button', 'Masquer ce titre', 'text-button'); hide.type = 'button';
-    hide.onclick = () => { try { window.MusicFilters.hide(track); panel.close(); } catch (error) { message.textContent = error.message; } };
+    hide.onclick = async () => {
+      const global = window.RadioAdmin.authenticated(); hide.disabled = true;
+      try { await window.MusicFilters.hide(track, global); panel.close(); }
+      catch (error) { message.textContent = error.message; }
+      finally { hide.disabled = false; }
+    };
     const footer = el('div', '', 'catalog-footer'); footer.append(hide); panel.append(footer);
     const active = () => current === serial && panel.isConnected && panel.open;
-    function adminState() { edit.hidden = !window.RadioAdmin.authenticated(); }
+    function adminState() { edit.hidden = !window.RadioAdmin.authenticated(); hide.textContent = window.RadioAdmin.authenticated() ? 'Masquer pour tous' : 'Masquer pour moi'; }
     window.addEventListener('radio:adminchange', adminState);
     panel.addEventListener('close', () => window.removeEventListener('radio:adminchange', adminState), {once: true});
     document.body.append(panel); panel.showModal();
+    adminState();
     window.RadioAdmin.refresh().then(() => { if (active()) adminState(); });
     try {
       const params = new URLSearchParams({artist: track.artist || '', title: track.title});
-      const response = await fetch(`/api/catalog?${params}`);
+      const response = await window.MusicFilters.fetch(`/api/catalog?${params}`);
       if (!response.ok) throw new Error('Informations indisponibles.');
       const data = await response.json();
       if (!active()) return;
@@ -111,7 +118,7 @@ window.TrackCatalog = (() => {
       const radio = el('section', '', 'catalog-radio'); radio.append(el('h3', 'Diffusions radio'));
       const radioStatus = el('p', 'Chargement des détections…', 'hint'); radio.append(radioStatus); content.append(radio);
       const radioParams = new URLSearchParams(); if (track.station_id) radioParams.set('station_id', track.station_id);
-      fetch(`/api/catalog/${data.track_id}/radio?${radioParams}`).then(async response => {
+      window.MusicFilters.fetch(`/api/catalog/${data.track_id}/radio?${radioParams}`).then(async response => {
         if (!response.ok) throw new Error('Historique radio indisponible.'); return response.json();
       }).then(history => {
         if (!active()) return;
@@ -131,7 +138,7 @@ window.TrackCatalog = (() => {
         const hourly = el('section', '', 'catalog-hourly'); hourly.append(el('h3', 'Heures de diffusion · 7 jours')); content.append(hourly);
         const hourlyParams = window.MusicFilters.apply(new URLSearchParams({track_id: data.track_id, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'}));
         if (track.station_id) hourlyParams.set('station_id', track.station_id);
-        fetch(`/api/stats/hourly?${hourlyParams}`).then(async response => {
+        window.MusicFilters.fetch(`/api/stats/hourly?${hourlyParams}`).then(async response => {
           if (!response.ok) throw new Error('Activité horaire indisponible.'); return response.json();
         }).then(activity => {
           if (!active()) return;

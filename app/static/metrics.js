@@ -68,7 +68,7 @@ window.RadioPages.stats = () => {
       if (kind === 'offsets' && (!params.get('station_a') || params.get('station_a') === params.get('station_b'))) {
         output.replaceChildren(); status.textContent = 'Choisissez deux radios différentes pour comparer leurs détections.'; return;
       }
-      const response = await fetch(`/api/stats/${kind}?${params}`, {signal: controller.signal});
+      const response = await window.MusicFilters.fetch(`/api/stats/${kind}?${params}`, {signal: controller.signal});
       if (!response.ok) throw new Error('Statistiques indisponibles. Réessayez.');
       const data = await response.json();
       if (current !== generation || controller.signal.aborted) return;

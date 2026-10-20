@@ -6,7 +6,7 @@ from time import monotonic
 from typing import Annotated, Literal
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select, update
@@ -23,6 +23,7 @@ from app.services.catalog import (
     search_lyrics,
     search_provider,
 )
+from app.services.exclusions import ensure_visible
 
 router = APIRouter(prefix="/api/catalog")
 Db = Annotated[Session, Depends(get_db)]
@@ -51,10 +52,12 @@ def find(db, key):
 
 @router.get("")
 def metadata(
+    request: Request,
     db: Db,
     artist: str = Query("", max_length=300),
     title: str = Query(..., min_length=1, max_length=500),
 ):
+    ensure_visible(request, db, artist, title)
     entry = db.get(TrackMetadata, identity(artist, title))
     if entry is None:
         return {
@@ -64,13 +67,18 @@ def metadata(
             "lyrics": None,
             "manual": False,
         }
+    ensure_visible(request, db, entry.artist, entry.title)
     return {**public_metadata(entry), "lyrics": entry.lyrics}
 
 
 @router.get("/{key}/radio")
-def radio_history(key: str, db: Db, station_id: int | None = Query(None, ge=1)):
+def radio_history(key: str, request: Request, db: Db, station_id: int | None = Query(None, ge=1)):
     if len(key) != 64 or any(c not in "0123456789abcdef" for c in key):
         raise HTTPException(422, "Identifiant de titre invalide.")
+    entry = db.get(TrackMetadata, key)
+    recording = entry or db.scalar(select(Play).where(Play.track_id == key).limit(1))
+    if recording:
+        ensure_visible(request, db, recording.artist, recording.title)
     where = [Play.track_id == key]
     if station_id is not None:
         where.append(Play.station_id == station_id)
@@ -249,8 +257,9 @@ _preview_cache = OrderedDict()
 
 
 @router.get("/{key}/preview")
-async def preview(key: str, db: Db):
+async def preview(key: str, request: Request, db: Db):
     entry = find(db, key)
+    ensure_visible(request, db, entry.artist, entry.title)
     selected = dict(entry.selected or {})
     db.commit()
     if not selected:

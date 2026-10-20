@@ -54,7 +54,7 @@ def verify_origin(request):
         raise HTTPException(403, "Origine de la requête refusée.")
 
 
-def login_budget(request):
+def login_budget(request, *, consume=True):
     now = monotonic()
     peer = request.client.host if request.client else "unknown"
     with _attempt_lock:
@@ -69,9 +69,10 @@ def login_budget(request):
                     "Trop de tentatives. Réessayez dans 15 minutes.",
                     headers={"Retry-After": str(max(1, int(deadline - now)))},
                 )
-        for key in ("global", f"ip:{peer}"):
-            count, deadline = _attempts.get(key, (0, now + 900))
-            _attempts[key] = (count + 1, deadline)
+        if consume:
+            for key in ("global", f"ip:{peer}"):
+                count, deadline = _attempts.get(key, (0, now + 900))
+                _attempts[key] = (count + 1, deadline)
 
 
 def current_session(request: Request, db: Session):
@@ -137,8 +138,11 @@ def require_admin(request: Request, db: Annotated[Session, Depends(get_db)]):
     # Keep explicit server/CLI clients compatible; browsers use only the session cookie.
     supplied = request.headers.get("authorization", "")
     if supplied:
+        # Share the login budget across routes without throttling normal API usage.
+        login_budget(request, consume=False)
         if secrets.compare_digest(supplied.encode(), f"Bearer {expected}".encode()):
             return
+        login_budget(request)
         raise HTTPException(401, "Clé administrateur invalide.")
     entry = current_session(request, db)
     if entry is None:

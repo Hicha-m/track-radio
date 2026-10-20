@@ -69,7 +69,7 @@
         const cached = window.RadioCache.get(key);
         let data = cached && Date.now() - cached.time < 60000 ? cached.data : null;
         if (!data) {
-          const response = await fetch(`/api/explore?${params}`, {signal: request.signal});
+          const response = await window.MusicFilters.fetch(`/api/explore?${params}`, {signal: request.signal});
           if (!response.ok) throw new Error('Recherche indisponible. Réessayez.');
           data = await response.json();
           window.RadioCache.put(key, data);
