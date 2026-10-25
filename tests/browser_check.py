@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import socket
 import subprocess
@@ -510,16 +511,20 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(page.locator(".podium-detail").nth(2)).not_to_contain_text(
                             "Track Four"
                         )
-                        export_url = page.locator('[data-export-format="json"]').get_attribute(
-                            "href"
-                        )
-                        response = page.request.get("http://127.0.0.1:" + str(port) + export_url)
-                        exported = response.json()
+                        page.locator("[data-open-export]").click()
+                        export_dialog = page.locator(".export-dialog")
+                        expect(export_dialog).to_be_visible()
+                        export_dialog.locator("select[name=format]").select_option("json")
+                        with page.expect_download() as download:
+                            export_dialog.locator("[type=submit]").click()
+                        exported = json.loads(Path(download.value.path()).read_text())
                         assert exported["count"] == 4, exported
                         assert not any(t["title"] == "Track Four" for t in exported["items"])
+                        export_dialog.locator("select[name=format]").select_option("csv")
                         with page.expect_download() as download:
-                            page.locator('[data-export-format="csv"]').click()
+                            export_dialog.locator("[type=submit]").click()
                         assert download.value.suggested_filename.endswith(".csv")
+                        export_dialog.locator("[data-export-close]").click()
                         page.locator("[data-open-exclusions]").click()
                         expect(page.locator(".exclusions-dialog")).to_be_visible()
                         page.get_by_role("button", name="Réafficher pour tous", exact=True).click()

@@ -244,3 +244,12 @@ button.search-shortcut { width: 100%; text-align: left; background: var(--surfac
 .station-play:has(.station-logo)>span{position:absolute;right:0;bottom:0;z-index:1;display:grid;place-items:center;width:17px;height:17px;border-radius:5px 0 0;background:var(--surface);color:var(--accent);font-size:10px;line-height:1}
 
 .catalog-genres{margin:12px 0}.catalog-genres h3{font-size:14px;margin:0 0 6px}.catalog-genres ul{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0;padding-left:20px}.catalog-genres li{font-size:13px}.catalog-editor-actions{display:flex;flex-wrap:wrap;gap:8px 16px;margin:16px 0}.candidate-completion{margin-top:10px}
+
+.export-dialog { width: min(880px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow-y: auto; border: 1px solid var(--line); border-radius: 18px; padding: 24px; background: var(--surface); color: var(--text); }
+.export-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.export-dialog h2 { margin: 12px 0; }
+.export-dialog fieldset { min-width: 0; margin: 20px 0; border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.export-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.export-fields .checkbox { display: flex; align-items: start; gap: 8px; overflow-wrap: anywhere; }
+.export-fields input { flex: 0 0 auto; width: auto; }
+.export-dialog .checkbox { flex-direction: row; }

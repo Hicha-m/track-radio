@@ -86,10 +86,7 @@ window.MusicFilters = (() => {
   function exports(params) {
     const selection = new URLSearchParams(params);
     ['limit', 'page', 'page_size', 'snapshot_id'].forEach(k => selection.delete(k));
-    document.querySelectorAll('[data-export-format]').forEach(link => {
-      selection.set('format', link.dataset.exportFormat);
-      link.href = `/api/export?${selection}`;
-    });
+    window.RadioExport?.configure(selection);
   }
   async function open() {
     dialog?.close(); dialog?.remove();

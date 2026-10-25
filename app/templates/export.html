@@ -1,0 +1,38 @@
+<template id="export-template">
+  <dialog class="export-dialog" aria-labelledby="export-title">
+    <button type="button" class="text-button" data-export-close>Fermer</button>
+    <h2 id="export-title">Export personnalisable</h2>
+    <p class="hint">Choisissez vos données. Les titres masqués pour vous ou pour tous sont exclus avant le classement. Les filtres de la page sont repris à l’ouverture.</p>
+    <form id="export-form">
+      <div class="filter-grid">
+        <label>Données<select name="view"><option value="tracks">Musiques (titres regroupés)</option><option value="plays">Passages</option></select></label>
+        <label>Radio<select name="station_id"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+        <label>Recherche<input name="q" type="search" maxlength="200"></label>
+        <label>Artiste<input name="artist" maxlength="300"></label>
+        <label>Titre<input name="title" maxlength="500"></label>
+        <label>Genre<select name="genre"><option value="">Tous les genres</option><option value="__unknown__">Inconnu</option>{% for genre in genres %}<option>{{ genre }}</option>{% endfor %}</select></label>
+        <label>Trier par<select name="sort"><option value="frequency">Plus diffusé</option><option value="newest">Plus récent</option><option value="oldest">Plus ancien</option><option value="artist">Artiste A–Z</option><option value="title">Titre A–Z</option><option value="station">Radio A–Z</option></select></label>
+        <label>Nombre de résultats<input name="limit" type="number" min="1" max="10000" placeholder="Tous (10 000 maximum)"></label>
+        <label>Diffusé après<input name="since" type="datetime-local" step="any"></label>
+        <label>Diffusé avant<input name="until" type="datetime-local" step="any"></label>
+        <label>Format<select name="format"><option value="csv">CSV</option><option value="json">JSON</option></select></label>
+      </div>
+      <details class="advanced-filters"><summary>Filtres avancés</summary><div class="filter-grid">
+        <label>Dernière observation après<input name="seen_since" type="datetime-local" step="any"></label>
+        <label>Dernière observation avant<input name="seen_until" type="datetime-local" step="any"></label>
+        <label>Source<select name="source"><option value="">Toutes</option><option value="icy">ICY</option><option value="json">JSON</option><option value="html">HTML</option></select></label>
+        <label>Artiste renseigné<select name="artist_status"><option value="any">Indifférent</option><option value="known">Oui</option><option value="missing">Non</option></select></label>
+        <label>Suivi de la radio<select name="enabled"><option value="">Indifférent</option><option value="true">Actif</option><option value="false">Désactivé</option></select></label>
+        <label>Texte brut<input name="raw" maxlength="200"></label>
+        <label>Minimum de passages<input name="min_plays" type="number" min="1" value="1"></label>
+      </div><label class="checkbox"><input type="checkbox" name="exact"> Correspondance exacte de l’artiste et du titre</label></details>
+      <p class="hint">Dates dans votre fuseau horaire ; la borne « avant » est exclusive. Pour un top 10, choisissez Musiques, Plus diffusé et 10 résultats.</p>
+      <fieldset><legend>Champs à exporter</legend>
+        <div class="music-tools"><button type="button" data-fields="all">Tout sélectionner</button><button type="button" data-fields="minimal">Titre et artiste uniquement</button></div>
+        <div class="export-fields"></div>
+      </fieldset>
+      <p data-export-status role="status" aria-live="polite"></p>
+      <button type="submit" class="hero-button">Télécharger l’export</button>
+    </form>
+  </dialog>
+</template>

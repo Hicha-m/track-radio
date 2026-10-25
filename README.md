@@ -472,3 +472,31 @@ Pour activer Last.fm, ajouter `LASTFM_API_KEY` au `.env` privé **du serveur** o
 Les routes admin `POST /api/catalog/{id}/candidate-artwork` et `/candidate-lyrics` acceptent uniquement l’identifiant d’une proposition enregistrée et la révision courante. Elles utilisent la session et la protection CSRF et refusent les modifications concurrentes. Aucun appel fournisseur n’a lieu pendant les lectures publiques du catalogue. Aucune migration de base n’est requise pour cette phase.
 
 Vérification ciblée : `python -m pytest tests/test_providers.py` et `PYTHONPATH=. .venv/bin/python tests/browser_providers.py`. Les tests contrôlent les paramètres, le débit, les redirections, les réponses incomplètes, les erreurs, la pagination, l’absence de fuite de clé et les parcours navigateur en 1280 et 402 pixels. Lors de la vérification réelle du 25/10/2026, la recherche « Comme un sheguey » — GRADUR a renvoyé un enregistrement MusicBrainz et une suggestion lyrics.ovh, puis les paroles étaient disponibles. L’accès Cover Art Archive a rencontré une erreur TLS depuis l’environnement de travail ; son parcours est vérifié avec réponses simulées. Last.fm est testé avec une clé factice et des réponses simulées ; l’activation et la vérification réelles nécessitent une clé serveur configurée.
+
+### Export personnalisable
+
+Depuis les classements ou la recherche avancée, ouvrez **Export personnalisable**.
+Les filtres courants sont repris et restent modifiables : radio, dates, artiste,
+titre, genre, source, tri et filtres avancés. Choisissez les musiques regroupées
+ou les passages, un nombre de résultats (vide pour tous, au maximum 10 000),
+les champs et le format CSV ou JSON. Les exclusions personnelles de l’appareil
+et la blacklist globale s’appliquent avant le classement et la limite, y compris
+pendant une session administrateur.
+
+Pour exporter le top 10 d’une radio avec seulement le titre et l’artiste :
+choisissez la radio, **Musiques**, **Plus diffusé**, **10**, puis **Titre et artiste
+uniquement**. **Tout sélectionner** permet un export complet ; le champ
+`metadata` conserve l’objet des métadonnées musicales et les paroles sélectionnées.
+En CSV (UTF-8 avec BOM, séparateur `;`), les listes et objets sont encodés en JSON
+et les cellules pouvant être interprétées comme formules sont neutralisées.
+
+L’API `GET /api/export` reprend les filtres de `/api/explore` et accepte
+`format=csv|json`, `limit=1..10000` et `fields=title,artist` (champs séparés par
+virgules, dans l’ordre voulu). Sans `fields`, tous les champs sont exportés ;
+`GET /api/export/fields` décrit les champs disponibles pour chaque vue. L’export
+ignore la pagination de l’écran et refuse les champs invalides, dupliqués ou
+incompatibles avec la vue. Le JSON conserve l’enveloppe `view`, `snapshot_id`,
+`count`, `items` ; chaque élément contient uniquement les champs choisis.
+
+Vérification : `PYTHONPATH=. .venv/bin/pytest tests/test_exports_exclusions.py`
+et `PYTHONPATH=. .venv/bin/python tests/browser_exports.py` (Chromium).
