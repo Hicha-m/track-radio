@@ -124,3 +124,70 @@ async def complete_missing(client, selected, previous=None, known_candidates=Non
         }
     except PROVIDER_ERRORS:
         return deepcopy(selected), {**attempt, "status": "error", "filled": []}
+
+
+CANDIDATE_FIELDS = (
+    "album",
+    "duration",
+    "cover_url",
+    "preview_url",
+    "release_date",
+    "featured_artists",
+    "genres",
+    "isrc",
+)
+
+
+def complete_from_candidate(selected, candidate):
+    """An explicit admin choice fills blanks without replacing a recording."""
+    from app.services.catalog import safe_url
+
+    result = deepcopy(selected)
+    filled = []
+    sources = dict(result.get("field_sources") or {})
+    provider = candidate.get("provider")
+    for field in CANDIDATE_FIELDS:
+        value = candidate.get(field)
+        if field.endswith("_url"):
+            value = safe_url(value)
+        if not result.get(field) and value:
+            result[field] = deepcopy(value)
+            sources[field] = provider
+            filled.append(field)
+            if field == "genres":
+                result["genre_source"] = candidate.get("genre_source") or provider
+    url = safe_url(candidate.get("url"))
+    if url and provider == result.get("provider"):
+        if not result.get("url") and candidate.get("provider_id") == result.get("provider_id"):
+            result["url"] = url
+            sources["url"] = provider
+            filled.append("url")
+    elif url:
+        additional = deepcopy(result.get("additional_sources") or [])
+        existing = next((s for s in additional if s.get("provider") == provider), None)
+        if existing is None:
+            additional.append(
+                {
+                    "provider": provider,
+                    "provider_id": candidate["provider_id"],
+                    "url": url,
+                }
+            )
+            result["additional_sources"] = additional
+            filled.append("additional_sources")
+        elif not existing.get("url") and existing.get("provider_id") == candidate["provider_id"]:
+            existing["url"] = url
+            result["additional_sources"] = additional
+            filled.append("additional_sources")
+    if filled:
+        result["field_sources"] = sources
+    return result, filled
+
+
+def candidate_completions(entry):
+    if not entry.selected:
+        return {}
+    return {
+        f"{c['provider']}:{c['provider_id']}": complete_from_candidate(entry.selected, c)[1]
+        for c in entry.candidates
+    }

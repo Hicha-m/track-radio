@@ -55,6 +55,15 @@ window.TrackCatalog = (() => {
     for (const [label, value] of items) { list.append(el('dt', label), el('dd', value || 'Non renseigné')); }
     return list;
   }
+  function genreList(data) {
+    const section = el('section', '', 'catalog-genres'); section.append(el('h3', 'Genres'));
+    const genres = [...new Set((Array.isArray(data.genres) ? data.genres : []).filter(g => typeof g === 'string' && g.trim()).map(g => g.trim()))];
+    if (!genres.length && data.primary_genre) genres.push(data.primary_genre);
+    if (genres.length) {
+      const list = el('ul'); genres.forEach(genre => list.append(el('li', genre))); section.append(list);
+    } else section.append(el('p', 'Aucun genre renseigné.', 'hint'));
+    return section;
+  }
   async function open(track, options = {}) {
     const current = ++serial;
     if (dialog) { dialog.close(); dialog.remove(); }
@@ -110,7 +119,7 @@ window.TrackCatalog = (() => {
       if (data.cover_url) summary.append(artwork(data.cover_url, heading.textContent));
       else { const placeholder = el('div', '♫', 'catalog-art catalog-art-placeholder'); placeholder.setAttribute('aria-label', 'Pochette indisponible'); summary.append(placeholder); }
       const essentials = el('div', '', 'catalog-essentials');
-      if (data.primary_genre) essentials.append(el('p', data.primary_genre, 'catalog-genre'));
+      essentials.append(genreList(data));
       essentials.append(fields([['Album', data.album], ['Durée', duration(data.duration)], ['Source principale', providers[data.provider] || data.provider || 'Non renseignée']]));
       const controls = el('div', '', 'preview-entry');
       controls.append(playButton({...track, metadata: data}), el('span', 'Écouter l’extrait'));
@@ -147,7 +156,7 @@ window.TrackCatalog = (() => {
         }).catch(error => { if (active()) hourly.append(el('p', error.message, 'hint')); });
       }
       const technical = el('details', '', 'catalog-technical'); technical.append(el('summary', 'Métadonnées et provenance'));
-      technical.append(fields([['Titre officiel', data.title], ['Artiste principal', data.artist], ['Artistes invités', (data.featured_artists || []).join(', ')], ['Album', data.album], ['Durée', duration(data.duration)], ['Genre principal', data.primary_genre], ['Genres secondaires', (data.genres || []).slice(1).join(', ')], ['Source des genres', providers[data.genre_source] || data.genre_source], ['Date de sortie', data.release_date ? data.release_date.slice(0, 10) : null], ['ISRC', data.isrc], ['Fournisseur', providers[data.provider] || data.provider], ['Statut', status], ['Identifiant', data.recording_id]]));
+      technical.append(fields([['Titre officiel', data.title], ['Artiste principal', data.artist], ['Artistes invités', (data.featured_artists || []).join(', ')], ['Album', data.album], ['Durée', duration(data.duration)], ['Date de sortie', data.release_date ? data.release_date.slice(0, 10) : null], ['ISRC', data.isrc], ['Fournisseur', providers[data.provider] || data.provider], ['Statut', status], ['Identifiant', data.recording_id]]));
       if (data.title && data.title !== track.title) technical.append(el('p', `Titre collecté : ${track.title}`, 'hint'));
       if (data.field_sources) {
         const labels = {genres: 'Genres', album: 'Album', release_date: 'Date de sortie', featured_artists: 'Invités'};
@@ -179,5 +188,5 @@ window.TrackCatalog = (() => {
       platforms.append(links); content.append(platforms);
     } catch (error) { if (active()) message.textContent = error.message; }
   }
-  return {button, open, playButton, searchUrl};
+  return {button, open, playButton, searchUrl, genreList};
 })();

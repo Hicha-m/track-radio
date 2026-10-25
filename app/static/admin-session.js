@@ -43,7 +43,7 @@ window.RadioAdmin = (() => {
     const data = await response.json();
     if (response.status === 401) { generation++; update({authenticated: false}); }
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Opération impossible.');
-    if (url.endsWith('/correction') || url.endsWith('/complete')) {
+    if (url.endsWith('/correction') || url.endsWith('/complete') || url.endsWith('/complete-candidate')) {
       window.RadioCache.clear();
       window.dispatchEvent(new Event('radio:catalogchange'));
     }

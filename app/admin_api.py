@@ -22,6 +22,7 @@ from app.database import get_db
 from app.models import GlobalExclusion, Play, Station, TrackMetadata
 from app.security import require_admin
 from app.services.catalog import public_metadata
+from app.services.catalog_completion import candidate_completions
 from app.services.data_admin import Correction, apply, play_data, preview
 from app.services.explorer import text_match
 
@@ -114,6 +115,8 @@ def admin_metadata(entry, details=True):
     }
     if details:
         result.update(
+            revision=entry.revision,
+            candidate_completions=candidate_completions(entry),
             candidates=entry.candidates,
             lyrics_candidates=entry.lyrics_candidates,
             lyrics=entry.lyrics,

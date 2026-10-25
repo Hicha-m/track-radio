@@ -12,6 +12,9 @@ window.RadioPages = window.RadioPages || {};
   function editor(track, metadata, message, request) {
     const details = el('details', '', 'catalog-editor');
     details.append(el('summary', 'Corriger les informations (administration)'));
+    const genres = el('div');
+    const renderGenres = () => genres.replaceChildren(window.TrackCatalog.genreList(metadata));
+    renderGenres();
     const form = el('form');
     function field(text, input) {
       const label = el('label', text);
@@ -39,6 +42,35 @@ window.RadioPages = window.RadioPages || {};
     const feedback = el('p', '', 'hint');
     feedback.setAttribute('role', 'status');
     let busy = false;
+    let completers = [];
+    const fieldLabels = {genres: 'genres', album: 'album', release_date: 'date de sortie', featured_artists: 'artistes invités', duration: 'durée', cover_url: 'pochette', preview_url: 'extrait', isrc: 'ISRC', url: 'lien du fournisseur', additional_sources: 'lien du fournisseur'};
+    function updateMetadata(data) {
+      metadata = {...metadata, ...data}; renderGenres(); refreshCompleters();
+    }
+    function refreshCompleters() {
+      for (const {candidate, container} of completers) {
+        container.replaceChildren();
+        const id = `${candidate.provider}:${candidate.provider_id}`;
+        const fields = metadata.candidate_completions?.[id] || [];
+        if (!fields.length) continue;
+        const complete = el('button', 'Compléter les informations manquantes', 'text-button'); complete.type = 'button';
+        complete.title = `Ajouter : ${fields.map(f => fieldLabels[f] || f).join(', ')}`;
+        complete.onclick = async () => {
+          if (busy) return;
+          busy = true; complete.disabled = true;
+          feedback.textContent = 'Complétion depuis cette proposition…';
+          try {
+            const data = await call('complete-candidate', {candidate_id: id, revision: metadata.revision});
+            updateMetadata(data);
+            const labels = data.completion.filled.map(f => fieldLabels[f] || f);
+            feedback.textContent = labels.length ? `Informations complétées : ${labels.join(', ')}.` : 'Aucune information manquante à ajouter.';
+            message.textContent = 'Informations mises à jour · les valeurs déjà renseignées ont été conservées.';
+          } catch (error) { feedback.textContent = error.message; complete.disabled = false; }
+          finally { busy = false; }
+        };
+        container.append(complete);
+      }
+    }
     async function call(action, payload) {
       const data = await request(`/api/catalog/${metadata.track_id}/${action}`, payload);
       return data;
@@ -49,19 +81,24 @@ window.RadioPages = window.RadioPages || {};
       try {
         const response = await call('correction', payload);
         if (responsePane) responsePane.textContent = JSON.stringify(response, null, 2);
+        updateMetadata(response);
         feedback.textContent = 'Correction enregistrée. Rouvrez les détails pour la consulter.';
         message.textContent = 'Informations mises à jour · actualisez le classement pour les afficher.';
       } catch (error) { feedback.textContent = error.message; }
       finally { busy = false; }
     }
     function choices(items, lyrics = false) {
-      candidates.replaceChildren();
+      candidates.replaceChildren(); completers = [];
       items.forEach(c => {
         const row = el('article', '', 'candidate candidate-layout');
         const presentation = el('div', '', 'candidate-presentation');
         if (c.cover_url) presentation.append(artwork(c.cover_url, c.title));
         presentation.append(el('p', `${c.artist} — ${c.title} · ${c.album || ''} · ${duration(c.duration)}`));
-        if (c.preview_url) presentation.append(preview(c.preview_url, c));
+        if (c.preview_url && !lyrics) {
+          const url = `/api/catalog/${metadata.track_id}/candidates/${encodeURIComponent(`${c.provider}:${c.provider_id}`)}/preview`;
+          presentation.append(preview(url, c));
+        }
+        if (!lyrics) presentation.append(window.TrackCatalog.genreList(c));
         if (lyrics) presentation.append(el('pre', c.plain || c.synced || 'Instrumental', 'lyrics'));
         const response = el('section', '', 'candidate-response');
         const responsePane = el('pre', JSON.stringify(c, null, 2));
@@ -70,15 +107,20 @@ window.RadioPages = window.RadioPages || {};
         choose.type = 'button';
         choose.addEventListener('click', () => apply({target: lyrics ? 'lyrics' : 'recording', candidate_id: lyrics ? c.id : `${c.provider}:${c.provider_id}`}, responsePane));
         presentation.append(choose);
+        if (!lyrics) {
+          const container = el('div', '', 'candidate-completion');
+          presentation.append(container); completers.push({candidate: c, container});
+        }
         row.append(presentation, response);
         candidates.append(row);
       });
+      refreshCompleters();
     }
     choices(metadata.candidates || []);
     const lyricChoices = el('button', 'Voir les propositions de paroles enregistrées', 'text-button');
     lyricChoices.type = 'button';
     lyricChoices.onclick = () => choices(metadata.lyrics_candidates || [], true);
-    form.append(lyricChoices);
+
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (busy) return;
@@ -88,6 +130,8 @@ window.RadioPages = window.RadioPages || {};
       const selectedProvider = provider.value;
       try {
         const data = await call('search', {provider: selectedProvider, artist: artist.value, title: title.value});
+        metadata = {...metadata, revision: data.revision, candidate_completions: data.candidate_completions,
+          [selectedProvider === 'lrclib' ? 'lyrics_candidates' : 'candidates']: data.candidates};
         choices(data.candidates, selectedProvider === 'lrclib');
         feedback.textContent = data.candidates.length ? 'Vérifiez la version et écoutez l’extrait avant de choisir.' : 'Aucun résultat. Modifiez la recherche ou le fournisseur.';
       } catch (error) { feedback.textContent = error.message; }
@@ -99,22 +143,9 @@ window.RadioPages = window.RadioPages || {};
     const automatic = el('button', 'Relancer la recherche automatique', 'text-button');
     automatic.type = 'button';
     automatic.addEventListener('click', () => apply({automatic: true}));
-    const complete = el('button', 'Compléter les informations manquantes', 'text-button');
-    complete.type = 'button';
-    complete.disabled = metadata.status !== 'matched';
-    complete.onclick = async () => {
-      if (busy) return;
-      busy = true; complete.disabled = true;
-      feedback.textContent = 'Vérification dans le second catalogue…';
-      try {
-        const data = await call('complete', {});
-        const labels = {genres: 'genres', album: 'album', release_date: 'date de sortie', featured_artists: 'artistes invités'};
-        const fields = (data.completion.filled || []).map(field => labels[field] || field);
-        feedback.textContent = fields.length ? `Informations complétées : ${fields.join(', ')}. Rouvrez la fiche pour les consulter.` : data.completion.status === 'error' ? 'Second catalogue temporairement indisponible. Vous pouvez réessayer.' : data.completion.status === 'ambiguous' ? 'Plusieurs versions possibles. Aucun champ modifié.' : 'Aucune information supplémentaire validée.';
-      } catch (error) { feedback.textContent = error.message; }
-      finally { busy = false; complete.disabled = false; }
-    };
-    details.append(form, feedback, candidates, complete, reject, automatic);
+    const actions = el('div', '', 'catalog-editor-actions');
+    actions.append(lyricChoices, reject, automatic);
+    details.append(genres, form, actions, feedback, candidates);
     return details;
   }
 

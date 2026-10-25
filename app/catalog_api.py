@@ -23,6 +23,7 @@ from app.services.catalog import (
     search_lyrics,
     search_provider,
 )
+from app.services.catalog_completion import candidate_completions, complete_from_candidate
 from app.services.exclusions import canonical_exclusions, ensure_visible, exclusion_conditions
 
 router = APIRouter(prefix="/api/catalog")
@@ -175,7 +176,11 @@ async def search(key: str, payload: Search, db: Db):
     # A human is reviewing this track; the worker must not overwrite the choice.
     entry.manual = True
     db.commit()
-    return {"candidates": candidates}
+    return {
+        "candidates": candidates,
+        "revision": entry.revision,
+        "candidate_completions": candidate_completions(entry),
+    }
 
 
 @router.post("/{key}/correction", dependencies=[Depends(require_admin)])
@@ -222,7 +227,69 @@ def correct(key: str, payload: Correction, db: Db):
 
     invalidate_metrics()
     invalidate_explorer()
-    return {**public_metadata(entry), "lyrics": entry.lyrics}
+    return {
+        **public_metadata(entry),
+        "lyrics": entry.lyrics,
+        "revision": entry.revision,
+        "candidate_completions": candidate_completions(entry),
+    }
+
+
+class CandidateCompletion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    candidate_id: str = Field(min_length=1, max_length=100)
+    revision: int = Field(ge=0)
+
+
+@router.post("/{key}/complete-candidate", dependencies=[Depends(require_admin)])
+def complete_candidate(key: str, payload: CandidateCompletion, db: Db):
+    entry = find(db, key)
+    db.refresh(entry)
+    if entry.revision != payload.revision:
+        raise HTTPException(
+            409, "La fiche a changé. Rouvrez-la avant de compléter les informations."
+        )
+    if not entry.selected:
+        raise HTTPException(409, "Choisissez une version avant de compléter ses informations.")
+    candidate = next(
+        (
+            c
+            for c in entry.candidates
+            if f"{c['provider']}:{c['provider_id']}" == payload.candidate_id
+        ),
+        None,
+    )
+    if candidate is None:
+        raise HTTPException(422, "Morceau absent des propositions recherchées.")
+    completed, filled = complete_from_candidate(entry.selected, candidate)
+    if filled:
+        changed = db.execute(
+            update(TrackMetadata)
+            .where(TrackMetadata.id == key, TrackMetadata.revision == payload.revision)
+            .values(
+                selected=completed,
+                revision=payload.revision + 1,
+                manual=True,
+                primary_genre=(completed.get("genres") or [None])[0],
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if changed.rowcount != 1:
+            db.rollback()
+            raise HTTPException(409, "La fiche a changé. Rouvrez-la.")
+        db.commit()
+        db.refresh(entry)
+        from app.metrics_api import invalidate_metrics
+        from app.services.explorer import invalidate_explorer
+
+        invalidate_metrics()
+        invalidate_explorer()
+    return {
+        **public_metadata(entry),
+        "revision": entry.revision,
+        "candidate_completions": candidate_completions(entry),
+        "completion": {"status": "matched" if filled else "unchanged", "filled": filled},
+    }
 
 
 @router.post("/{key}/complete", dependencies=[Depends(require_admin)])
@@ -277,11 +344,43 @@ async def preview(key: str, request: Request, db: Db):
     db.commit()
     if not selected:
         raise HTTPException(404, "Aucune version validée.")
-    cache_key = (selected["provider"], selected["provider_id"])
+    return await recording_preview(selected)
+
+
+@router.get("/{key}/candidates/{candidate_id}/preview", dependencies=[Depends(require_admin)])
+async def candidate_preview(key: str, candidate_id: str, db: Db):
+    entry = find(db, key)
+    candidate = next(
+        (
+            dict(c)
+            for c in entry.candidates
+            if f"{c['provider']}:{c['provider_id']}" == candidate_id
+        ),
+        None,
+    )
+    if candidate is None:
+        raise HTTPException(404, "Morceau absent des propositions recherchées.")
+    db.commit()  # Do not hold a database connection while refreshing the URL.
+    return await recording_preview(candidate)
+
+
+async def recording_preview(selected):
+    preview_provider = (selected.get("field_sources") or {}).get("preview_url")
+    # A missing primary excerpt can have been supplied by a different catalogue.
+    external_preview = preview_provider and preview_provider != selected["provider"]
+    cache_key = (
+        selected["provider"],
+        selected["provider_id"],
+        selected.get("preview_url") if external_preview else None,
+    )
     cached = _preview_cache.get(cache_key)
     url = cached[1] if cached and cached[0] > monotonic() else None
     if not url:
-        if selected["provider"] == "deezer" and selected["provider_id"].isdigit():
+        if (
+            selected["provider"] == "deezer"
+            and selected["provider_id"].isdigit()
+            and not external_preview
+        ):
             try:
                 async with httpx.AsyncClient(timeout=12) as client:
                     data = await fetch_json(

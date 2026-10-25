@@ -84,7 +84,13 @@ Le rapprochement exige une correspondance unique artiste/titre/version/invités 
 
 Pour le complément uniquement, un crédit avec collaborateurs explicites séparés par ` & ` est aussi accepté lorsque l’artiste principal est identique et placé en premier, avec titre complet, album et durée concordants. Par exemple, **Tayc — MAMAN PRIE** sur Deezer peut recevoir le genre d’**iTunes : Tayc & RnBoi**, sans remplacer son identité Deezer. Cette exception exige un album et une durée renseignés des deux côtés et une correspondance unique ; elle ne modifie pas la sélection automatique de l’enregistrement principal.
 
-Pour une fiche corrigée manuellement, **Modifier → Compléter les informations manquantes** lance explicitement la recherche. Ce bouton utilise la session et la protection CSRF habituelles ; les paroles et le choix manuel sont conservés. `POST /api/catalog/{track_id}/complete` renvoie le résultat et les champs complétés. Une révision protège la fiche contre une correction concurrente. La migration **0008** remet uniquement les anciennes correspondances automatiques sans genre dans cette file ; les fiches manuelles et les morceaux absents restent inchangés.
+Dans **Modifier**, chaque proposition utile porte désormais l’action **Compléter les informations manquantes**. Elle utilise exclusivement les données de ce résultat enregistré, sans recherche supplémentaire. Les champs absents peuvent recevoir album, durée, pochette, extrait, genres, date de sortie, invités et ISRC si la proposition les fournit. Les valeurs déjà renseignées, l’identité et le fournisseur de la version choisie, ainsi que les paroles sont conservés. Aucun ISRC absent n’est inventé. Un lien d’un autre fournisseur est ajouté aux sources complémentaires au lieu de remplacer le lien principal. L’action disparaît lorsqu’une proposition n’apporte plus rien ; elle exige qu’une version soit déjà choisie.
+
+`POST /api/catalog/{track_id}/complete-candidate` reçoit seulement l’identifiant de la proposition et la révision de la fiche. Le serveur vérifie la session, le jeton CSRF, la présence de la proposition enregistrée et la révision avant d’appliquer les ajouts. Une fiche modifiée entre-temps provoque un refus 409. Les genres et les caches concernés sont actualisés. L’ancienne route `/complete` reste disponible pour les intégrations existantes ; son bouton générique est retiré de l’interface. Les actions **Voir les propositions de paroles enregistrées**, **Retirer la correspondance** et **Relancer la recherche automatique** sont regroupées.
+
+Les genres apparaissent sous forme de liste dans l’éditeur, les propositions et la fiche musicale. Une absence produit une seule indication, « Aucun genre renseigné », sans blocs séparés pour genre principal, genres secondaires et source des genres.
+
+Les boutons d’extrait des propositions utilisent `GET /api/catalog/{track_id}/candidates/{candidate_id}/preview`, réservé aux admins et limité aux résultats enregistrés. Comme la lecture de la version choisie, cette route renouvelle le lien Deezer avant la redirection ; écouter n’applique aucune sélection. Lorsqu’un extrait manquant provient d’un catalogue complémentaire, la fiche conserve cette provenance et lit cet extrait plutôt que de chercher celui du fournisseur principal. La migration **0008** remet uniquement les anciennes correspondances automatiques sans genre dans cette file ; les fiches manuelles et les morceaux absents restent inchangés.
 
 ## Fiche musicale
 
@@ -445,3 +451,6 @@ PYTHONPATH=. .venv/bin/python tests/browser_data_admin.py
 ```
 
 Il vérifie sur ordinateur et mobile la connexion, la recherche des passages rapprochés, l’aperçu, l’annulation, l’application d’une suppression et son résultat en base. Chromium doit être installé pour Playwright.
+
+
+Vérification ciblée de la phase 3 : `python -m pytest tests/test_candidate_actions.py` et `PYTHONPATH=. .venv/bin/python tests/browser_candidate_actions.py`. Le scénario navigateur utilise une base temporaire, des fournisseurs simulés et un média WAV local après contrôle des redirections réelles de l’API ; il vérifie la lecture, la pause, la complétion, la conservation des données et la lecture après sélection en 1280 et 402 pixels.
