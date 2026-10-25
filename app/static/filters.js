@@ -6,8 +6,10 @@ window.MusicFilters = (() => {
   let checking;
   let generation = 0;
   const storageKey = 'radio-hidden-tracks-v1';
-  const same = (a, b) => (a.artist || '').toLocaleLowerCase() === (b.artist || '').toLocaleLowerCase() && a.title.toLocaleLowerCase() === b.title.toLocaleLowerCase();
+  const normalize = value => (value || '').normalize('NFKD').replace(/\p{M}/gu, '').toLocaleLowerCase().replaceAll('’', "'").trim();
+  const same = (a, b) => normalize(a.artist) === normalize(b.artist) && normalize(a.title) === normalize(b.title);
   const admin = () => !!window.RadioAdmin?.authenticated();
+  let previousAdmin = admin();
   try {
     const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
     if (Array.isArray(stored)) hidden = stored.filter(t => t && typeof t.title === 'string' && t.title.length > 0 && t.title.length <= 500 && (t.artist == null || (typeof t.artist === 'string' && t.artist.length <= 300))).slice(0, 50);
@@ -74,6 +76,13 @@ window.MusicFilters = (() => {
     if (hidden.length >= 50 || JSON.stringify([...hidden, item]).length > 11000) throw new Error('La liste est pleine. Retirez un titre masqué.');
     hidden.push(item); save();
   }
+  async function promotePersonal() {
+    if (!admin()) throw new Error('Session administrateur requise.');
+    if (!hidden.length) return;
+    const data = await window.RadioAdmin.request('/api/admin/exclusions/bulk', {items: hidden.map(t => ({...t}))});
+    acceptRevision(data.revision);
+    return data;
+  }
   function exports(params) {
     const selection = new URLSearchParams(params);
     ['limit', 'page', 'page_size', 'snapshot_id'].forEach(k => selection.delete(k));
@@ -90,7 +99,7 @@ window.MusicFilters = (() => {
     const heading = el('h2', global ? 'Titres masqués pour tous' : 'Mes titres masqués'); heading.id = 'exclusions-title';
     const close = el('button', 'Fermer', 'text-button'); close.type = 'button'; close.onclick = () => panel.close();
     const note = el('p', global
-      ? 'Cette liste s’applique à tous, y compris aux administrateurs. Les passages restent enregistrés.'
+      ? 'Cette blacklist s’applique à tous et aux statistiques. Les nouvelles diffusions ne sont plus collectées ; l’historique est conservé hors des résultats.'
       : 'Votre liste reste sur cet appareil et s’ajoute au masquage global. Elle ne peut pas réafficher un titre masqué pour tous.', 'hint');
     const list = el('div');
     const personal = el('div');
@@ -107,7 +116,19 @@ window.MusicFilters = (() => {
         row.append(el('span', `${track.title} · ${track.artist || 'Artiste inconnu'}`), restore); personal.append(row);
       });
       if (!hidden.length) personal.append(el('p', 'Aucun titre masqué personnellement.', 'hint'));
-      if (global) personal.append(el('p', 'Retirer une exclusion personnelle ne change pas la liste globale.', 'hint'));
+      if (global) {
+        personal.append(el('p', 'Ces exclusions restent actives pendant votre session admin. Retirer une exclusion personnelle ne change pas la blacklist globale.', 'hint'));
+        const promote = el('button', `Appliquer mes ${hidden.length} exclusions personnelles à tous`, 'text-button'); promote.type = 'button';
+        promote.disabled = !hidden.length || !admin();
+        promote.onclick = async () => {
+          promote.disabled = true;
+          try {
+            await promotePersonal(); renderPersonal(); await renderGlobal();
+            status.textContent = 'Exclusions appliquées à tous. Votre liste personnelle est conservée.';
+          } catch (error) { status.textContent = error.message; promote.disabled = !admin(); }
+        };
+        personal.append(promote);
+      }
     }
     async function renderGlobal() {
       if (!global) return;
@@ -148,18 +169,9 @@ window.MusicFilters = (() => {
       } catch (error) { status.textContent = error.message; }
       finally { add.disabled = admin() !== global; }
     };
-    const preset = el('button', `Masquer ${global ? 'pour tous' : 'pour moi'} Mouv’, NRJ / Hit Music Only ! et Les Dédicaces`, 'text-button'); preset.type = 'button';
-    preset.onclick = async () => {
-      preset.disabled = true;
-      try {
-        for (const track of [{artist: null, title: 'Mouv’'}, {artist: 'Hit Music Only !', title: 'NRJ'}, {artist: 'SKYROCK', title: 'Les Dédicaces'}]) await hide(track, global);
-        renderPersonal(); await renderGlobal(); status.textContent = 'Annonces ajoutées aux titres masqués.';
-      } catch (error) { status.textContent = error.message; }
-      finally { preset.disabled = admin() !== global; }
-    };
     const onAdmin = () => {
       if (admin() !== global) {
-        add.disabled = true; preset.disabled = true;
+        add.disabled = true;
         if (global) {
           panel.querySelectorAll('button').forEach(button => { if (button !== close) button.disabled = true; });
           status.textContent = 'Session administrateur expirée. Reconnectez-vous pour modifier la liste globale.';
@@ -173,7 +185,7 @@ window.MusicFilters = (() => {
       window.removeEventListener('radio:adminchange', onAdmin);
       window.removeEventListener('radio:globalfilterschange', onGlobal);
     }, {once: true});
-    panel.append(close, heading, note, list, form, preset, personal, status);
+    panel.append(close, heading, note, list, form, personal, status);
     window.RadioDialogs.dismissOutside(panel);
     document.body.append(panel); renderPersonal(); panel.showModal();
     try { await renderGlobal(); } catch (error) { status.textContent = error.message; }
@@ -181,10 +193,14 @@ window.MusicFilters = (() => {
   document.addEventListener('click', event => { if (event.target.closest('[data-open-exclusions]')) open(); });
   const check = () => refresh().catch(() => { /* A later check retries; do not trust old cached results. */ window.RadioCache.clear(); });
   window.addEventListener('radio:pagechange', () => { labels(); check(); });
-  window.addEventListener('radio:adminchange', labels);
+  window.addEventListener('radio:adminchange', () => {
+    const active = admin();
+    if (active !== previousAdmin) { previousAdmin = active; changed(); }
+    else labels();
+  });
   window.addEventListener('focus', check);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
   window.setInterval(() => { if (!document.hidden) check(); }, 30000);
   labels();
-  return {apply, hide, exports, refresh, fetch: filteredFetch, key: () => `${revision}:${JSON.stringify(hidden)}`};
+  return {apply, hide, promotePersonal, exports, refresh, fetch: filteredFetch, key: () => `${revision}:${JSON.stringify(hidden)}`};
 })();

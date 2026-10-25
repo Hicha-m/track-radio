@@ -23,7 +23,7 @@ from app.services.catalog import (
     search_lyrics,
     search_provider,
 )
-from app.services.exclusions import ensure_visible
+from app.services.exclusions import canonical_exclusions, ensure_visible, exclusion_conditions
 
 router = APIRouter(prefix="/api/catalog")
 Db = Annotated[Session, Depends(get_db)]
@@ -72,14 +72,27 @@ def metadata(
 
 
 @router.get("/{key}/radio")
-def radio_history(key: str, request: Request, db: Db, station_id: int | None = Query(None, ge=1)):
+def radio_history(
+    key: str,
+    request: Request,
+    db: Db,
+    exclusions: str = Query("", max_length=12000),
+    station_id: int | None = Query(None, ge=1),
+):
     if len(key) != 64 or any(c not in "0123456789abcdef" for c in key):
         raise HTTPException(422, "Identifiant de titre invalide.")
     entry = db.get(TrackMetadata, key)
     recording = entry or db.scalar(select(Play).where(Play.track_id == key).limit(1))
     if recording:
         ensure_visible(request, db, recording.artist, recording.title)
-    where = [Play.track_id == key]
+    try:
+        exclusions = canonical_exclusions(exclusions)
+    except ValueError as error:
+        raise HTTPException(422, "Liste de titres masqués invalide.") from error
+    where = [
+        Play.track_id == key,
+        *exclusion_conditions(exclusions, db.get_bind().dialect.name == "sqlite"),
+    ]
     if station_id is not None:
         where.append(Play.station_id == station_id)
     total, stations, first, last = db.execute(

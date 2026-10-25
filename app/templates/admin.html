@@ -6,11 +6,39 @@
     <button class="hero-button" type="submit">Ouvrir l’administration</button>
   </form>
   <div id="admin-workspace" hidden>
-    <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués pour tous</button><a href="#admin-radio-title">Radios</a><a href="#admin-catalog-title">Métadonnées</a><a href="/admin/catalogue">File de vérification</a><button type="button" data-admin-logout>Déconnexion</button></div>
-    <section aria-labelledby="admin-radio-title"><h2 id="admin-radio-title">Radios</h2><p class="hint">Désactiver arrête uniquement la collecte. L’écoute et l’historique restent disponibles.</p><div id="admin-stations"></div></section>
+    <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués pour tous</button><a href="#admin-radio-title">Radios</a><a href="#admin-plays-title">Diffusions</a><a href="#admin-catalog-title">Titres</a><a href="#admin-exclusions-title">Exclusions</a><a href="/admin/catalogue">File de vérification</a><button type="button" data-admin-logout>Déconnexion</button></div>
+    <section aria-labelledby="admin-radio-title"><h2 id="admin-radio-title">Radios</h2><p class="hint">Désactiver arrête uniquement la collecte. L’écoute et l’historique restent disponibles.</p><label>Rechercher une radio<input id="admin-station-search" type="search" maxlength="100"></label><div id="admin-stations"></div></section>
+    <section class="admin-catalog" aria-labelledby="admin-plays-title">
+      <h2 id="admin-plays-title">Diffusions</h2>
+      <p class="hint">Les passages du même titre à moins de 3 minutes sont suspects, sans constituer une preuve de doublon. Consultez les données source avant de corriger. Les dates sont affichées dans le fuseau de votre appareil.</p>
+      <form id="admin-plays-form" class="metric-filters">
+        <label>Titre ou artiste<input name="q" type="search" maxlength="200"></label>
+        <label>Radio<select name="station_id"><option value="">Toutes</option></select></label>
+        <label>Du<input name="since" type="datetime-local"></label><label>Au<input name="until" type="datetime-local"></label>
+        <label>Tri<select name="sort"><option value="newest">Plus récentes</option><option value="oldest">Plus anciennes</option><option value="title">Titre</option><option value="artist">Artiste</option></select></label>
+        <label class="checkbox"><input name="suspicious" type="checkbox">Passages rapprochés uniquement</label>
+        <button type="submit" class="text-button">Rechercher</button>
+      </form>
+      <p id="admin-plays-status" role="status"></p>
+      <div id="admin-plays-results"></div>
+      <nav class="pagination" aria-label="Pages des diffusions"><button type="button" id="admin-plays-previous" disabled>← Précédent</button><span id="admin-plays-page">Page 1</span><button type="button" id="admin-plays-next" disabled>Suivant →</button></nav>
+      <form id="admin-play-correction" class="metric-filters">
+        <label>Action<select name="action"><option value="delete">Supprimer la sélection</option><option value="merge">Regrouper les doublons sélectionnés</option><option value="correct">Corriger une diffusion</option></select></label>
+        <label>Diffusion à conserver pour le regroupement<select name="keep_id"><option value="">Choisir dans la sélection</option></select></label>
+        <label>Artiste corrigé<input name="artist" maxlength="300"></label><label>Titre corrigé<input name="title" maxlength="500"></label><label>Détection corrigée (facultatif)<input name="detected_at" type="datetime-local"></label>
+        <button type="submit" class="text-button">Prévisualiser les modifications</button>
+      </form>
+      <div id="admin-play-preview" aria-live="polite"></div>
+    </section>
+    <section class="admin-catalog" aria-labelledby="admin-exclusions-title">
+      <h2 id="admin-exclusions-title">Exclusions globales</h2>
+      <label>Rechercher une exclusion<input id="admin-exclusion-search" type="search" maxlength="200"></label>
+      <p class="hint">Triées par titre. La gestion permet de masquer ou rétablir les titres.</p>
+      <button type="button" data-open-exclusions>Gérer les exclusions</button><div id="admin-exclusion-results"></div>
+    </section>
     <section class="admin-catalog" aria-labelledby="admin-catalog-title">
-      <h2 id="admin-catalog-title">File de vérification</h2><p class="hint">Correspondances douteuses en priorité, puis nombre de détections sur les sept derniers jours.</p>
-      <form id="admin-catalog-form" class="metric-filters"><label>Rechercher un titre ou un artiste<input name="q" type="search" maxlength="200"></label><label class="checkbox"><input name="review" type="checkbox" checked> Fiches à vérifier uniquement</label><button type="submit" class="text-button">Actualiser</button></form>
+      <h2 id="admin-catalog-title">Titres et métadonnées</h2><p class="hint">Correspondances douteuses en priorité, puis nombre de détections sur les sept derniers jours.</p>
+      <form id="admin-catalog-form" class="metric-filters"><label>Rechercher un titre ou un artiste<input name="q" type="search" maxlength="200"></label><label class="checkbox"><input name="review" type="checkbox" checked> Fiches à vérifier uniquement</label><label>Tri<select name="sort"><option value="review">À vérifier en priorité</option><option value="title">Titre</option><option value="artist">Artiste</option><option value="recent">Détections récentes</option></select></label><button type="submit" class="text-button">Actualiser</button></form>
       <div id="admin-catalog-results"></div>
       <nav class="pagination" aria-label="Pages du catalogue administratif"><button type="button" data-admin-previous disabled>← Précédent</button><span data-admin-page>Page 1</span><button type="button" data-admin-next disabled>Suivant →</button></nav>
       <div id="admin-editor"></div>

@@ -160,6 +160,10 @@ window.RadioPages = window.RadioPages || {};
         root.querySelector('#admin-stations').replaceChildren();
         root.querySelector('#admin-catalog-results').replaceChildren();
         root.querySelector('#admin-editor').replaceChildren();
+        selected.clear(); exclusions = []; playsVersion++;
+        root.querySelector('#admin-plays-results').replaceChildren();
+        root.querySelector('#admin-exclusion-results').replaceChildren(); previewPane.replaceChildren();
+        correction.reset(); playsStatus.textContent = '';
         version++; status.textContent = 'Connectez-vous pour corriger les informations.';
       }
     }
@@ -167,7 +171,10 @@ window.RadioPages = window.RadioPages || {};
       const data = await request('/api/admin/stations');
       if (controller.signal.aborted) return;
       const container = root.querySelector('#admin-stations'); container.replaceChildren();
+      const stationSelect = playsForm.elements.station_id; const chosen = stationSelect.value;
+      stationSelect.replaceChildren(new Option('Toutes', ''));
       for (const station of data) {
+        stationSelect.add(new Option(station.name, String(station.id)));
         const row = el('article', '', 'admin-station');
         row.append(el('strong', station.name), el('span', station.enabled ? 'Collecte active' : 'Collecte arrêtée'));
         const toggle = el('button', station.enabled ? 'Désactiver' : 'Activer', 'text-button');
@@ -181,6 +188,8 @@ window.RadioPages = window.RadioPages || {};
         toggle.onclick = () => change(!station.enabled); reset.onclick = () => change(null);
         row.append(toggle, reset); container.append(row);
       }
+      stationSelect.value = chosen;
+      root.querySelector("#admin-station-search").dispatchEvent(new Event("input"));
     }
     async function openEntry(summary) {
       try {
@@ -197,7 +206,7 @@ window.RadioPages = window.RadioPages || {};
     async function catalogue() {
       const current = ++version;
       const form = root.querySelector('#admin-catalog-form');
-      const params = new URLSearchParams({q: form.elements.q.value, review: String(form.elements.review.checked), page: String(page)});
+      const params = new URLSearchParams({q: form.elements.q.value, review: String(form.elements.review.checked), page: String(page), sort: form.elements.sort.value});
       try {
         const data = await request(`/api/admin/catalog?${params}`);
         if (current !== version || controller.signal.aborted) return;
@@ -212,11 +221,108 @@ window.RadioPages = window.RadioPages || {};
         root.querySelector('[data-admin-next]').disabled = !data.has_more;
       } catch (error) { if (error.name !== 'AbortError') status.textContent = error.message; }
     }
+    let playsPage = 1; let playsVersion = 0; let selected = new Map();
+    const playsForm = root.querySelector('#admin-plays-form');
+    const correction = root.querySelector('#admin-play-correction');
+    const previewPane = root.querySelector('#admin-play-preview');
+    const playsStatus = root.querySelector('#admin-plays-status');
+    let exclusions = [];
+    function showExclusions() {
+      const q = root.querySelector('#admin-exclusion-search').value.toLocaleLowerCase();
+      const target = root.querySelector('#admin-exclusion-results'); target.replaceChildren();
+      const matches = exclusions.filter(t => `${t.artist || ''} ${t.title}`.toLocaleLowerCase().includes(q));
+      matches.forEach(t => target.append(el('p', `${t.artist || 'Artiste inconnu'} — ${t.title}`)));
+      if (!matches.length) target.append(el('p', 'Aucune exclusion pour cette recherche.', 'hint'));
+    }
+    async function loadExclusions() {
+      const data = await request('/api/admin/exclusions');
+      if (controller.signal.aborted) return;
+      exclusions = data.items; showExclusions();
+    }
+    root.querySelector('#admin-exclusion-search').oninput = showExclusions;
+    root.querySelector('#admin-station-search').oninput = event => {
+      const q = event.target.value.toLocaleLowerCase();
+      root.querySelectorAll('#admin-stations .admin-station').forEach(row => { row.hidden = !row.textContent.toLocaleLowerCase().includes(q); });
+    };
+    function updateSelection() {
+      previewPane.replaceChildren();
+      const keep = correction.elements.keep_id; const previous = keep.value;
+      keep.replaceChildren(new Option('Choisir dans la sélection', ''));
+      selected.forEach(row => keep.add(new Option(`#${row.id} · ${new Date(row.detected_at).toLocaleString()}`, String(row.id))));
+      keep.value = previous;
+      if (selected.size === 1) {
+        const row = [...selected.values()][0];
+        correction.elements.artist.value = row.artist || ''; correction.elements.title.value = row.title;
+      }
+      playsStatus.textContent = `${selected.size} diffusion(s) sélectionnée(s).`;
+    }
+    function describe(row) {
+      return `#${row.id} · ${row.station_name || `Radio ${row.station_id}`} · ${row.artist || 'Artiste inconnu'} — ${row.title} · ${new Date(row.detected_at).toLocaleString()} · dernière observation : ${new Date(row.last_seen_at).toLocaleString()}`;
+    }
+    async function broadcasts() {
+      const current = ++playsVersion;
+      const params = new URLSearchParams({page: String(playsPage)});
+      for (const name of ['q', 'station_id', 'sort']) if (playsForm.elements[name].value) params.set(name, playsForm.elements[name].value);
+      for (const name of ['since', 'until']) if (playsForm.elements[name].value) params.set(name, new Date(playsForm.elements[name].value).toISOString());
+      params.set('suspicious', String(playsForm.elements.suspicious.checked));
+      try {
+        const data = await request(`/api/admin/plays?${params}`);
+        if (controller.signal.aborted || current !== playsVersion) return;
+        selected.clear(); updateSelection();
+        const target = root.querySelector('#admin-plays-results'); target.replaceChildren();
+        data.items.forEach(row => {
+          const article = el('article', '', 'candidate'); const label = el('label', '', 'checkbox');
+          const check = el('input'); check.type = 'checkbox';
+          check.onchange = () => { if (check.checked) selected.set(row.id, row); else selected.delete(row.id); updateSelection(); };
+          label.append(check, document.createTextNode(describe(row))); article.append(label);
+          if (row.suspect) article.append(el('p', `Passage rapproché · précédent à ${new Date(row.previous_at).toLocaleString()}`, 'hint'));
+          const details = el('details'); details.append(el('summary', 'Données de collecte'), el('pre', `${row.source} · ${row.raw_metadata}`, 'lyrics')); article.append(details); target.append(article);
+        });
+        if (!data.items.length) target.append(el('p', 'Aucune diffusion pour ces filtres.', 'hint'));
+        root.querySelector('#admin-plays-page').textContent = `Page ${playsPage}`;
+        root.querySelector('#admin-plays-previous').disabled = playsPage <= 1;
+        root.querySelector('#admin-plays-next').disabled = !data.has_more;
+      } catch (error) { if (error.name !== 'AbortError') playsStatus.textContent = error.message; }
+    }
+    playsForm.onsubmit = event => { event.preventDefault(); playsPage = 1; broadcasts(); };
+    root.querySelector('#admin-plays-previous').onclick = () => { playsPage--; broadcasts(); };
+    root.querySelector('#admin-plays-next').onclick = () => { playsPage++; broadcasts(); };
+    correction.onsubmit = async event => {
+      event.preventDefault(); previewPane.replaceChildren();
+      const command = {action: correction.elements.action.value, ids: [...selected.keys()]};
+      if (!command.ids.length) { playsStatus.textContent = 'Sélectionnez au moins une diffusion.'; return; }
+      if (command.action === 'merge') command.keep_id = Number(correction.elements.keep_id.value) || null;
+      if (command.action === 'correct') {
+        command.artist = correction.elements.artist.value || null; command.title = correction.elements.title.value;
+        if (correction.elements.detected_at.value) command.detected_at = new Date(correction.elements.detected_at.value).toISOString();
+      }
+      try {
+        const data = await request('/api/admin/plays/preview', command);
+        if (controller.signal.aborted) return;
+        previewPane.append(el('h3', 'Vérifiez les modifications avant de confirmer'), el('p', 'Avant'));
+        data.before.forEach(row => previewPane.append(el('p', describe(row))));
+        previewPane.append(el('p', 'Après'));
+        data.after.forEach(row => previewPane.append(el('p', describe(row))));
+        if (!data.after.length) previewPane.append(el('p', 'Toutes les diffusions sélectionnées seront supprimées.'));
+        previewPane.append(el('p', 'La suppression est définitive. Un regroupement conserve la date et les données source de la diffusion choisie. Les fiches musicales et exclusions sont conservées.', 'hint'));
+        const apply = el('button', 'Confirmer ces modifications', 'text-button'); apply.type = 'button';
+        const cancel = el('button', 'Annuler', 'text-button'); cancel.type = 'button'; cancel.onclick = () => previewPane.replaceChildren();
+        apply.onclick = async () => {
+          apply.disabled = true;
+          try {
+            await request('/api/admin/plays/apply', {token: data.token});
+            window.RadioCache.clear(); window.dispatchEvent(new Event('radio:catalogchange'));
+            previewPane.replaceChildren(); await Promise.all([broadcasts(), catalogue()]); playsStatus.textContent = 'Modifications enregistrées.';
+          } catch (error) { if (error.name !== 'AbortError') { playsStatus.textContent = error.message; previewPane.replaceChildren(); } }
+        };
+        previewPane.append(apply, cancel);
+      } catch (error) { if (error.name !== 'AbortError') playsStatus.textContent = error.message; }
+    };
     async function load() {
       displaySession();
       if (!window.RadioAdmin.authenticated() || controller.signal.aborted) return;
       status.textContent = 'Session active · retour au classement sans ressaisir la clé.';
-      try { await Promise.all([radios(), catalogue()]); }
+      try { await Promise.all([radios(), catalogue(), broadcasts(), loadExclusions()]); }
       catch (error) { if (error.name !== 'AbortError') status.textContent = error.message; }
     }
     login.onsubmit = async event => {
@@ -231,8 +337,10 @@ window.RadioPages = window.RadioPages || {};
     search.oninput = () => { clearTimeout(timer); version++; timer = setTimeout(() => { page = 1; catalogue(); }, 350); };
     root.querySelector('[data-admin-previous]').onclick = () => { page--; catalogue(); };
     root.querySelector('[data-admin-next]').onclick = () => { page++; catalogue(); };
+    const refreshExclusions = () => { if (window.RadioAdmin.authenticated()) loadExclusions().catch(error => { if (error.name !== 'AbortError') status.textContent = error.message; }); };
+    window.addEventListener('radio:globalfilterschange', refreshExclusions);
     window.addEventListener('radio:adminchange', displaySession);
     window.RadioAdmin.refresh().then(load);
-    return () => { controller.abort(); clearTimeout(timer); tokenInput.value = ''; window.removeEventListener('radio:adminchange', displaySession); };
+    return () => { controller.abort(); clearTimeout(timer); tokenInput.value = ''; window.removeEventListener('radio:adminchange', displaySession); window.removeEventListener('radio:globalfilterschange', refreshExclusions); };
   };
 })();

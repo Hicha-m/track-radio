@@ -18,7 +18,6 @@ from app.models import Play, Station, TrackMetadata
 from app.services.exclusions import (
     ExclusionFilters,
     exclusion_conditions,
-    global_condition,
     global_revision,
 )
 from app.services.track_identity import identity
@@ -209,7 +208,7 @@ def compute(db, kind, filters, now):
                     other.station_id == filters.station_b,
                     other.detected_at >= since,
                     other.detected_at < now,
-                    global_condition(other.artist, other.title, sqlite),
+                    *exclusion_conditions(filters.exclusions, sqlite, other.artist, other.title),
                     func.abs(seconds) <= 300,
                 ),
             )

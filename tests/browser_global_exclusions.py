@@ -155,6 +155,56 @@ with tempfile.TemporaryDirectory(prefix="radio-global-browser-") as directory:
                 visitor.reload()
                 expect(visitor.locator(".podium-detail")).to_contain_text("Global")
                 expect(visitor.locator(".podium-card")).to_have_count(1)
+                # Phase 2: statistics retain personal filters across sessions, and bulk
+                # promotion affects a visitor who has no personal preferences.
+                admin.goto(base + "/admin")
+                admin.locator('[name="token"]').fill("browser-test-only")
+                admin.get_by_role("button", name="Ouvrir l’administration").click()
+                expect(admin.locator("#admin-workspace")).to_be_visible()
+                admin.locator(".sidebar nav").get_by_role("link", name="Stats", exact=True).click()
+                genre_status = '[data-metric="genres"] [role="status"]'
+                expect(admin.locator(genre_status)).to_contain_text("5 passages")
+                expect(
+                    admin.locator('[data-metric="repetitions"] .metric-output')
+                ).not_to_contain_text("Personal")
+                fresh_context = browser.new_context(viewport={"width": 402, "height": 874})
+                fresh = fresh_context.new_page()
+                fresh.on("pageerror", lambda error: errors.append(str(error)))
+                fresh.route("https://**", lambda route: route.abort())
+                fresh.goto(base + "/stats")
+                expect(fresh.locator(genre_status)).to_contain_text("9 passages")
+                admin.locator("[data-open-exclusions]").click()
+                panel = admin.locator(".exclusions-dialog")
+                expect(panel).not_to_contain_text("Hit Music Only")
+                panel.get_by_role(
+                    "button", name="Appliquer mes 1 exclusions personnelles à tous"
+                ).click()
+                expect(panel.locator('[role="status"]')).to_have_text(
+                    "Exclusions appliquées à tous. Votre liste personnelle est conservée."
+                )
+                fresh.evaluate("window.dispatchEvent(new Event('focus'))")
+                expect(fresh.locator(genre_status)).to_contain_text("5 passages")
+                expect(
+                    fresh.locator('[data-metric="repetitions"] .metric-output')
+                ).not_to_contain_text("Personal")
+                # Restoring globally leaves the admin's personal list in force.
+                panel.locator(".hidden-track").filter(has_text="Personal").get_by_role(
+                    "button", name="Réafficher pour tous"
+                ).click()
+                fresh.evaluate("window.dispatchEvent(new Event('focus'))")
+                expect(fresh.locator(genre_status)).to_contain_text("9 passages")
+                expect(admin.locator(genre_status)).to_contain_text("5 passages")
+                panel.get_by_role("button", name="Fermer", exact=True).click()
+                admin.locator("[data-admin-logout]").click()
+                expect(admin.locator("#admin-session-controls")).not_to_be_visible()
+                expect(admin.locator(genre_status)).to_contain_text("5 passages")
+                admin.reload()
+                expect(admin.locator(genre_status)).to_contain_text("5 passages")
+                assert admin.evaluate(
+                    "JSON.parse(localStorage.getItem('radio-hidden-tracks-v1'))"
+                ) == [{"artist": "Artist", "title": "Personal"}]
+                assert fresh.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                fresh_context.close()
                 assert not errors, errors
                 browser.close()
                 print(

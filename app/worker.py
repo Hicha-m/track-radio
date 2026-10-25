@@ -40,7 +40,8 @@ def save_metadata(station_id, metadata):
         if not station or not station.enabled:
             return False
         play, created = record_metadata(db, station, metadata)
-        ensure_entry(db, play.artist, play.title)
+        if play is not None:
+            ensure_entry(db, play.artist, play.title)
         db.commit()
         return created
 

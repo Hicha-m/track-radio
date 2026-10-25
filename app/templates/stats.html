@@ -1,7 +1,7 @@
 <div class="page-heading"><span class="eyebrow">LES ONDES EN CHIFFRES</span><h1>Stats</h1><p>Répétitions, diversité et points communs entre radios.</p></div>
 <div id="stats-root">
   <section class="panel metric-panel">
-    <p class="hint">Les heures sont celles des détections, avec une précision limitée par la cadence de collecte. Une absence de données ne signifie pas une absence de diffusion.</p>
+    <p class="hint">Les heures sont celles des détections, avec une précision limitée par la cadence de collecte. Une absence de données ne signifie pas une absence de diffusion. Les titres masqués pour vous et la blacklist globale sont exclus de tous ces calculs.</p>
     <form class="filter-grid metric-filters">
       <label>Radio des indicateurs<select name="station_id"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
       <label>Décalages · première radio<select name="station_a"><option value="">Choisir une radio</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>

@@ -12,6 +12,7 @@ class SecurityMiddleware:
             return await self.app(scope, receive, send)
         if scope["method"] in {"POST", "PUT", "PATCH"}:
             body = bytearray()
+            max_body = 192 * 1024 if scope["path"] == "/api/admin/exclusions/bulk" else 8192
             try:
                 async with asyncio.timeout(10):
                     while True:
@@ -19,7 +20,7 @@ class SecurityMiddleware:
                         if message["type"] == "http.disconnect":
                             return
                         chunk = message.get("body", b"")
-                        if len(body) + len(chunk) > 8192:
+                        if len(body) + len(chunk) > max_body:
                             await send(
                                 {"type": "http.response.start", "status": 413, "headers": []}
                             )

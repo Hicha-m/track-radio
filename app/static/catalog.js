@@ -117,7 +117,7 @@ window.TrackCatalog = (() => {
       essentials.append(message, controls); summary.append(essentials); content.append(summary);
       const radio = el('section', '', 'catalog-radio'); radio.append(el('h3', 'Diffusions radio'));
       const radioStatus = el('p', 'Chargement des détections…', 'hint'); radio.append(radioStatus); content.append(radio);
-      const radioParams = new URLSearchParams(); if (track.station_id) radioParams.set('station_id', track.station_id);
+      const radioParams = window.MusicFilters.apply(new URLSearchParams()); if (track.station_id) radioParams.set('station_id', track.station_id);
       window.MusicFilters.fetch(`/api/catalog/${data.track_id}/radio?${radioParams}`).then(async response => {
         if (!response.ok) throw new Error('Historique radio indisponible.'); return response.json();
       }).then(history => {

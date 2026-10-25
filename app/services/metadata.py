@@ -2,8 +2,9 @@ import asyncio
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -100,7 +101,32 @@ async def fetch_json(station: Station, client: httpx.AsyncClient) -> TrackMetada
     if not artist and " • " in title:
         artist, title = split_title(title)
     raw = f"{artist} - {title}" if artist else title
-    return checked_metadata(artist, title, raw, "json")
+    checked = checked_metadata(artist, title, raw, "json")
+    # Radio France exposes the event time independently of the display label.
+    # Keep it in durable raw metadata, as for the Fun Radio adapter.
+    if urlsplit(station.metadata_url).hostname == "api.radiofrance.fr":
+        start = radiofrance_start(payload.get("now", {}).get("startTime"))
+        if start is not None and start > int(datetime.now(UTC).timestamp() * 1000):
+            return None
+        raw = json.dumps({"start": start, "payload": payload}, ensure_ascii=False)
+        return TrackMetadata(checked.artist, checked.title, raw, "json", start)
+    return checked
+
+
+def radiofrance_start(value) -> int | None:
+    """Accept epoch seconds/milliseconds or an explicitly zoned ISO timestamp."""
+    try:
+        if isinstance(value, str):
+            try:
+                value = float(value)
+            except ValueError:
+                date = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                return int(date.timestamp() * 1000) if date.tzinfo else None
+        if type(value) in (int, float) and value > 0:
+            return int(value if value >= 100_000_000_000 else value * 1000)
+    except (ValueError, OverflowError):
+        pass
+    return None
 
 
 async def fetch_html(station: Station, client: httpx.AsyncClient) -> TrackMetadata | None:

@@ -59,6 +59,7 @@ class Station(Base):
     json_artist_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
     json_title_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
     html: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    collection_state: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     enabled_override: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     config_enabled: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -63,7 +63,7 @@ window.RadioPages.stats = () => {
     const params = window.MusicFilters.apply(new URLSearchParams(new FormData(form)));
     for (const [key, value] of [...params]) if (!value) params.delete(key);
     params.set('hours', period.value); params.set('page', String(pages[kind] || 1));
-    status.textContent = 'Chargement…'; previous.disabled = true; next.disabled = true;
+    output.replaceChildren(); status.textContent = 'Chargement…'; previous.disabled = true; next.disabled = true;
     try {
       if (kind === 'offsets' && (!params.get('station_a') || params.get('station_a') === params.get('station_b'))) {
         output.replaceChildren(); status.textContent = 'Choisissez deux radios différentes pour comparer leurs détections.'; return;

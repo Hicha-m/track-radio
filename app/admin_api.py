@@ -2,7 +2,7 @@
 
 import secrets
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
@@ -22,6 +22,7 @@ from app.database import get_db
 from app.models import GlobalExclusion, Play, Station, TrackMetadata
 from app.security import require_admin
 from app.services.catalog import public_metadata
+from app.services.data_admin import Correction, apply, play_data, preview
 from app.services.explorer import text_match
 
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
@@ -126,6 +127,7 @@ def catalogue(
     db: Db,
     q: str = Query("", max_length=200),
     review: bool = False,
+    sort: Literal["review", "title", "artist", "recent"] = "review",
     page: int = Query(1, ge=1, le=1000000),
 ):
     recent = (
@@ -169,7 +171,15 @@ def catalogue(
             )
         )
     rows = db.execute(
-        query.order_by(doubtful.desc(), count.desc(), TrackMetadata.title, TrackMetadata.id)
+        query.order_by(
+            *{
+                "review": [doubtful.desc(), count.desc()],
+                "title": [TrackMetadata.title],
+                "artist": [TrackMetadata.artist, TrackMetadata.title],
+                "recent": [count.desc()],
+            }[sort],
+            TrackMetadata.id,
+        )
         .offset((page - 1) * 25)
         .limit(26)
     ).all()
@@ -192,6 +202,40 @@ class GlobalHiddenTrack(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     artist: str | None = Field(None, max_length=300)
     title: str = Field(min_length=1, max_length=500)
+
+
+class GlobalHiddenTracks(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    items: list[GlobalHiddenTrack] = Field(min_length=1, max_length=50)
+
+
+@router.post("/exclusions/bulk")
+def hide_personal_globally(payload: GlobalHiddenTracks, db: Db):
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+    from app.services.exclusions import exclusion_id, global_revision, normalized_pair
+
+    values = {}
+    for track in payload.items:
+        artist = track.artist or None
+        key = exclusion_id(artist, track.title)
+        a, t = normalized_pair(artist, track.title)
+        values[key] = {
+            "id": key,
+            "artist": artist,
+            "title": track.title,
+            "artist_normalized": a,
+            "title_normalized": t,
+        }
+    insert = sqlite_insert if db.get_bind().dialect.name == "sqlite" else pg_insert
+    db.execute(
+        insert(GlobalExclusion)
+        .values(list(values.values()))
+        .on_conflict_do_nothing(index_elements=[GlobalExclusion.id])
+    )
+    db.commit()
+    return {"revision": global_revision(db), "submitted": len(payload.items)}
 
 
 @router.get("/exclusions")
@@ -242,3 +286,94 @@ def restore_globally(key: str, db: Db):
     db.execute(delete(GlobalExclusion).where(GlobalExclusion.id == key))
     db.commit()
     return {"revision": global_revision(db)}
+
+
+@router.get("/plays")
+def broadcasts(
+    db: Db,
+    q: str = Query("", max_length=200),
+    station_id: int | None = Query(None, ge=1),
+    since: datetime | None = None,
+    until: datetime | None = None,
+    suspicious: bool = False,
+    sort: Literal["newest", "oldest", "title", "artist"] = "newest",
+    page: int = Query(1, ge=1, le=1000000),
+):
+    if any(v is not None and v.tzinfo is None for v in (since, until)):
+        raise HTTPException(422, "Indiquez un fuseau horaire pour les dates.")
+    if since and until and since >= until:
+        raise HTTPException(422, "La fin doit être postérieure au début.")
+    # Compute proximity before search/date filters, including intervening titles.
+    previous = select(
+        Play.id.label("play_id"),
+        func.lag(Play.detected_at, type_=Play.detected_at.type)
+        .over(
+            partition_by=(Play.station_id, Play.track_id),
+            order_by=(Play.detected_at, Play.id),
+        )
+        .label("previous_at"),
+    ).subquery()
+    query = (
+        select(Play, Station.name, previous.c.previous_at)
+        .join(Station, Station.id == Play.station_id)
+        .join(previous, previous.c.play_id == Play.id)
+    )
+    sqlite = db.get_bind().dialect.name == "sqlite"
+    if suspicious:
+        seconds = (
+            (func.julianday(Play.detected_at) - func.julianday(previous.c.previous_at)) * 86400
+            if sqlite
+            else func.extract("epoch", Play.detected_at - previous.c.previous_at)
+        )
+        query = query.where(seconds.between(0, 180.01))
+    for word in q.split():
+        query = query.where(
+            or_(
+                text_match(Play.artist, word, unicode=sqlite),
+                text_match(Play.title, word, unicode=sqlite),
+            )
+        )
+    if station_id:
+        query = query.where(Play.station_id == station_id)
+    if since:
+        query = query.where(Play.detected_at >= since)
+    if until:
+        query = query.where(Play.detected_at < until)
+    order = {
+        "newest": [Play.detected_at.desc(), Play.id.desc()],
+        "oldest": [Play.detected_at, Play.id],
+        "title": [Play.title, Play.id],
+        "artist": [Play.artist, Play.title, Play.id],
+    }[sort]
+    rows = db.execute(query.order_by(*order).offset((page - 1) * 25).limit(26)).all()
+    from app.services.data_admin import utc
+
+    return {
+        "items": [
+            dict(
+                play_data(row),
+                station_name=name,
+                previous_at=utc(prev).isoformat() if prev else None,
+                suspect=prev is not None
+                and (utc(row.detected_at) - utc(prev)).total_seconds() <= 180,
+            )
+            for row, name, prev in rows[:25]
+        ],
+        "page": page,
+        "has_more": len(rows) > 25,
+    }
+
+
+@router.post("/plays/preview")
+def preview_broadcasts(payload: Correction, db: Db):
+    return preview(db, payload)
+
+
+class ApplyCorrection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    token: str = Field(min_length=1, max_length=7000)
+
+
+@router.post("/plays/apply")
+def apply_broadcasts(payload: ApplyCorrection, db: Db):
+    return apply(db, payload.token)

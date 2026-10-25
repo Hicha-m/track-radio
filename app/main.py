@@ -88,10 +88,15 @@ def plays(
     since: datetime | None = None,
     until: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+    exclusions: Annotated[str, Query(max_length=12000)] = "",
 ):
+    try:
+        exclusions = canonical_exclusions(exclusions)
+    except ValueError as error:
+        raise HTTPException(422, "Liste de titres masqués invalide.") from error
     query = (
         play_query(station_id, since, until)
-        .where(*exclusion_conditions("", db.get_bind().dialect.name == "sqlite"))
+        .where(*exclusion_conditions(exclusions, db.get_bind().dialect.name == "sqlite"))
         .order_by(Play.detected_at.desc())
         .limit(limit)
     )

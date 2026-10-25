@@ -131,7 +131,8 @@ def test_direct_links_hidden_for_public_but_available_to_admin(client, library):
         ).status_code
         == 200
     )
-    assert client.get(f"/api/catalog/{key}/radio", headers=AUTH).json()["detections"] == 3
+    assert client.get(f"/api/catalog/{key}/radio", headers=AUTH).json()["detections"] == 0
+    assert len(client.get("/api/admin/plays?q=Les Dedicaces", headers=AUTH).json()["items"]) == 3
     assert client.get(f"/api/admin/catalog/{key}", headers=AUTH).status_code == 200
     # Catalogue identity collapses whitespace; an alternative query cannot expose the entry.
     assert (

@@ -22,7 +22,8 @@ function create({authenticated = false, stored = [], request, fetch: fetchImpl} 
     URLSearchParams, DOMException, Event,
     fetch: fetchImpl || (async () => ({ok: true, json: async () => ({revision: 'initial'})})),
   });
-  return {filters: window.MusicFilters, storage, events, clears: () => clears};
+  return {filters: window.MusicFilters, storage, events, clears: () => clears,
+    setAdmin: value => { authenticated = value; window.dispatchEvent(new Event('radio:adminchange')); }};
 }
 const track = {artist: 'Artist', title: 'Song'};
 
@@ -81,4 +82,35 @@ test('a revision check started before a mutation cannot restore the old revision
   const key = browser.filters.key();
   finish({revision: 'old'}); await checking;
   assert.equal(browser.filters.key(), key);
+});
+
+test('admin applies the same personal query and promotes a snapshot without removing preferences', async () => {
+  const calls = [];
+  const stored = [track, {artist: 'SKYROCK', title: '100% Francais'}];
+  const browser = create({authenticated: true, stored, request: async (url, body) => {
+    calls.push({url, body}); return {revision: 'promoted'};
+  }});
+  const params = browser.filters.apply(new URLSearchParams());
+  assert.deepEqual(JSON.parse(params.get('exclusions')), stored);
+  await browser.filters.promotePersonal();
+  assert.equal(calls[0].url, '/api/admin/exclusions/bulk');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0].body)), {items: stored});
+  assert.deepEqual(JSON.parse(browser.storage['radio-hidden-tracks-v1']), stored);
+  assert.ok(browser.events.includes('radio:globalfilterschange'));
+  const visitor = create({stored});
+  await assert.rejects(visitor.filters.promotePersonal(), /administrateur requise/);
+});
+
+
+test('only authentication transitions invalidate filters, preserving in-flight catalogue reads', () => {
+  const browser = create({stored: [track]});
+  browser.setAdmin(false);
+  assert.equal(browser.clears(), 0);
+  browser.setAdmin(true);
+  assert.equal(browser.clears(), 1);
+  browser.setAdmin(true);
+  assert.equal(browser.clears(), 1);
+  browser.setAdmin(false);
+  assert.equal(browser.clears(), 2);
+  assert.deepEqual(JSON.parse(browser.filters.apply(new URLSearchParams()).get('exclusions')), [track]);
 });

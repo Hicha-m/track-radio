@@ -45,8 +45,8 @@ class ExclusionFilters(BaseModel):
         return canonical_exclusions(value)
 
 
-def exclusion_conditions(value, unicode=True):
-    conditions = [global_condition(unicode=unicode)]
+def exclusion_conditions(value, unicode=True, artist=Play.artist, title=Play.title):
+    conditions = [global_condition(artist, title, unicode=unicode)]
     if not value:
         return conditions
     fold = func.fold_text if unicode else func.lower
@@ -54,9 +54,8 @@ def exclusion_conditions(value, unicode=True):
         ~or_(
             *[
                 and_(
-                    func.replace(fold(func.coalesce(Play.artist, "")), "’", "'")
-                    == (t["artist"] or ""),
-                    func.replace(fold(Play.title), "’", "'") == t["title"],
+                    func.replace(fold(func.coalesce(artist, "")), "’", "'") == (t["artist"] or ""),
+                    func.replace(fold(title), "’", "'") == t["title"],
                 )
                 for t in json.loads(value)
             ]
