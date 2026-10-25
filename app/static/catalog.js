@@ -77,12 +77,14 @@ window.TrackCatalog = (() => {
     const artist = el('p', track.artist || 'Artiste inconnu', 'catalog-artist');
     const message = el('p', 'Chargement des informations…', 'hint'); message.setAttribute('role', 'status');
     const content = el('div');
+    const toolbar = el('div', '', 'catalog-toolbar');
     if (options.onBack) {
       const back = el('button', '← Retour à la recherche', 'text-button catalog-back'); back.type = 'button';
-      back.onclick = () => { panel.close(); options.onBack(); }; panel.append(back);
+      back.onclick = () => { panel.close(); options.onBack(); }; toolbar.append(back);
     }
     const edit = el('button', 'Modifier', 'text-button catalog-modify'); edit.type = 'button'; edit.hidden = true;
-    panel.append(close, heading, artist, edit, message, content);
+    toolbar.append(close);
+    panel.append(toolbar, heading, artist, edit, message, content);
     const hide = el('button', 'Masquer ce titre', 'text-button'); hide.type = 'button';
     hide.onclick = async () => {
       const global = window.RadioAdmin.authenticated(); hide.disabled = true;
@@ -119,11 +121,12 @@ window.TrackCatalog = (() => {
       if (data.cover_url) summary.append(artwork(data.cover_url, heading.textContent));
       else { const placeholder = el('div', '♫', 'catalog-art catalog-art-placeholder'); placeholder.setAttribute('aria-label', 'Pochette indisponible'); summary.append(placeholder); }
       const essentials = el('div', '', 'catalog-essentials');
-      essentials.append(genreList(data));
-      essentials.append(fields([['Album', data.album], ['Durée', duration(data.duration)], ['Source principale', providers[data.provider] || data.provider || 'Non renseignée']]));
+      essentials.append(el('span', 'FICHE MUSICALE', 'eyebrow'), heading, artist);
       const controls = el('div', '', 'preview-entry');
-      controls.append(playButton({...track, metadata: data}), el('span', 'Écouter l’extrait'));
-      essentials.append(message, controls); summary.append(essentials); content.append(summary);
+      controls.append(playButton({...track, metadata: data}), el('span', data.preview_url ? 'Écouter l’extrait' : 'Aucun extrait disponible'));
+      essentials.append(controls);
+      essentials.append(fields([['Album', data.album], ['Durée', duration(data.duration)], ['Source principale', providers[data.provider] || data.provider || 'Non renseignée']]));
+      essentials.append(genreList(data), message, edit); summary.append(essentials); content.append(summary);
       const radio = el('section', '', 'catalog-radio'); radio.append(el('h3', 'Diffusions radio'));
       const radioStatus = el('p', 'Chargement des détections…', 'hint'); radio.append(radioStatus); content.append(radio);
       const radioParams = window.MusicFilters.apply(new URLSearchParams()); if (track.station_id) radioParams.set('station_id', track.station_id);

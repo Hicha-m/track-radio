@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
             browsers = [getattr(p, name).launch() for name in engines]
             try:
                 for browser in browsers:
-                    for width, height in [(1280, 900), (402, 874), (412, 915)]:
+                    for width, height in [(1280, 900), (320, 740), (402, 874), (412, 915)]:
                         context = browser.new_context(viewport={"width": width, "height": height})
                         page = context.new_page()
                         errors = []
@@ -171,6 +171,21 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             ),
                         )
                         page.goto(base_url + "/")
+                        expect(page).to_have_title("Classements · Radio Tracker")
+                        expect(
+                            page.get_by_role("link", name="Radio Tracker", exact=True)
+                        ).to_be_visible()
+                        page.wait_for_function(
+                            "document.querySelector('.brand-mark').naturalWidth > 0"
+                        )
+                        for selector in ['link[rel="icon"]', 'link[rel="apple-touch-icon"]']:
+                            for icon in page.locator(selector).all():
+                                resource = context.request.get(
+                                    base_url + icon.get_attribute("href")
+                                )
+                                assert resource.ok and resource.headers["content-type"].startswith(
+                                    "image/"
+                                )
                         expect(page.locator(".podium-card")).to_have_count(3)
                         expect(page.locator(".cover-rank")).to_have_text(["01", "02", "03"])
                         # Include loaded artwork and a failed image with its fallback.
@@ -337,6 +352,18 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(page.locator(".catalog-dialog")).to_be_visible()
                         expect(page.locator(".catalog-dialog meter")).to_have_count(0)
                         expect(page.locator(".catalog-dialog .catalog-modify")).to_be_visible()
+                        assert page.locator(".catalog-summary").evaluate("""summary => {
+                            const cover = summary.querySelector('.catalog-art')
+                                .getBoundingClientRect();
+                            const info = summary.querySelector('.catalog-essentials')
+                                .getBoundingClientRect();
+                            return cover.width >= (innerWidth > 760 ? 300 : 240)
+                                && Math.abs(cover.width - cover.height) < 1
+                                && (innerWidth > 760 ? info.left >= cover.right
+                                    : info.top >= cover.bottom)
+                                && summary.scrollWidth <= summary.clientWidth;
+                        }"""), width
+                        page.screenshot(path=f"/tmp/radio-identity-light-{width}.png")
                         page.locator(".catalog-dialog .catalog-modify").click()
                         expect(page.locator(".admin-edit-dialog .catalog-editor")).to_be_visible()
                         expect(
@@ -558,6 +585,54 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(
                             page.locator('.catalog-dialog input[type="password"]')
                         ).to_have_count(0)
+                        page.keyboard.press("Escape")
+                        # The large artwork has a readable fallback, including missing metadata.
+                        page.evaluate(
+                            "TrackCatalog.open({artist: 'Mosimann', title: 'Track Four'})"
+                        )
+                        expect(
+                            page.locator(".catalog-summary .catalog-art-placeholder")
+                        ).to_be_visible()
+                        page.locator(".catalog-toolbar .catalog-close").click()
+
+                        def incomplete_catalog(route):
+                            data = route.fetch().json()
+                            data.update(
+                                cover_url=None,
+                                preview_url=None,
+                                artist=None,
+                                title="Un titre très long " * 12,
+                            )
+                            route.fulfill(json=data)
+
+                        page.route("**/api/catalog?**", incomplete_catalog)
+                        page.evaluate("TrackCatalog.open({artist: '', title: 'Track Five'})")
+                        expect(
+                            page.locator(".catalog-summary .catalog-art-placeholder")
+                        ).to_be_visible()
+                        expect(page.locator(".catalog-summary .preview-button")).to_be_disabled()
+                        expect(page.locator(".catalog-summary .preview-entry")).to_contain_text(
+                            "Aucun extrait disponible"
+                        )
+                        expect(page.locator(".catalog-artist")).to_have_text("Artiste inconnu")
+                        assert page.locator(".catalog-dialog").evaluate(
+                            "e => e.scrollWidth <= e.clientWidth"
+                        )
+                        page.keyboard.press("Escape")
+                        page.unroute("**/api/catalog?**", incomplete_catalog)
+                        # Playback remains synchronized between the sheet and the persistent player.
+                        page.locator("#theme-toggle").click()
+                        page.locator(".podium-detail").first.click()
+                        sheet_play = page.locator(".catalog-summary .preview-button")
+                        sheet_play.click()
+                        expect(sheet_play).to_have_attribute("aria-pressed", "true")
+                        expect(page.locator(".player")).to_have_attribute("data-mode", "preview")
+                        sheet_play.click()
+                        expect(sheet_play).to_have_attribute("aria-pressed", "false")
+                        page.locator(".catalog-technical summary").click()
+                        expect(page.locator(".catalog-technical dl")).to_be_visible()
+                        page.locator(".catalog-dialog").evaluate("e => e.scrollTop = 0")
+                        page.screenshot(path=f"/tmp/radio-identity-dark-{width}.png")
                         page.keyboard.press("Escape")
                         assert not errors, errors
                         print(

@@ -5,12 +5,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#fa243c">
   <title>{{ 'Stats' if page == '/stats' else 'Administration' if page.startswith('/admin') else 'Recherche' if is_search else 'Classements' }} · Radio Tracker</title>
+  <meta name="application-name" content="Radio Tracker">
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ asset_version }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ asset_version }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v={{ asset_version }}">
   <script src="/static/theme.js?v={{ asset_version }}"></script>
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
 </head>
 <body data-asset-version="{{ asset_version }}">
   <aside class="sidebar">
-    <a class="brand" href="/"><span class="brand-mark">♫</span> Radio Tracker</a>
+    <a class="brand" href="/"><img class="brand-mark" src="/static/logo.svg?v={{ asset_version }}" width="36" height="36" alt=""> Radio Tracker</a>
     <button class="search-shortcut" type="button" data-open-search><span aria-hidden="true">⌕</span> Rechercher une musique <kbd>⌘ K</kbd></button>
     <p class="nav-label">DÉCOUVRIR</p>
     <nav aria-label="Navigation principale">
