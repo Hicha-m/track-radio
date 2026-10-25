@@ -90,7 +90,7 @@ Dans **Modifier**, chaque proposition utile porte désormais l’action **Compl�
 
 Les genres apparaissent sous forme de liste dans l’éditeur, les propositions et la fiche musicale. Une absence produit une seule indication, « Aucun genre renseigné », sans blocs séparés pour genre principal, genres secondaires et source des genres.
 
-Les boutons d’extrait des propositions utilisent `GET /api/catalog/{track_id}/candidates/{candidate_id}/preview`, réservé aux admins et limité aux résultats enregistrés. Comme la lecture de la version choisie, cette route renouvelle le lien Deezer avant la redirection ; écouter n’applique aucune sélection. Lorsqu’un extrait manquant provient d’un catalogue complémentaire, la fiche conserve cette provenance et lit cet extrait plutôt que de chercher celui du fournisseur principal. La migration **0008** remet uniquement les anciennes correspondances automatiques sans genre dans cette file ; les fiches manuelles et les morceaux absents restent inchangés.
+Les boutons d’extrait des propositions utilisent `GET /api/catalog/{track_id}/candidates/{candidate_id}/preview`, réservé aux admins et limité aux résultats enregistrés. Comme la lecture de la version choisie, cette route renouvelle le lien Deezer avant la redirection ; écouter n’applique aucune sélection. Lorsqu’un extrait manquant provient d’une proposition complémentaire, la fiche conserve son fournisseur et son identifiant exacts pour lire cet extrait, y compris entre deux versions d’un même fournisseur. La migration **0008** remet uniquement les anciennes correspondances automatiques sans genre dans cette file ; les fiches manuelles et les morceaux absents restent inchangés.
 
 ## Fiche musicale
 

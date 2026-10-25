@@ -190,3 +190,22 @@ def test_candidate_actions_require_csrf_with_cookie_auth(client, entry):
         ).status_code
         == 200
     )
+
+
+def test_completion_preview_keeps_the_exact_candidate_id(db, client, entry, monkeypatch):
+    from app.catalog_api import _preview_cache
+
+    _preview_cache.clear()
+    candidate = {**entry.candidates[0], "provider": "deezer", "provider_id": "191"}
+    entry.selected, _ = complete_from_candidate(entry.selected, candidate)
+    db.commit()
+
+    async def fresh(*args):
+        assert args[1] == "https://api.deezer.com/track/191"
+        return {"preview": "https://audio.example.test/exact-candidate.mp3"}
+
+    monkeypatch.setattr("app.catalog_api.fetch_json", fresh)
+    response = client.get(f"/api/catalog/{entry.id}/preview", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"].endswith("exact-candidate.mp3")
+    assert entry.selected["provider_id"] == "42"

@@ -365,27 +365,23 @@ async def candidate_preview(key: str, candidate_id: str, db: Db):
 
 
 async def recording_preview(selected):
+    preview_source = selected.get("preview_source") or selected
+    provider, provider_id = preview_source["provider"], preview_source["provider_id"]
     preview_provider = (selected.get("field_sources") or {}).get("preview_url")
     # A missing primary excerpt can have been supplied by a different catalogue.
-    external_preview = preview_provider and preview_provider != selected["provider"]
+    external_preview = preview_provider and preview_provider != provider
     cache_key = (
-        selected["provider"],
-        selected["provider_id"],
+        provider,
+        provider_id,
         selected.get("preview_url") if external_preview else None,
     )
     cached = _preview_cache.get(cache_key)
     url = cached[1] if cached and cached[0] > monotonic() else None
     if not url:
-        if (
-            selected["provider"] == "deezer"
-            and selected["provider_id"].isdigit()
-            and not external_preview
-        ):
+        if provider == "deezer" and provider_id.isdigit() and not external_preview:
             try:
                 async with httpx.AsyncClient(timeout=12) as client:
-                    data = await fetch_json(
-                        client, f"https://api.deezer.com/track/{selected['provider_id']}"
-                    )
+                    data = await fetch_json(client, f"https://api.deezer.com/track/{provider_id}")
                 url = safe_url(data.get("preview"))
             except (httpx.HTTPError, ValueError, TimeoutError) as error:
                 raise HTTPException(502, "Extrait temporairement indisponible.") from error

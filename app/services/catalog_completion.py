@@ -156,6 +156,11 @@ def complete_from_candidate(selected, candidate):
             filled.append(field)
             if field == "genres":
                 result["genre_source"] = candidate.get("genre_source") or provider
+            if field == "preview_url":
+                result["preview_source"] = {
+                    "provider": provider,
+                    "provider_id": candidate["provider_id"],
+                }
     url = safe_url(candidate.get("url"))
     if url and provider == result.get("provider"):
         if not result.get("url") and candidate.get("provider_id") == result.get("provider_id"):
