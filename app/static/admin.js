@@ -226,38 +226,81 @@ window.RadioPages = window.RadioPages || {};
   window.addEventListener('radio:adminchange', () => {
     if (!window.RadioAdmin.authenticated()) document.querySelectorAll('.admin-edit-dialog').forEach(panel => { panel.close(); panel.remove(); });
   });
-  window.RadioPages.admin = () => {
+  window.RadioPages.adminLogin = () => {
     const root = document.querySelector('#admin-root');
     const login = root.querySelector('#admin-login');
+    const status = root.querySelector('#admin-status');
+    let disposed = false;
+    function destination() {
+      try {
+        const next = new URL(new URLSearchParams(location.search).get('next') || '/admin/dashboard', location.origin);
+        if (next.origin === location.origin && ['/admin/dashboard', '/admin/radios', '/admin/diffusions', '/admin/catalogue', '/admin/exclusions'].includes(next.pathname)) return next.pathname + next.search;
+      } catch (_) { /* An invalid return URL falls back to the dashboard. */ }
+      return '/admin/dashboard';
+    }
+    login.onsubmit = async event => {
+      event.preventDefault();
+      const secret = login.elements.token.value; login.elements.token.value = '';
+      const button = login.querySelector('button'); button.disabled = true;
+      status.textContent = 'Connexion en cours…';
+      try {
+        await window.RadioAdmin.login(secret);
+        if (!disposed) await window.RadioNavigation.go(destination(), true);
+      } catch (error) { if (!disposed) status.textContent = error.message; }
+      finally { if (!disposed) button.disabled = false; }
+    };
+    if (window.RadioAdmin.authenticated()) queueMicrotask(() => {
+      if (!disposed) window.RadioNavigation.go(destination(), true);
+    });
+    return () => { disposed = true; login.elements.token.value = ''; };
+  };
+  window.RadioPages.admin = () => {
+    const root = document.querySelector('#admin-root');
+    const view = root.dataset.adminPage;
     const workspace = root.querySelector('#admin-workspace');
     const status = root.querySelector('#admin-status');
-    const tokenInput = login.elements.token;
     const controller = new AbortController();
     let page = 1; let version = 0; let timer;
     const request = (url, payload, method) => window.RadioAdmin.request(url, payload, method, controller.signal);
     function displaySession() {
-      if (controller.signal.aborted) return;
-      const active = window.RadioAdmin.authenticated();
-      login.hidden = active; workspace.hidden = !active; if (active) tokenInput.value = '';
-      if (!active) {
-        root.querySelector('#admin-stations').replaceChildren();
-        root.querySelector('#admin-catalog-results').replaceChildren();
-        root.querySelector('#admin-editor').replaceChildren();
-        selected.clear(); exclusions = []; playsVersion++;
-        root.querySelector('#admin-plays-results').replaceChildren();
-        root.querySelector('#admin-exclusion-results').replaceChildren(); previewPane.replaceChildren();
-        correction.reset(); playsStatus.textContent = '';
-        version++; status.textContent = 'Connectez-vous pour corriger les informations.';
+      if (controller.signal.aborted || !root.isConnected) return;
+      if (!window.RadioAdmin.authenticated()) {
+        workspace.hidden = true; version++; playsVersion++;
+        window.RadioNavigation.go(`/admin?next=${encodeURIComponent(location.pathname)}`, true);
       }
     }
+    async function overview() {
+      const current = ++version;
+      const panel = root.querySelector('.admin-overview');
+      if (!panel) return;
+      panel.setAttribute('aria-busy', 'true');
+      status.textContent = 'Actualisation de la synthèse…';
+      const refresh = root.querySelector('[data-admin-refresh]'); refresh.disabled = true;
+      try {
+        const params = window.MusicFilters.apply(new URLSearchParams());
+        const data = await request(`/api/admin/dashboard?${params}`);
+        if (controller.signal.aborted || current !== version) return;
+        root.querySelectorAll('[data-admin-metric]').forEach(node => {
+          node.textContent = new Intl.NumberFormat('fr-FR').format(data[node.dataset.adminMetric]);
+        });
+        root.querySelector('#admin-last-detection').textContent = data.last_detection
+          ? `Dernière détection visible sur 24 h : ${new Date(data.last_detection).toLocaleString('fr-FR')}`
+          : 'Aucune détection visible sur les dernières 24 heures.';
+        status.textContent = 'Synthèse actualisée.';
+      } catch (error) { if (error.name !== 'AbortError' && current === version) status.textContent = error.message; }
+      finally { if (current === version) { panel.setAttribute('aria-busy', 'false'); refresh.disabled = false; } }
+    }
+    root.querySelector('[data-admin-refresh]')?.addEventListener('click', overview);
     async function radios() {
       const data = await request('/api/admin/stations');
       if (controller.signal.aborted) return;
-      const container = root.querySelector('#admin-stations'); container.replaceChildren();
-      const stationSelect = playsForm.elements.station_id; const chosen = stationSelect.value;
-      stationSelect.replaceChildren(new Option('Toutes', ''));
+      const container = root.querySelector('#admin-stations');
+      const stationSelect = playsForm?.elements.station_id; const chosen = stationSelect?.value;
+      container?.replaceChildren();
+      stationSelect?.replaceChildren(new Option('Toutes', ''));
       for (const station of data) {
-        stationSelect.add(new Option(station.name, String(station.id)));
+        stationSelect?.add(new Option(station.name, String(station.id)));
+        if (!container) continue;
         const row = el('article', '', 'admin-station');
         row.append(el('strong', station.name), el('span', station.enabled ? 'Collecte active' : 'Collecte arrêtée'));
         const toggle = el('button', station.enabled ? 'Désactiver' : 'Activer', 'text-button');
@@ -271,8 +314,8 @@ window.RadioPages = window.RadioPages || {};
         toggle.onclick = () => change(!station.enabled); reset.onclick = () => change(null);
         row.append(toggle, reset); container.append(row);
       }
-      stationSelect.value = chosen;
-      root.querySelector("#admin-station-search").dispatchEvent(new Event("input"));
+      if (stationSelect) stationSelect.value = chosen;
+      root.querySelector("#admin-station-search")?.dispatchEvent(new Event("input"));
     }
     async function openEntry(summary) {
       try {
@@ -289,6 +332,7 @@ window.RadioPages = window.RadioPages || {};
     async function catalogue() {
       const current = ++version;
       const form = root.querySelector('#admin-catalog-form');
+      if (!form) return;
       const params = new URLSearchParams({q: form.elements.q.value, review: String(form.elements.review.checked), page: String(page), sort: form.elements.sort.value});
       try {
         const data = await request(`/api/admin/catalog?${params}`);
@@ -322,13 +366,14 @@ window.RadioPages = window.RadioPages || {};
       if (controller.signal.aborted) return;
       exclusions = data.items; showExclusions();
     }
-    root.querySelector('#admin-exclusion-search').oninput = showExclusions;
-    root.querySelector('#admin-station-search').oninput = event => {
+    root.querySelector('#admin-exclusion-search')?.addEventListener('input', showExclusions);
+    root.querySelector('#admin-station-search')?.addEventListener('input', event => {
       const q = event.target.value.toLocaleLowerCase();
       root.querySelectorAll('#admin-stations .admin-station').forEach(row => { row.hidden = !row.textContent.toLocaleLowerCase().includes(q); });
-    };
+    });
     function updateSelection() {
       previewPane.replaceChildren();
+      correction.hidden = selected.size === 0;
       const keep = correction.elements.keep_id; const previous = keep.value;
       keep.replaceChildren(new Option('Choisir dans la sélection', ''));
       selected.forEach(row => keep.add(new Option(`#${row.id} · ${new Date(row.detected_at).toLocaleString()}`, String(row.id))));
@@ -367,10 +412,21 @@ window.RadioPages = window.RadioPages || {};
         root.querySelector('#admin-plays-next').disabled = !data.has_more;
       } catch (error) { if (error.name !== 'AbortError') playsStatus.textContent = error.message; }
     }
-    playsForm.onsubmit = event => { event.preventDefault(); playsPage = 1; broadcasts(); };
-    root.querySelector('#admin-plays-previous').onclick = () => { playsPage--; broadcasts(); };
-    root.querySelector('#admin-plays-next').onclick = () => { playsPage++; broadcasts(); };
-    correction.onsubmit = async event => {
+    playsForm?.addEventListener('submit', event => { event.preventDefault(); playsPage = 1; broadcasts(); });
+    root.querySelector('#admin-plays-previous')?.addEventListener('click', () => { playsPage--; broadcasts(); });
+    root.querySelector('#admin-plays-next')?.addEventListener('click', () => { playsPage++; broadcasts(); });
+    function correctionFields() {
+      previewPane.replaceChildren();
+      const action = correction.elements.action.value;
+      for (const name of ['keep_id', 'artist', 'title', 'detected_at']) {
+        correction.elements[name].closest('label').hidden = name === 'keep_id' ? action !== 'merge' : action !== 'correct';
+      }
+    }
+    if (correction) {
+      correction.elements.action.addEventListener('change', correctionFields);
+      correctionFields();
+    }
+    correction?.addEventListener('submit', async event => {
       event.preventDefault(); previewPane.replaceChildren();
       const command = {action: correction.elements.action.value, ids: [...selected.keys()]};
       if (!command.ids.length) { playsStatus.textContent = 'Sélectionnez au moins une diffusion.'; return; }
@@ -400,30 +456,27 @@ window.RadioPages = window.RadioPages || {};
         };
         previewPane.append(apply, cancel);
       } catch (error) { if (error.name !== 'AbortError') playsStatus.textContent = error.message; }
-    };
+    });
     async function load() {
       displaySession();
       if (!window.RadioAdmin.authenticated() || controller.signal.aborted) return;
-      status.textContent = 'Session active · retour au classement sans ressaisir la clé.';
-      try { await Promise.all([radios(), catalogue(), broadcasts(), loadExclusions()]); }
+      status.textContent = '';
+      const loads = {dashboard: overview, radios, catalogue, diffusions: () => Promise.all([radios(), broadcasts()]), exclusions: loadExclusions};
+      try { await loads[view](); }
       catch (error) { if (error.name !== 'AbortError') status.textContent = error.message; }
     }
-    login.onsubmit = async event => {
-      event.preventDefault(); const secret = tokenInput.value; tokenInput.value = '';
-      const button = login.querySelector('button'); button.disabled = true;
-      try { await window.RadioAdmin.login(secret); await load(); }
-      catch (error) { status.textContent = error.message; }
-      finally { button.disabled = false; }
-    };
     const search = root.querySelector('#admin-catalog-form');
-    search.onsubmit = event => { event.preventDefault(); page = 1; catalogue(); };
-    search.oninput = () => { clearTimeout(timer); version++; timer = setTimeout(() => { page = 1; catalogue(); }, 350); };
-    root.querySelector('[data-admin-previous]').onclick = () => { page--; catalogue(); };
-    root.querySelector('[data-admin-next]').onclick = () => { page++; catalogue(); };
-    const refreshExclusions = () => { if (window.RadioAdmin.authenticated()) loadExclusions().catch(error => { if (error.name !== 'AbortError') status.textContent = error.message; }); };
+    if (search) search.elements.review.checked = new URLSearchParams(location.search).get('review') === 'true';
+    search?.addEventListener('submit', event => { event.preventDefault(); page = 1; catalogue(); });
+    search?.addEventListener('input', () => { clearTimeout(timer); version++; timer = setTimeout(() => { page = 1; catalogue(); }, 350); });
+    root.querySelector('[data-admin-previous]')?.addEventListener('click', () => { page--; catalogue(); });
+    root.querySelector('[data-admin-next]')?.addEventListener('click', () => { page++; catalogue(); });
+    const refreshExclusions = () => { if (view === 'exclusions' && window.RadioAdmin.authenticated()) loadExclusions().catch(error => { if (error.name !== 'AbortError') status.textContent = error.message; }); };
+    const refreshOverview = () => { if (view === 'dashboard' && window.RadioAdmin.authenticated()) overview(); };
+    window.addEventListener('radio:filterschange', refreshOverview);
     window.addEventListener('radio:globalfilterschange', refreshExclusions);
     window.addEventListener('radio:adminchange', displaySession);
     window.RadioAdmin.refresh().then(load);
-    return () => { controller.abort(); clearTimeout(timer); tokenInput.value = ''; window.removeEventListener('radio:adminchange', displaySession); window.removeEventListener('radio:globalfilterschange', refreshExclusions); };
+    return () => { controller.abort(); clearTimeout(timer); window.removeEventListener('radio:filterschange', refreshOverview); window.removeEventListener('radio:adminchange', displaySession); window.removeEventListener('radio:globalfilterschange', refreshExclusions); };
   };
 })();

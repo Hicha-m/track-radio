@@ -59,7 +59,7 @@
     toggle.disabled = !audio.getAttribute('src');
     toggle.setAttribute('aria-label', playing ? 'Mettre en pause' : mode === 'preview' ? 'Écouter l’extrait' : 'Écouter la radio');
     toggle.setAttribute('aria-pressed', String(playing));
-    toggle.firstElementChild.textContent = playing ? 'Ⅱ' : '▶';
+    toggle.querySelector('path').setAttribute('d', playing ? 'M6 5h4v14H6zM14 5h4v14h-4z' : 'M8 5v14l11-7z');
     panel.classList.toggle('is-playing', playing);
     panel.dataset.mode = mode;
     document.documentElement.dataset.playerMode = mode;
@@ -178,7 +178,7 @@
   audio.addEventListener('volumechange', syncVolume);
   window.addEventListener('radio:pagechange', sync);
   window.addEventListener('radio:globalfilterschange', () => {
-    if (mode === 'radio') {
+    if (mode === 'radio' && radio) {
       metadataVersion++; title.textContent = 'Titre indisponible'; artist.textContent = '';
       showArtwork({}, radio); refreshNowPlaying();
     }

@@ -297,13 +297,19 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.locator('[name="token"]').fill("browser-test-only")
                         page.get_by_role("button", name="Ouvrir l’administration").click()
                         expect(page.locator("#admin-workspace")).to_be_visible()
-                        expect(page.locator('[name="token"]')).to_have_value("")
+                        expect(page.locator('[name="token"]')).to_have_count(0)
+                        page.locator(".admin-nav").get_by_role(
+                            "link", name="Radios", exact=True
+                        ).click()
                         page.get_by_role("button", name="Désactiver", exact=True).click()
                         expect(page.locator("#admin-stations")).to_contain_text("Collecte arrêtée")
                         page.get_by_role(
                             "button", name="Revenir à la configuration", exact=True
                         ).click()
                         expect(page.locator("#admin-stations")).to_contain_text("Collecte active")
+                        page.locator(".admin-nav").get_by_role(
+                            "link", name="Catalogue", exact=True
+                        ).click()
                         page.locator('#admin-catalog-form [name="review"]').uncheck()
                         expect(page.locator(".admin-track")).to_have_count(5)
                         page.locator(".admin-track").first.click()
@@ -328,13 +334,13 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         assert "__Host-radio_admin" not in page.evaluate("document.cookie")
                         navigation.get_by_role("link", name="Stats", exact=True).click()
                         page.locator("#admin-session-controls a").click()
-                        expect(page).to_have_url(base_url + "/admin/catalogue")
+                        expect(page).to_have_url(base_url + "/admin/dashboard")
                         expect(page.locator("#admin-workspace")).to_be_visible()
                         other = page.context.new_page()
                         other.goto(base_url + "/admin/catalogue")
                         expect(other.locator("#admin-workspace")).to_be_visible()
                         other.close()
-                        page.locator("#admin-root [data-admin-logout]").click()
+                        page.locator("#admin-session-controls [data-admin-logout]").click()
                         expect(page.locator("#admin-login")).to_be_visible()
                         expect(page.locator("#admin-session-controls")).not_to_be_visible()
                         page.locator('[name="token"]').fill("browser-test-only")
@@ -423,7 +429,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.keyboard.press("Control+k")
                         expect(page.locator(".music-search-dialog")).to_be_visible()
                         page.keyboard.press("Escape")
-                        page.locator(".quick-search-toggle").click()
+                        page.locator(".search-shortcut").click()
                         expect(page.locator(".music-search-dialog")).to_be_visible()
                         page.locator(".music-search-dialog input").fill("Mosimann Soon")
                         expect(page.locator(".music-search-result")).to_have_count(1)
@@ -443,7 +449,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(page.locator(".music-search-result")).to_have_count(1)
                         page.mouse.click(5, 5)
                         expect(page.locator(".music-search-dialog")).not_to_be_visible()
-                        page.locator(".quick-search-toggle").click()
+                        page.locator(".search-shortcut").click()
                         expect(page.locator(".music-search-dialog input")).to_have_value(
                             "Mosimann Soon"
                         )
@@ -563,7 +569,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             "**/recherche",
                             lambda route: route.fulfill(status=503, body="Unavailable"),
                         )
-                        page.locator(".topbar-actions > a").click()
+                        navigation.get_by_role("link", name="Recherche avancée").click()
                         expect(page.locator("#navigation-status")).to_contain_text("indisponible")
                         assert page.evaluate(
                             'document.querySelector("#radio-player") === window.retainedPlayer '

@@ -3,9 +3,10 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.admin_api import router as admin_router
 from app.admin_api import session_router
+from app.admin_sessions import current_session
 from app.artwork_api import router as artwork_router
 from app.catalog_api import router as catalog_router
 from app.database import get_db
@@ -156,12 +158,31 @@ def parse_station_id(value: str | None) -> int | None:
 @app.get("/recherche", response_class=HTMLResponse)
 @app.get("/stats", response_class=HTMLResponse)
 @app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin/dashboard", response_class=HTMLResponse)
+@app.get("/admin/radios", response_class=HTMLResponse)
+@app.get("/admin/diffusions", response_class=HTMLResponse)
+@app.get("/admin/exclusions", response_class=HTMLResponse)
 @app.get("/admin/catalogue", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     db: DbSession,
     station_id: str | None = None,
 ):
+    path = request.url.path
+    if path.startswith("/admin"):
+        authenticated = current_session(request, db) is not None
+        if path != "/admin" and not authenticated:
+            destination = path + (f"?{request.url.query}" if request.url.query else "")
+            return RedirectResponse(f"/admin?next={quote(destination, safe='/')}", status_code=303)
+        if path == "/admin" and authenticated:
+            return RedirectResponse("/admin/dashboard", status_code=303)
+    admin_titles = {
+        "/admin/dashboard": ("Tableau de bord", "La vue d’ensemble de votre administration."),
+        "/admin/radios": ("Radios", "Pilotez la collecte de vos stations."),
+        "/admin/diffusions": ("Diffusions", "Consultez et corrigez les passages collectés."),
+        "/admin/catalogue": ("Catalogue", "Vérifiez et enrichissez les fiches musicales."),
+        "/admin/exclusions": ("Exclusions", "Gérez les titres masqués et la blacklist globale."),
+    }
     station_id = parse_station_id(station_id)
     stations_list = list(db.scalars(select(Station).order_by(Station.name)))
     selected_station = db.get(Station, station_id) if station_id else None
@@ -174,6 +195,8 @@ def dashboard(
             "selected_station": selected_station,
             "is_search": request.url.path == "/recherche",
             "page": request.url.path,
+            "admin_title": admin_titles.get(path, ("Connexion", ""))[0],
+            "admin_description": admin_titles.get(path, ("Connexion", ""))[1],
             "genres": list(
                 db.scalars(
                     select(TrackMetadata.primary_genre)

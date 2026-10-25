@@ -1,0 +1,17 @@
+<section class="admin-overview" aria-label="Synthèse de l’administration" aria-busy="true">
+  <div class="admin-section-heading"><div><h2>En un coup d’œil</h2><p class="hint">Les indicateurs musicaux tiennent compte de vos exclusions et de la blacklist globale.</p></div><button type="button" class="admin-action" data-admin-refresh>Actualiser</button></div>
+  <div class="admin-metrics">
+    {% for key, label, detail, path in [('active_stations', 'Radios en collecte', 'sur les radios configurées', '/admin/radios'), ('recent_plays', 'Détections sur 24 h', 'titres visibles uniquement', '/admin/diffusions'), ('visible_tracks', 'Titres du catalogue', 'hors titres masqués', '/admin/catalogue'), ('review_tracks', 'Fiches à vérifier', 'correspondances ou paroles', '/admin/catalogue?review=true')] %}
+    <a class="admin-metric" href="{{ path }}"><span>{{ label }}</span><strong data-admin-metric="{{ key }}">—</strong><small>{{ detail }} <span aria-hidden="true">↗</span></small></a>
+    {% endfor %}
+  </div>
+  <p class="hint" id="admin-last-detection">Chargement de l’activité récente…</p>
+</section>
+<section class="admin-tools" aria-labelledby="admin-tools-title">
+  <div class="admin-section-heading"><h2 id="admin-tools-title">Vos outils de gestion</h2></div>
+  <div class="admin-tool-grid">
+    {% for number, name, description, path, action in [('01', 'Radios', 'Pilotez la collecte et retrouvez les préférences de chaque station.', '/admin/radios', 'Gérer les radios'), ('02', 'Diffusions', 'Recherchez les passages et prévisualisez vos corrections avant de les appliquer.', '/admin/diffusions', 'Consulter les diffusions'), ('03', 'Catalogue', 'Vérifiez les correspondances, les versions et les paroles des titres.', '/admin/catalogue', 'Ouvrir le catalogue'), ('04', 'Exclusions', 'Gérez la blacklist globale et vos exclusions sur cet appareil.', '/admin/exclusions', 'Gérer les exclusions')] %}
+    <a class="admin-tool" href="{{ path }}"><span class="admin-tool-number" aria-hidden="true">{{ number }}</span><h3>{{ name }}</h3><p>{{ description }}</p><span class="admin-tool-link">{{ action }} <span aria-hidden="true">→</span></span></a>
+    {% endfor %}
+  </div>
+</section>

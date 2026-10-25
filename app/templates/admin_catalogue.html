@@ -1,0 +1,7 @@
+<section class="panel admin-section" aria-labelledby="admin-catalog-title">
+      <h2 id="admin-catalog-title">Fiches musicales</h2><p class="hint">Correspondances douteuses en priorité, puis nombre de détections sur les sept derniers jours.</p>
+      <form id="admin-catalog-form" class="metric-filters"><label>Rechercher un titre ou un artiste<input name="q" type="search" maxlength="200"></label><label class="checkbox"><input name="review" type="checkbox"> Fiches à vérifier uniquement</label><label>Tri<select name="sort"><option value="review">À vérifier en priorité</option><option value="title">Titre</option><option value="artist">Artiste</option><option value="recent">Détections récentes</option></select></label><button type="submit" class="text-button">Actualiser</button></form>
+      <div id="admin-catalog-results"></div>
+      <nav class="pagination" aria-label="Pages du catalogue administratif"><button type="button" data-admin-previous disabled>← Précédent</button><span data-admin-page>Page 1</span><button type="button" data-admin-next disabled>Suivant →</button></nav>
+      <div id="admin-editor"></div>
+    </section>

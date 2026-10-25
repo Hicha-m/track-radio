@@ -1,0 +1,22 @@
+<section class="panel admin-section" aria-labelledby="admin-plays-title">
+      <h2 id="admin-plays-title">Rechercher dans l’historique</h2>
+      <p class="hint">Les passages du même titre à moins de 3 minutes sont suspects, sans constituer une preuve de doublon. Consultez les données source avant de corriger. Les dates sont affichées dans le fuseau de votre appareil.</p>
+      <form id="admin-plays-form" class="metric-filters">
+        <label>Titre ou artiste<input name="q" type="search" maxlength="200"></label>
+        <label>Radio<select name="station_id"><option value="">Toutes</option></select></label>
+        <label>Du<input name="since" type="datetime-local"></label><label>Au<input name="until" type="datetime-local"></label>
+        <label>Tri<select name="sort"><option value="newest">Plus récentes</option><option value="oldest">Plus anciennes</option><option value="title">Titre</option><option value="artist">Artiste</option></select></label>
+        <label class="checkbox"><input name="suspicious" type="checkbox">Passages rapprochés uniquement</label>
+        <button type="submit" class="text-button">Rechercher</button>
+      </form>
+      <p id="admin-plays-status" role="status"></p>
+      <div id="admin-plays-results"></div>
+      <nav class="pagination" aria-label="Pages des diffusions"><button type="button" id="admin-plays-previous" disabled>← Précédent</button><span id="admin-plays-page">Page 1</span><button type="button" id="admin-plays-next" disabled>Suivant →</button></nav>
+      <form id="admin-play-correction" class="metric-filters" hidden>
+        <label>Action<select name="action"><option value="delete">Supprimer la sélection</option><option value="merge">Regrouper les doublons sélectionnés</option><option value="correct">Corriger une diffusion</option></select></label>
+        <label>Diffusion à conserver pour le regroupement<select name="keep_id"><option value="">Choisir dans la sélection</option></select></label>
+        <label>Artiste corrigé<input name="artist" maxlength="300"></label><label>Titre corrigé<input name="title" maxlength="500"></label><label>Détection corrigée (facultatif)<input name="detected_at" type="datetime-local"></label>
+        <button type="submit" class="text-button">Prévisualiser les modifications</button>
+      </form>
+      <div id="admin-play-preview" aria-live="polite"></div>
+    </section>

@@ -24,6 +24,7 @@ from app.security import require_admin
 from app.services.catalog import public_metadata
 from app.services.catalog_completion import candidate_completions
 from app.services.data_admin import Correction, apply, play_data, preview
+from app.services.exclusions import ExclusionFilters, exclusion_conditions
 from app.services.explorer import text_match
 
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
@@ -89,6 +90,33 @@ def access():
 @router.get("/stations")
 def stations(db: Db):
     return [station_data(s) for s in db.scalars(select(Station).order_by(Station.name))]
+
+
+@router.get("/dashboard")
+def dashboard_summary(db: Db, filters: Annotated[ExclusionFilters, Query()]):
+    unicode = db.get_bind().dialect.name == "sqlite"
+    visible = exclusion_conditions(
+        filters.exclusions, unicode, artist=TrackMetadata.artist, title=TrackMetadata.title
+    )
+    review = or_(
+        TrackMetadata.status.in_(["ambiguous", "not_found", "error"]),
+        TrackMetadata.lyrics_status.in_(["ambiguous", "not_found", "error"]),
+    )
+    since = datetime.now(UTC) - timedelta(hours=24)
+    recent_plays, last_detection = db.execute(
+        select(func.count(Play.id), func.max(Play.detected_at)).where(
+            Play.detected_at >= since, *exclusion_conditions(filters.exclusions, unicode)
+        )
+    ).one()
+    return {
+        "active_stations": db.scalar(
+            select(func.count(Station.id)).where(Station.enabled, Station.configured)
+        ),
+        "visible_tracks": db.scalar(select(func.count(TrackMetadata.id)).where(*visible)),
+        "review_tracks": db.scalar(select(func.count(TrackMetadata.id)).where(*visible, review)),
+        "recent_plays": recent_plays,
+        "last_detection": last_detection.replace(tzinfo=UTC) if last_detection else None,
+    }
 
 
 @router.patch("/stations/{station_id}")

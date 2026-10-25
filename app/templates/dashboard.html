@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#fa243c">
-  <title>{{ 'Stats' if page == '/stats' else 'Administration' if page.startswith('/admin') else 'Recherche' if is_search else 'Classements' }} · Radio Tracker</title>
+  <title>{{ 'Stats' if page == '/stats' else admin_title if page.startswith('/admin') else 'Recherche' if is_search else 'Classements' }} · Radio Tracker</title>
   <meta name="application-name" content="Radio Tracker">
   <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ asset_version }}">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ asset_version }}">
@@ -22,11 +22,12 @@
       <a href="/#radios" class="nav-item"><span aria-hidden="true">◉</span> Radios</a>
       <a href="/recherche" class="nav-item {{ 'active' if is_search else '' }}" {% if is_search %}aria-current="page"{% endif %}><span aria-hidden="true">⌕</span> Recherche avancée</a>
       <a href="/stats" class="nav-item {{ 'active' if page == '/stats' else '' }}" {% if page == '/stats' %}aria-current="page"{% endif %}><span aria-hidden="true">▤</span> Stats</a>
+      {% if page.startswith('/admin') %}<a href="/admin/dashboard" class="nav-item active" aria-current="page"><span aria-hidden="true">⚙</span> Administration</a>{% endif %}
     </nav>
     <div class="sidebar-bottom"><span class="live-dot"></span> Au rythme des radios<p>Vos titres. Toutes les fréquences.</p></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><span id="admin-session-controls" hidden><a href="/admin/catalogue">Mode admin</a><button type="button" class="text-button" data-admin-logout>Déconnexion</button></span><button class="quick-search-toggle" type="button" data-open-search aria-label="Rechercher une musique">⌕</button><a href="/recherche">Historique des diffusions <span aria-hidden="true">↗</span></a><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
+    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><span id="admin-session-controls" hidden><a href="/admin/dashboard">Tableau de bord</a><button type="button" class="text-button" data-admin-logout>Déconnexion</button></span><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
     <main id="page-content">
       {% if page == '/stats' %}
       {% include 'stats.html' %}
@@ -71,7 +72,7 @@
     <div class="player-cover" aria-hidden="true">♫</div><div class="player-copy"><strong id="track-title">Sélectionnez une radio</strong><small id="track-artist"></small><span id="player-name">{{ selected_station.name if selected_station else 'Le direct vous attend' }}</span></div>
     <audio id="radio-player" preload="none" {% if selected_station %}src="{{ selected_station.stream_url }}"{% endif %}></audio>
     <div class="player-transport">
-      <button id="player-toggle" class="player-toggle" type="button" aria-label="Écouter la radio" disabled><span aria-hidden="true">▶</span></button>
+      <button id="player-toggle" class="player-toggle" type="button" aria-label="Écouter la radio" disabled><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></button>
       <span id="playback-label" class="playback-label">Choisissez une radio</span>
     </div>
     <div class="player-volume"><button id="player-mute" type="button" aria-label="Couper le son" aria-pressed="false"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4 5 9H2v6h3l6 5Z"/><path class="volume-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="mute-slash" d="m16 9 6 6m0-6-6 6"/></svg></button><label><span class="sr-only">Volume</span><input id="player-volume" type="range" min="0" max="1" step="0.01" value="1"></label></div>
