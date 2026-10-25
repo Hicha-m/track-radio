@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     last_seen_write_seconds: int = Field(120, ge=20, le=3600)
     admin_session_hours: int = Field(8, ge=1, le=24)
     admin_token: SecretStr = SecretStr("")
+    lastfm_api_key: SecretStr = SecretStr("")
     spotify_client_id: SecretStr = SecretStr("")
     spotify_client_secret: SecretStr = SecretStr("")
     stats_cache_seconds: int = Field(30, ge=1, le=300)

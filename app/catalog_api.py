@@ -32,9 +32,13 @@ Db = Annotated[Session, Depends(get_db)]
 
 class Search(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    provider: Literal["deezer", "itunes", "spotify", "lrclib"] = "deezer"
+    provider: Literal[
+        "deezer", "itunes", "spotify", "lrclib", "musicbrainz", "lastfm", "lyricsovh"
+    ] = "deezer"
     artist: str = Field("", max_length=300)
     title: str = Field(min_length=1, max_length=500)
+    page: int = Field(1, ge=1, le=1000)
+    limit: int = Field(15, ge=1, le=25)
 
 
 class Correction(BaseModel):
@@ -144,18 +148,37 @@ async def spotify_match(
 
 @router.post("/{key}/search", dependencies=[Depends(require_admin)])
 async def search(key: str, payload: Search, db: Db):
+    from app.services.providers import ProviderNotConfigured, search_recordings, suggest_lyrics
+
+    if payload.page != 1 and payload.provider not in {"musicbrainz", "lastfm"}:
+        raise HTTPException(422, "Ce fournisseur ne propose pas de pagination.")
+    result = {"page": payload.page, "has_more": False}
     find(db, key)
     db.commit()  # Release the connection before provider I/O.
     try:
         async with httpx.AsyncClient(
             timeout=12, headers={"User-Agent": "RadioTracker/0.1"}
         ) as client:
-            if payload.provider == "lrclib":
+            if payload.provider in {"musicbrainz", "lastfm"}:
+                result = await search_recordings(
+                    client,
+                    payload.provider,
+                    payload.artist,
+                    payload.title,
+                    payload.page,
+                    payload.limit,
+                )
+                candidates = result["candidates"]
+            elif payload.provider == "lyricsovh":
+                candidates = await suggest_lyrics(client, payload.artist, payload.title)
+            elif payload.provider == "lrclib":
                 candidates = await search_lyrics(client, payload.artist, payload.title)
             else:
                 candidates = await search_provider(
                     client, payload.provider, payload.artist, payload.title
                 )
+    except ProviderNotConfigured as error:
+        raise HTTPException(503, str(error)) from None
     except httpx.HTTPStatusError as error:
         if payload.provider == "spotify" and error.response.status_code == 403:
             raise HTTPException(
@@ -168,7 +191,7 @@ async def search(key: str, payload: Search, db: Db):
         raise HTTPException(502, "Fournisseur indisponible, réessayez plus tard.") from error
     entry = find(db, key)
     db.refresh(entry)
-    if payload.provider == "lrclib":
+    if payload.provider in {"lrclib", "lyricsovh"}:
         entry.lyrics_candidates = candidates
     else:
         entry.candidates = candidates
@@ -177,6 +200,7 @@ async def search(key: str, payload: Search, db: Db):
     entry.manual = True
     db.commit()
     return {
+        **result,
         "candidates": candidates,
         "revision": entry.revision,
         "candidate_completions": candidate_completions(entry),
@@ -202,6 +226,10 @@ def correct(key: str, payload: Correction, db: Db):
         choices = [c for c in entry.lyrics_candidates if c["id"] == payload.candidate_id]
         if payload.candidate_id and not choices:
             raise HTTPException(422, "Paroles absentes des propositions recherchées.")
+        if choices and not any(choices[0].get(k) for k in ("plain", "synced", "instrumental")):
+            raise HTTPException(
+                422, "Chargez les paroles de cette proposition avant de les choisir."
+            )
         entry.lyrics = choices[0] if choices else None
         entry.lyrics_status = "matched" if choices else "rejected"
         entry.manual = True
@@ -290,6 +318,110 @@ def complete_candidate(key: str, payload: CandidateCompletion, db: Db):
         "candidate_completions": candidate_completions(entry),
         "completion": {"status": "matched" if filled else "unchanged", "filled": filled},
     }
+
+
+def candidate_response(entry, lyrics=False):
+    return {
+        "candidates": entry.lyrics_candidates if lyrics else entry.candidates,
+        "revision": entry.revision,
+        "candidate_completions": candidate_completions(entry),
+    }
+
+
+def save_candidate_update(db, key, revision, values):
+    changed = db.execute(
+        update(TrackMetadata)
+        .where(TrackMetadata.id == key, TrackMetadata.revision == revision)
+        .values(**values, revision=revision + 1, manual=True)
+        .execution_options(synchronize_session=False)
+    )
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Les propositions ont changé. Rouvrez la fiche.")
+    db.commit()
+    entry = find(db, key)
+    db.refresh(entry)
+    return entry
+
+
+@router.post("/{key}/candidate-artwork", dependencies=[Depends(require_admin)])
+async def candidate_artwork(key: str, payload: CandidateCompletion, db: Db):
+    from copy import deepcopy
+
+    from app.services.providers import cover_art
+
+    entry = find(db, key)
+    db.refresh(entry)
+    if entry.revision != payload.revision:
+        raise HTTPException(409, "Les propositions ont changé. Rouvrez la fiche.")
+    candidates = deepcopy(entry.candidates)
+    candidate = next(
+        (c for c in candidates if f"{c['provider']}:{c['provider_id']}" == payload.candidate_id),
+        None,
+    )
+    if (
+        not candidate
+        or candidate.get("provider") != "musicbrainz"
+        or not candidate.get("release_id")
+    ):
+        raise HTTPException(422, "Aucune édition MusicBrainz exploitable pour cette proposition.")
+    if candidate.get("cover_url") or candidate.get("cover_status") == "not_found":
+        return {
+            **candidate_response(entry),
+            "artwork_status": candidate.get("cover_status", "matched"),
+        }
+    db.commit()
+    references = candidate.get("releases") or [
+        {
+            "id": candidate["release_id"],
+            "title": candidate.get("album"),
+            "date": candidate.get("release_date"),
+        }
+    ]
+    result = {"status": "not_found", "cover_url": None}
+    async with httpx.AsyncClient(timeout=12) as client:
+        for reference in references[:3]:
+            result = await cover_art(client, reference["id"])
+            if result["status"] == "matched":
+                candidate.update(
+                    release_id=reference["id"],
+                    album=reference.get("title"),
+                    release_date=reference.get("date"),
+                )
+                break
+            if result["status"] == "error":
+                break
+    candidate["cover_status"] = result["status"]
+    candidate["cover_url"] = result["cover_url"]
+    entry = save_candidate_update(db, key, payload.revision, {"candidates": candidates})
+    return {**candidate_response(entry), "artwork_status": result["status"]}
+
+
+@router.post("/{key}/candidate-lyrics", dependencies=[Depends(require_admin)])
+async def candidate_lyrics(key: str, payload: CandidateCompletion, db: Db):
+    from copy import deepcopy
+
+    from app.services.providers import load_lyrics
+
+    entry = find(db, key)
+    db.refresh(entry)
+    if entry.revision != payload.revision:
+        raise HTTPException(409, "Les propositions ont changé. Rouvrez la fiche.")
+    candidates = deepcopy(entry.lyrics_candidates)
+    candidate = next((c for c in candidates if c["id"] == payload.candidate_id), None)
+    if not candidate or candidate.get("provider") != "lyricsovh":
+        raise HTTPException(422, "Suggestion lyrics.ovh introuvable.")
+    if candidate.get("plain") or candidate.get("lyrics_status") == "not_found":
+        return {
+            **candidate_response(entry, lyrics=True),
+            "lyrics_status": candidate.get("lyrics_status", "matched"),
+        }
+    db.commit()
+    async with httpx.AsyncClient(timeout=12) as client:
+        completed = await load_lyrics(client, candidate)
+    candidates = [completed if c["id"] == payload.candidate_id else c for c in candidates]
+    entry = save_candidate_update(db, key, payload.revision, {"lyrics_candidates": candidates})
+    return {**candidate_response(entry, lyrics=True), "lyrics_status": completed["lyrics_status"]}
 
 
 @router.post("/{key}/complete", dependencies=[Depends(require_admin)])

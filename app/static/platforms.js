@@ -1,6 +1,6 @@
 // Generate links locally: no provider search runs when a track dialog opens.
 window.TrackPlatforms = (() => {
-  const providers = {deezer: 'Deezer', itunes: 'Apple Music', spotify: 'Spotify'};
+  const providers = {deezer: 'Deezer', itunes: 'Apple Music', spotify: 'Spotify', musicbrainz: 'MusicBrainz', lastfm: 'Last.fm'};
   function links(data, track) {
     const result = [];
     const seen = new Set();

@@ -23,7 +23,7 @@ window.RadioPages = window.RadioPages || {};
       return input;
     }
     const provider = field('Fournisseur', el('select'));
-    [['deezer', 'Deezer'], ['itunes', 'Apple Music (iTunes)'], ['spotify', 'Spotify'], ['lrclib', 'Paroles (LRCLIB)']].forEach(([value, label]) => {
+    [['deezer', 'Deezer'], ['itunes', 'Apple Music (iTunes)'], ['spotify', 'Spotify'], ['musicbrainz', 'MusicBrainz'], ['lastfm', 'Last.fm'], ['lrclib', 'Paroles (LRCLIB)'], ['lyricsovh', 'Paroles (lyrics.ovh)']].forEach(([value, label]) => {
       const option = el('option', label);
       option.value = value;
       provider.append(option);
@@ -37,7 +37,21 @@ window.RadioPages = window.RadioPages || {};
     title.required = true;
     const search = el('button', 'Rechercher des propositions', 'hero-button');
     search.type = 'submit';
+    const pageSize = field('Résultats par page', el('select'));
+    [10, 15, 25].forEach(value => { const option = el('option', String(value)); option.value = String(value); pageSize.append(option); });
+    pageSize.value = '15'; pageSize.parentElement.hidden = true;
     form.append(search);
+    const paging = el('nav', '', 'pagination'); paging.setAttribute('aria-label', 'Pages des propositions'); paging.hidden = true;
+    const previous = el('button', '← Précédent', 'text-button'); previous.type = 'button';
+    const pageLabel = el('span', 'Page 1');
+    const next = el('button', 'Suivant →', 'text-button'); next.type = 'button';
+    paging.append(previous, pageLabel, next);
+    let searchPage = 1; let hasMore = false; let searchSnapshot = null;
+    const paginated = () => ['lastfm', 'musicbrainz'].includes(provider.value);
+    const lyricsProvider = value => ['lrclib', 'lyricsovh'].includes(value);
+    function invalidatePaging() { paging.hidden = true; previous.disabled = next.disabled = true; }
+    provider.onchange = () => { pageSize.parentElement.hidden = !paginated(); invalidatePaging(); };
+    [artist, title, pageSize].forEach(input => input.addEventListener('input', invalidatePaging));
     const candidates = el('div');
     const feedback = el('p', '', 'hint');
     feedback.setAttribute('role', 'status');
@@ -99,12 +113,29 @@ window.RadioPages = window.RadioPages || {};
           presentation.append(preview(url, c));
         }
         if (!lyrics) presentation.append(window.TrackCatalog.genreList(c));
-        if (lyrics) presentation.append(el('pre', c.plain || c.synced || 'Instrumental', 'lyrics'));
+        if (lyrics) {
+          const absent = c.lyrics_status === 'not_found' ? 'Paroles non disponibles pour cette suggestion.' : c.lyrics_status === 'error' ? 'Service de paroles temporairement indisponible.' : 'Chargez les paroles pour vérifier cette suggestion.';
+          presentation.append(el('pre', c.plain || c.synced || (c.instrumental ? 'Instrumental' : absent), 'lyrics'));
+          if (c.provider === 'lyricsovh' && !c.plain && c.lyrics_status !== 'not_found') {
+            const load = el('button', c.lyrics_status === 'error' ? 'Réessayer les paroles' : 'Charger les paroles', 'text-button'); load.type = 'button';
+            load.onclick = () => enrichCandidate('candidate-lyrics', c.id, true);
+            presentation.append(load);
+          }
+        }
+        if (!lyrics && c.provider === 'musicbrainz' && c.release_id && !c.cover_url) {
+          if (c.cover_status === 'not_found') presentation.append(el('p', 'Pochette indisponible pour cette édition.', 'hint'));
+          else {
+            const load = el('button', c.cover_status === 'error' ? 'Réessayer la pochette' : 'Charger la pochette', 'text-button'); load.type = 'button';
+            load.onclick = () => enrichCandidate('candidate-artwork', `${c.provider}:${c.provider_id}`, false);
+            presentation.append(load);
+          }
+        }
         const response = el('section', '', 'candidate-response');
         const responsePane = el('pre', JSON.stringify(c, null, 2));
         response.append(el('h4', 'Réponse de l’API'), responsePane);
         const choose = el('button', 'Choisir cette version', 'text-button');
         choose.type = 'button';
+        choose.disabled = lyrics && !c.plain && !c.synced && !c.instrumental;
         choose.addEventListener('click', () => apply({target: lyrics ? 'lyrics' : 'recording', candidate_id: lyrics ? c.id : `${c.provider}:${c.provider_id}`}, responsePane));
         presentation.append(choose);
         if (!lyrics) {
@@ -119,24 +150,45 @@ window.RadioPages = window.RadioPages || {};
     choices(metadata.candidates || []);
     const lyricChoices = el('button', 'Voir les propositions de paroles enregistrées', 'text-button');
     lyricChoices.type = 'button';
-    lyricChoices.onclick = () => choices(metadata.lyrics_candidates || [], true);
+    lyricChoices.onclick = () => { invalidatePaging(); choices(metadata.lyrics_candidates || [], true); };
 
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
+    async function enrichCandidate(action, candidateId, lyrics) {
       if (busy) return;
       busy = true;
-      search.disabled = true;
-      feedback.textContent = 'Recherche chez le fournisseur…';
-      const selectedProvider = provider.value;
+      feedback.textContent = lyrics ? 'Recherche des paroles…' : 'Recherche de la pochette…';
       try {
-        const data = await call('search', {provider: selectedProvider, artist: artist.value, title: title.value});
+        const data = await call(action, {candidate_id: candidateId, revision: metadata.revision});
         metadata = {...metadata, revision: data.revision, candidate_completions: data.candidate_completions,
-          [selectedProvider === 'lrclib' ? 'lyrics_candidates' : 'candidates']: data.candidates};
-        choices(data.candidates, selectedProvider === 'lrclib');
-        feedback.textContent = data.candidates.length ? 'Vérifiez la version et écoutez l’extrait avant de choisir.' : 'Aucun résultat. Modifiez la recherche ou le fournisseur.';
+          [lyrics ? 'lyrics_candidates' : 'candidates']: data.candidates};
+        choices(data.candidates, lyrics);
+        const status = lyrics ? data.lyrics_status : data.artwork_status;
+        feedback.textContent = status === 'matched' ? (lyrics ? 'Paroles chargées. Vérifiez-les avant de choisir.' : 'Pochette chargée depuis cette édition.') : status === 'error' ? 'Fournisseur temporairement indisponible. Vous pouvez réessayer ou choisir une autre source.' : (lyrics ? 'Aucune parole disponible pour cette suggestion.' : 'Aucune pochette disponible pour cette édition.');
       } catch (error) { feedback.textContent = error.message; }
-      finally { busy = false; search.disabled = false; }
-    });
+      finally { busy = false; }
+    }
+    async function searchCandidates(page = 1) {
+      if (busy) return;
+      const snapshot = page === 1 ? {provider: provider.value, artist: artist.value, title: title.value, limit: Number(pageSize.value)} : searchSnapshot;
+      if (!snapshot) return;
+      busy = true; search.disabled = previous.disabled = next.disabled = true;
+      [provider, artist, title, pageSize].forEach(input => { input.disabled = true; });
+      feedback.textContent = 'Recherche chez le fournisseur…';
+      try {
+        const data = await call('search', {...snapshot, page});
+        searchSnapshot = snapshot; searchPage = data.page || 1; hasMore = !!data.has_more;
+        const lyrics = lyricsProvider(snapshot.provider);
+        metadata = {...metadata, revision: data.revision, candidate_completions: data.candidate_completions,
+          [lyrics ? 'lyrics_candidates' : 'candidates']: data.candidates};
+        choices(data.candidates, lyrics);
+        paging.hidden = !['lastfm', 'musicbrainz'].includes(snapshot.provider);
+        pageLabel.textContent = `Page ${searchPage}`;
+        feedback.textContent = data.candidates.length ? (lyrics ? 'Vérifiez les paroles ; une suggestion seule ne contient pas nécessairement leur texte.' : 'Vérifiez la version et écoutez l’extrait disponible avant de choisir.') : 'Aucun résultat. Modifiez la recherche ou le fournisseur.';
+      } catch (error) { feedback.textContent = error.message; }
+      finally { busy = false; search.disabled = false; previous.disabled = searchPage <= 1; next.disabled = !hasMore; [provider, artist, title, pageSize].forEach(input => { input.disabled = false; }); }
+    }
+    form.addEventListener('submit', event => { event.preventDefault(); searchCandidates(1); });
+    previous.onclick = () => searchCandidates(searchPage - 1);
+    next.onclick = () => searchCandidates(searchPage + 1);
     const reject = el('button', 'Retirer la correspondance', 'text-button');
     reject.type = 'button';
     reject.addEventListener('click', () => apply({candidate_id: null}));
@@ -145,7 +197,7 @@ window.RadioPages = window.RadioPages || {};
     automatic.addEventListener('click', () => apply({automatic: true}));
     const actions = el('div', '', 'catalog-editor-actions');
     actions.append(lyricChoices, reject, automatic);
-    details.append(genres, form, actions, feedback, candidates);
+    details.append(genres, form, paging, actions, feedback, candidates);
     return details;
   }
 

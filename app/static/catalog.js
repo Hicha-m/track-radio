@@ -104,7 +104,7 @@ window.TrackCatalog = (() => {
       if (!response.ok) throw new Error('Informations indisponibles.');
       const data = await response.json();
       if (!active()) return;
-      const providers = {deezer: 'Deezer', itunes: 'Apple Music', spotify: 'Spotify'};
+      const providers = {deezer: 'Deezer', itunes: 'Apple Music', spotify: 'Spotify', musicbrainz: 'MusicBrainz', lastfm: 'Last.fm'};
       const status = data.status === 'matched' ? data.manual ? 'Vérifié' : 'Automatique' : ({pending: 'En cours de recherche', ambiguous: 'Correspondance à vérifier', not_found: 'Correspondance absente', error: 'Catalogue temporairement indisponible', rejected: 'Correspondance retirée'})[data.status] || 'Non renseigné';
       heading.textContent = data.title || track.title; artist.textContent = data.artist || track.artist || 'Artiste inconnu';
       message.textContent = status;
@@ -166,7 +166,8 @@ window.TrackCatalog = (() => {
       const lyrics = el('details', '', 'catalog-lyrics'); lyrics.append(el('summary', 'Paroles'));
       if (data.lyrics) {
         lyrics.append(el('pre', data.lyrics.plain || data.lyrics.synced || 'Instrumental', 'lyrics'));
-        lyrics.append(external('Source des paroles : LRCLIB', 'https://lrclib.net'));
+        const ovh = data.lyrics.provider === 'lyricsovh';
+        lyrics.append(external(`Source des paroles : ${ovh ? 'lyrics.ovh' : 'LRCLIB'}`, ovh ? 'https://lyrics.ovh' : 'https://lrclib.net'));
       } else {
         lyrics.append(el('p', data.lyrics_status === 'pending' ? 'Paroles en cours de recherche' : data.lyrics_status === 'error' ? 'Service de paroles temporairement indisponible' : 'Paroles non disponibles', 'hint'));
       }
