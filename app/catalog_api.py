@@ -214,7 +214,9 @@ def correct(key: str, payload: Correction, db: Db):
     if payload.automatic:
         entry.manual = False
         entry.automatic_done = False
-        entry.attempts = {}
+        entry.attempts = (
+            {"complements": {"status": "pending", "providers": {}}} if entry.selected else {}
+        )
         # Retain a validated recording but retry unresolved lyrics.
         if not entry.selected:
             entry.status = "pending"
@@ -260,6 +262,7 @@ def correct(key: str, payload: Correction, db: Db):
         "lyrics": entry.lyrics,
         "revision": entry.revision,
         "candidate_completions": candidate_completions(entry),
+        **({"relaunch": "complement" if entry.selected else "search"} if payload.automatic else {}),
     }
 
 

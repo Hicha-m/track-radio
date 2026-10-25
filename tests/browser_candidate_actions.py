@@ -245,6 +245,22 @@ app.catalog_api.fetch_json = fresh
                         catalog.get_by_role("button", name="Modifier", exact=True).click()
                         editor = page.locator(".admin-edit-dialog")
                         editor.get_by_role(
+                            "button", name="Relancer la recherche automatique", exact=True
+                        ).click()
+                        expect(editor.locator('[role="status"]').last).to_contain_text(
+                            "Recherche de compléments mise en file"
+                        )
+                        expect(editor.locator('[role="status"]').last).to_contain_text(
+                            "La version choisie est conservée"
+                        )
+                        with SessionLocal() as db:
+                            queued = db.get(type(entry), key)
+                            assert queued.selected["provider"] == "itunes"
+                            assert queued.selected["provider_id"] == "192"
+                            assert queued.selected["genres"] == ["Hip-hop"]
+                            assert queued.attempts["complements"]["status"] == "pending"
+                        page.screenshot(path=f"/tmp/radio-complement-queued-{width}.png")
+                        editor.get_by_role(
                             "button", name="Retirer la correspondance", exact=True
                         ).click()
                         expect(

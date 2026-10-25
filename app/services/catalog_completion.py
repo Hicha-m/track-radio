@@ -1,8 +1,10 @@
-"""Fill missing descriptive fields from one safely matched secondary catalogue."""
+"""Fill missing fields from compatible catalogues while preserving the chosen recording."""
 
 import re
 from copy import deepcopy
 from datetime import UTC, datetime
+
+import httpx
 
 from app.services.catalog import (
     PROVIDER_ERRORS,
@@ -124,6 +126,94 @@ async def complete_missing(client, selected, previous=None, known_candidates=Non
         }
     except PROVIDER_ERRORS:
         return deepcopy(selected), {**attempt, "status": "error", "filled": []}
+
+
+async def complete_across_providers(client, selected, previous=None):
+    """Explicit relaunch: preserve the recording and fill blanks from other catalogues."""
+    from app.config import settings
+    from app.services.providers import cover_art, search_recordings
+
+    result = deepcopy(selected)
+    attempts = deepcopy((previous or {}).get("providers") or {})
+    for provider in ("deezer", "itunes", "musicbrainz", "spotify", "lastfm"):
+        if provider == selected.get("provider"):
+            continue
+        if attempts.get(provider, {}).get("status") in {
+            "matched",
+            "not_found",
+            "ambiguous",
+            "not_configured",
+            "unavailable",
+        }:
+            continue
+        configured = {
+            "spotify": bool(settings.spotify_client_id.get_secret_value())
+            and bool(settings.spotify_client_secret.get_secret_value()),
+            "lastfm": bool(settings.lastfm_api_key.get_secret_value()),
+        }
+        attempt = {
+            "checked_at": datetime.now(UTC).isoformat(),
+            "filled": deepcopy(attempts.get(provider, {}).get("filled", [])),
+        }
+        if not configured.get(provider, True):
+            attempts[provider] = {**attempt, "status": "not_configured"}
+            continue
+        try:
+            if provider in {"musicbrainz", "lastfm"}:
+                page = await search_recordings(
+                    client, provider, selected.get("artist"), selected["title"], limit=15
+                )
+                candidates = page["candidates"]
+            else:
+                candidates = await search_provider(
+                    client, provider, selected.get("artist"), selected["title"]
+                )
+            matches = [
+                c for c in candidates if c.get("provider") == provider and compatible(result, c)
+            ]
+            if len(matches) != 1:
+                attempts[provider] = {**attempt, "status": "ambiguous" if matches else "not_found"}
+                continue
+            candidate = await recording_details(client, matches[0])
+            if not compatible(result, candidate):
+                attempts[provider] = {**attempt, "status": "not_found"}
+                continue
+            candidate = deepcopy(candidate)
+            same_album = not result.get("album") or (
+                bool(candidate.get("album"))
+                and folded(result["album"]) == folded(candidate["album"])
+            )
+            artwork_failed = False
+            if (
+                provider == "musicbrainz"
+                and same_album
+                and not result.get("cover_url")
+                and candidate.get("release_id")
+            ):
+                artwork = await cover_art(client, candidate["release_id"])
+                candidate["cover_url"] = artwork.get("cover_url")
+                artwork_failed = artwork["status"] == "error"
+            if not same_album:
+                candidate.pop("release_date", None)
+                candidate.pop("cover_url", None)
+            result, filled = complete_from_candidate(result, candidate)
+            attempts[provider] = {
+                **attempt,
+                "status": "error" if artwork_failed else "matched",
+                "provider_id": candidate["provider_id"],
+                "filled": sorted(set(attempts.get(provider, {}).get("filled", []) + filled)),
+            }
+        except httpx.HTTPStatusError as error:
+            attempts[provider] = {
+                **attempt,
+                "status": "unavailable" if error.response.status_code in {401, 403} else "error",
+            }
+        except PROVIDER_ERRORS:
+            attempts[provider] = {**attempt, "status": "error"}
+    return result, {
+        "status": "error" if any(a["status"] == "error" for a in attempts.values()) else "done",
+        "providers": attempts,
+    }
 
 
 CANDIDATE_FIELDS = (

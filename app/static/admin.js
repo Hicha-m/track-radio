@@ -96,8 +96,12 @@ window.RadioPages = window.RadioPages || {};
         const response = await call('correction', payload);
         if (responsePane) responsePane.textContent = JSON.stringify(response, null, 2);
         updateMetadata(response);
-        feedback.textContent = 'Correction enregistrée. Rouvrez les détails pour la consulter.';
-        message.textContent = 'Informations mises à jour · actualisez le classement pour les afficher.';
+        feedback.textContent = payload.automatic
+          ? response.relaunch === 'complement'
+            ? 'Recherche de compléments mise en file chez les autres fournisseurs disponibles. La version choisie est conservée. Rouvrez la fiche après le traitement.'
+            : 'Recherche automatique mise en file. Rouvrez la fiche après le traitement.'
+          : 'Correction enregistrée. Rouvrez les détails pour la consulter.';
+        message.textContent = payload.automatic ? 'Recherche en arrière-plan · les informations déjà renseignées sont conservées.' : 'Informations mises à jour · actualisez le classement pour les afficher.';
       } catch (error) { feedback.textContent = error.message; }
       finally { busy = false; }
     }

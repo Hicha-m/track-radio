@@ -15,6 +15,7 @@ import httpx
 from sqlalchemy import case, or_, select
 
 from app.models import Play, TrackMetadata
+from app.services.exclusions import exclusion_conditions
 from app.services.search_text import normalize_search
 from app.services.stats import cached_top
 from app.services.track_identity import identity
@@ -353,6 +354,7 @@ async def enrich_progress(client, snapshot):
     result = deepcopy(snapshot)
     attempts = result["attempts"]
     selected = result["selected"]
+    complementary_relaunch = selected is not None and "complements" in attempts
     checked_details = False
     if not selected:
         for provider in ("deezer", "itunes"):
@@ -394,7 +396,7 @@ async def enrich_progress(client, snapshot):
             else "not_found"
         )
         result["selected"] = selected
-    if selected and selected["provider"] in {"deezer", "itunes"}:
+    if selected and not complementary_relaunch and selected["provider"] in {"deezer", "itunes"}:
         if "genres" not in selected and not checked_details:
             try:
                 selected = await recording_details(client, selected)
@@ -409,8 +411,18 @@ async def enrich_progress(client, snapshot):
         }
         result["selected"] = selected
     complement_failed = False
+    if complementary_relaunch:
+        from app.services.catalog_completion import complete_across_providers
+
+        selected, progress = await complete_across_providers(
+            client, selected, attempts["complements"]
+        )
+        result["selected"] = selected
+        attempts["complements"] = progress
+        complement_failed = progress["status"] == "error"
     if (
         selected
+        and not complementary_relaunch
         and not selected.get("genres")
         and attempts.get("genres", {}).get("status") == "not_found"
     ):
@@ -470,12 +482,19 @@ def ranking_priorities(session_factory):
 async def enrichment_round(client, session_factory, priorities=None):
     now = datetime.now(UTC)
     with session_factory() as db:
+        visible = exclusion_conditions(
+            "",
+            db.get_bind().dialect.name == "sqlite",
+            artist=TrackMetadata.artist,
+            title=TrackMetadata.title,
+        )
         entries = list(
             db.scalars(
                 select(TrackMetadata)
                 .where(
                     TrackMetadata.manual.is_(False),
                     TrackMetadata.automatic_done.is_(False),
+                    *visible,
                     or_(TrackMetadata.retry_at.is_(None), TrackMetadata.retry_at <= now),
                 )
                 .order_by(
@@ -524,6 +543,12 @@ async def enrichment_round(client, session_factory, priorities=None):
                     TrackMetadata.id == key,
                     TrackMetadata.revision == revision,
                     TrackMetadata.manual.is_(False),
+                    *exclusion_conditions(
+                        "",
+                        db.get_bind().dialect.name == "sqlite",
+                        artist=TrackMetadata.artist,
+                        title=TrackMetadata.title,
+                    ),
                 )
                 .values(**values)
                 .execution_options(synchronize_session=False)
