@@ -242,6 +242,14 @@ app.catalog_api.fetch_json = fresh
                             }""")
                             )
                             raise
+                        catalog.get_by_role("button", name="Modifier", exact=True).click()
+                        editor = page.locator(".admin-edit-dialog")
+                        editor.get_by_role(
+                            "button", name="Retirer la correspondance", exact=True
+                        ).click()
+                        expect(
+                            editor.locator(".catalog-editor > div > .catalog-genres")
+                        ).to_contain_text("Aucun genre renseigné")
                         assert not errors, errors
                         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
                         context.close()

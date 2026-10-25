@@ -45,7 +45,7 @@ window.RadioPages = window.RadioPages || {};
     let completers = [];
     const fieldLabels = {genres: 'genres', album: 'album', release_date: 'date de sortie', featured_artists: 'artistes invités', duration: 'durée', cover_url: 'pochette', preview_url: 'extrait', isrc: 'ISRC', url: 'lien du fournisseur', additional_sources: 'lien du fournisseur'};
     function updateMetadata(data) {
-      metadata = {...metadata, ...data}; renderGenres(); refreshCompleters();
+      metadata = {...metadata, ...data, genres: data.genres || []}; renderGenres(); refreshCompleters();
     }
     function refreshCompleters() {
       for (const {candidate, container} of completers) {
