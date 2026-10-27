@@ -485,3 +485,9 @@ incompatibles avec la vue. Le JSON conserve l’enveloppe `view`, `snapshot_id`,
 
 Vérification : `PYTHONPATH=. .venv/bin/pytest tests/test_exports_exclusions.py`
 et `PYTHONPATH=. .venv/bin/python tests/browser_exports.py` (Chromium).
+
+### Classement de plusieurs radios
+
+Dans « Les plus diffusés », « Composer ma sélection de radios » permet de cocher plusieurs stations. Les diffusions des radios sélectionnées sont réunies avant le classement et les exclusions sont appliquées avant les calculs. Aucune case cochée signifie toutes les radios ; le sélecteur simple reste disponible. L’URL conserve la période et la sélection, et les caches distinguent chaque groupe. L’export personnalisable reprend la même sélection et permet de la modifier.
+
+Les API de classement, de recherche avancée et d’export acceptent `station_ids=1,3` (au maximum 100 identifiants positifs, normalisés et dédupliqués). Le paramètre historique `station_id` reste utilisable. Si les deux sont fournis, leurs filtres se combinent par intersection.

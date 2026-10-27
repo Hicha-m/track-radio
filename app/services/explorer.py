@@ -6,18 +6,26 @@ from threading import Lock
 from time import monotonic
 from typing import Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import String, cast, func, or_, select
 
 from app.models import Play, Station, TrackMetadata
 from app.services.exclusions import ExclusionFilters, exclusion_conditions, global_revision
 from app.services.search_text import normalize_search
+from app.services.station_selection import station_ids
 
 
 class ExploreFilters(ExclusionFilters):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
     view: Literal["plays", "tracks"] = "plays"
     station_id: int | None = Field(None, ge=1, le=2**63 - 1)
+    station_ids: str = Field("", max_length=2000)
+
+    @field_validator("station_ids")
+    @classmethod
+    def selected_stations(cls, value):
+        return ",".join(map(str, station_ids(value)))
+
     q: str = Field("", max_length=200)
     genre: str = Field("", max_length=100)
     artist: str = Field("", max_length=300)
@@ -98,6 +106,8 @@ def conditions(filters, unicode=True):
                     "le": column.__le__,
                 }[compare](value)
             )
+    if filters.station_ids:
+        values.append(Play.station_id.in_(station_ids(filters.station_ids)))
     for term in filters.q.split():
         values.append(
             or_(

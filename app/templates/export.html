@@ -17,6 +17,7 @@
         <label>Diffusé avant<input name="until" type="datetime-local" step="any"></label>
         <label>Format<select name="format"><option value="csv">CSV</option><option value="json">JSON</option></select></label>
       </div>
+      <details class="station-selection"><summary>Choisir plusieurs radios</summary><fieldset><legend>Radios à exporter</legend><p class="hint">Aucune case cochée : toutes les radios. Le sélecteur Radio permet de revenir à une seule station.</p>{% for station in stations %}<label class="checkbox"><input type="checkbox" data-export-radio value="{{ station.id }}">{{ station.name }}</label>{% endfor %}</fieldset></details>
       <details class="advanced-filters"><summary>Filtres avancés</summary><div class="filter-grid">
         <label>Dernière observation après<input name="seen_since" type="datetime-local" step="any"></label>
         <label>Dernière observation avant<input name="seen_until" type="datetime-local" step="any"></label>

@@ -336,3 +336,9 @@ button.search-shortcut { width: 100%; text-align: left; background: var(--surfac
   .admin-login-card { padding: 24px 20px; }
 }
 @media(max-width:360px) { .admin-metrics { grid-template-columns: minmax(0,1fr); } }
+
+.station-selection{min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}
+.station-selection>summary{cursor:pointer;font-size:12px;color:var(--accent)}
+.station-selection fieldset{border:0;padding:12px 0 0;margin:0;min-width:0}
+.station-selection .checkbox{font-size:12px;margin:10px 0}
+.chart-filters .station-selection{flex-basis:100%}

@@ -12,8 +12,18 @@ _cache = OrderedDict()
 _lock = Lock()
 
 
-def cached_top(db, station_id, since, until, limit, exclusions=""):
-    key = (db.get_bind(), global_revision(db), station_id, since, until, limit, exclusions)
+def cached_top(db, station_id, since, until, limit, exclusions="", station_ids=()):
+    station_ids = tuple(sorted(set(station_ids)))
+    key = (
+        db.get_bind(),
+        global_revision(db),
+        station_id,
+        station_ids,
+        since,
+        until,
+        limit,
+        exclusions,
+    )
     # Bound cache size even when every caller supplies different timestamps.
     with _lock:
         now = monotonic()
@@ -25,6 +35,8 @@ def cached_top(db, station_id, since, until, limit, exclusions=""):
         )
         if station_id:
             query = query.where(Play.station_id == station_id)
+        if station_ids:
+            query = query.where(Play.station_id.in_(station_ids))
         if since:
             query = query.where(Play.detected_at >= since)
         if until:

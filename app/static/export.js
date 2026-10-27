@@ -16,6 +16,16 @@ window.RadioExport = (() => {
     const submit = form.querySelector('[type=submit]');
     const fields = panel.querySelector('.export-fields');
     const captured = new URLSearchParams(selection);
+    const radioChoices = [...panel.querySelectorAll('[data-export-radio]')];
+    const radioIds = (captured.get('station_ids') || captured.get('station_id') || '').split(',');
+    radioChoices.forEach(input => { input.checked = radioIds.includes(input.value); });
+    form.elements.station_id.addEventListener('change', () => {
+      radioChoices.forEach(input => { input.checked = input.value === form.elements.station_id.value; });
+    });
+    radioChoices.forEach(input => input.addEventListener('change', () => {
+      const ids = radioChoices.filter(choice => choice.checked);
+      form.elements.station_id.value = ids.length === 1 ? ids[0].value : '';
+    }));
     for (const [key, value] of captured) {
       const input = form.elements.namedItem(key);
       if (!input) continue;
@@ -57,6 +67,11 @@ window.RadioExport = (() => {
         if (key !== 'field' && value) params.set(key, dates.includes(key) ? new Date(value).toISOString() : value);
       }
       params.set('fields', chosen.join(','));
+      const selectedRadios = radioChoices.filter(input => input.checked).map(input => input.value);
+      if (selectedRadios.length) {
+        params.delete('station_id');
+        params.set('station_ids', selectedRadios.join(','));
+      }
       window.MusicFilters.apply(params);
       const filterKey = window.MusicFilters.key();
       submit.disabled = true; status.textContent = 'Préparation de l’export…';

@@ -130,7 +130,14 @@ def top_tracks(
     until: datetime | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     exclusions: Annotated[str, Query(max_length=12000)] = "",
+    station_ids: Annotated[str, Query(max_length=2000)] = "",
 ):
+    from app.services.station_selection import station_ids as parse_stations
+
+    try:
+        selected_stations = parse_stations(station_ids)
+    except ValueError as error:
+        raise HTTPException(422, "Sélection de radios invalide.") from error
     try:
         exclusions = canonical_exclusions(exclusions)
     except ValueError as error:
@@ -139,7 +146,9 @@ def top_tracks(
         db,
         [
             {"artist": a, "title": t, "plays": c}
-            for a, t, c in cached_top(db, station_id, since, until, limit, exclusions)
+            for a, t, c in cached_top(
+                db, station_id, since, until, limit, exclusions, selected_stations
+            )
         ],
     )
     return [StatsOut(**track) for track in enriched]
