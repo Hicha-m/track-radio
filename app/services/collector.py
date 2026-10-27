@@ -14,6 +14,16 @@ def normalize(value: str | None) -> str:
     return " ".join((value or "").casefold().split())
 
 
+def stored_start(play: Play | None) -> int | None:
+    if play is not None:
+        try:
+            start = json.loads(play.raw_metadata).get("start")
+            return start if type(start) is int else None
+        except (ValueError, TypeError, AttributeError):
+            pass  # Older raw metadata contains plain artist/title text.
+    return None
+
+
 def record_metadata(
     db: Session, station: Station, metadata: TrackMetadata
 ) -> tuple[Play | None, bool]:
@@ -31,23 +41,29 @@ def record_metadata(
         .order_by(Play.detected_at.desc(), Play.id.desc())
         .limit(1)
     ).first()
+    latest_play_start = stored_start(last)
     state = station.collection_state
     if state:
         last = db.get(Play, state["play_id"]) if state.get("play_id") else None
-    previous_start = state.get("start") if state else None
-    if not state and last:
-        try:
-            previous_start = json.loads(last.raw_metadata).get("start")
-        except (ValueError, TypeError, AttributeError):
-            pass  # Older raw metadata contains plain artist/title text.
-        if type(previous_start) is not int:
-            previous_start = None
+    previous_start = state.get("start") if state else latest_play_start
+    # An undated observation is a transition, but must not erase the latest
+    # dated event. This also survives blacklisted announcements and restarts.
+    known_starts = [previous_start, latest_play_start]
+    if state:
+        known_starts.append(state.get("latest_start"))
+    latest_start = max((s for s in known_starts if type(s) is int), default=None)
     if (
-        previous_start is not None
+        latest_start is not None
         and metadata.source_started_ms is not None
-        and metadata.source_started_ms < previous_start
+        and (
+            metadata.source_started_ms < latest_start
+            or (metadata.source_started_ms == latest_start and previous_start != latest_start)
+        )
     ):
         return last, False  # A stale source response is not another broadcast.
+    latest_start = (
+        metadata.source_started_ms if metadata.source_started_ms is not None else latest_start
+    )
     previous_artist = state["artist"] if state else last.artist if last else None
     previous_title = state["title"] if state else last.title if last else None
     same = (
@@ -73,6 +89,7 @@ def record_metadata(
             if same
             else None,
             "play_id": None,
+            "latest_start": latest_start,
         }
         if station.collection_state != observation:
             station.collection_state = observation
@@ -86,7 +103,11 @@ def record_metadata(
         if remember_source:
             last.raw_metadata = metadata.raw
             if state:
-                station.collection_state = {**state, "start": metadata.source_started_ms}
+                station.collection_state = {
+                    **state,
+                    "start": metadata.source_started_ms,
+                    "latest_start": latest_start,
+                }
         if remember_source or (now - previous).total_seconds() >= settings.last_seen_write_seconds:
             last.last_seen_at = now
             db.commit()
@@ -107,6 +128,7 @@ def record_metadata(
         "title": metadata.title,
         "start": metadata.source_started_ms,
         "play_id": play.id,
+        "latest_start": latest_start,
     }
     db.commit()
     db.refresh(play)
