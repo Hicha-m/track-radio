@@ -142,6 +142,13 @@ def apply(db, token):
                     row, field, datetime.fromisoformat(value) if field.endswith("_at") else value
                 )
             ensure_entry(db, row.artist, row.title)
+    if command.action == "merge":
+        station = db.get(Station, rows[0].station_id)
+        state = station.collection_state
+        if state and state.get("play_id") in command.ids:
+            # Keep the live collector attached to the retained broadcast; otherwise
+            # its next observation would recreate the just-merged current row.
+            station.collection_state = {**state, "play_id": after[0]["id"]}
     db.commit()
     from app.metrics_api import invalidate_metrics
     from app.services.explorer import invalidate_explorer

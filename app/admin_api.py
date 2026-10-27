@@ -21,6 +21,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import GlobalExclusion, Play, Station, TrackMetadata
 from app.security import require_admin
+from app.services.broadcast_audit import AuditFilters, audit
 from app.services.catalog import public_metadata
 from app.services.catalog_completion import candidate_completions
 from app.services.data_admin import Correction, apply, play_data, preview
@@ -393,6 +394,11 @@ def broadcasts(
         "page": page,
         "has_more": len(rows) > 25,
     }
+
+
+@router.get("/plays/audit")
+def audit_broadcasts(db: Db, filters: Annotated[AuditFilters, Query()]):
+    return audit(db, filters)
 
 
 @router.post("/plays/preview")

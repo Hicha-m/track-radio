@@ -269,7 +269,7 @@ window.RadioPages = window.RadioPages || {};
     function displaySession() {
       if (controller.signal.aborted || !root.isConnected) return;
       if (!window.RadioAdmin.authenticated()) {
-        workspace.hidden = true; version++; playsVersion++;
+        workspace.hidden = true; version++; playsVersion++; auditVersion++;
         window.RadioNavigation.go(`/admin?next=${encodeURIComponent(location.pathname)}`, true);
       }
     }
@@ -299,11 +299,12 @@ window.RadioPages = window.RadioPages || {};
       const data = await request('/api/admin/stations');
       if (controller.signal.aborted) return;
       const container = root.querySelector('#admin-stations');
-      const stationSelect = playsForm?.elements.station_id; const chosen = stationSelect?.value;
+      const selects = [playsForm?.elements.station_id, auditForm?.elements.station_id].filter(Boolean);
+      const choices = selects.map(select => select.value);
       container?.replaceChildren();
-      stationSelect?.replaceChildren(new Option('Toutes', ''));
+      selects.forEach(select => select.replaceChildren(new Option('Toutes les radios', '')));
       for (const station of data) {
-        stationSelect?.add(new Option(station.name, String(station.id)));
+        selects.forEach(select => select.add(new Option(station.name, String(station.id))));
         if (!container) continue;
         const row = el('article', '', 'admin-station');
         row.append(el('strong', station.name), el('span', station.enabled ? 'Collecte active' : 'Collecte arrêtée'));
@@ -318,7 +319,7 @@ window.RadioPages = window.RadioPages || {};
         toggle.onclick = () => change(!station.enabled); reset.onclick = () => change(null);
         row.append(toggle, reset); container.append(row);
       }
-      if (stationSelect) stationSelect.value = chosen;
+      selects.forEach((select, index) => { select.value = choices[index]; });
       root.querySelector("#admin-station-search")?.dispatchEvent(new Event("input"));
     }
     async function openEntry(summary) {
@@ -354,6 +355,8 @@ window.RadioPages = window.RadioPages || {};
     }
     let playsPage = 1; let playsVersion = 0; let selected = new Map();
     const playsForm = root.querySelector('#admin-plays-form');
+    const auditForm = root.querySelector('#admin-audit-form');
+    let auditPage = 1; let auditVersion = 0; let auditSnapshot = null; let auditHasRun = false;
     const correction = root.querySelector('#admin-play-correction');
     const previewPane = root.querySelector('#admin-play-preview');
     const playsStatus = root.querySelector('#admin-plays-status');
@@ -378,6 +381,7 @@ window.RadioPages = window.RadioPages || {};
     function updateSelection() {
       previewPane.replaceChildren();
       correction.hidden = selected.size === 0;
+      root.querySelectorAll('#admin-plays-results input[data-play-id]').forEach(check => { check.checked = selected.has(Number(check.dataset.playId)); });
       const keep = correction.elements.keep_id; const previous = keep.value;
       keep.replaceChildren(new Option('Choisir dans la sélection', ''));
       selected.forEach(row => keep.add(new Option(`#${row.id} · ${new Date(row.detected_at).toLocaleString()}`, String(row.id))));
@@ -391,6 +395,65 @@ window.RadioPages = window.RadioPages || {};
     function describe(row) {
       return `#${row.id} · ${row.station_name || `Radio ${row.station_id}`} · ${row.artist || 'Artiste inconnu'} — ${row.title} · ${new Date(row.detected_at).toLocaleString()} · dernière observation : ${new Date(row.last_seen_at).toLocaleString()}`;
     }
+    const auditReasons = {source: 'Même événement source', duration: 'Retour avant la fin du morceau', consecutive: 'Même titre consécutif', unknown: 'Passages rapprochés sans durée connue'};
+    async function audit() {
+      if (!auditForm) return;
+      const current = ++auditVersion; auditHasRun = true;
+      const message = root.querySelector('#admin-audit-status');
+      const target = root.querySelector('#admin-audit-results');
+      const summary = root.querySelector('#admin-audit-summary');
+      const pagination = root.querySelector('#admin-audit-pagination');
+      const submit = auditForm.querySelector('button'); submit.disabled = true;
+      message.textContent = 'Analyse de l’historique…'; target.replaceChildren(); summary.replaceChildren(); pagination.hidden = true;
+      const params = window.MusicFilters.apply(new URLSearchParams({page: String(auditPage)}));
+      for (const name of ['station_id', 'margin', 'fallback', 'reason']) if (auditForm.elements[name].value) params.set(name, auditForm.elements[name].value);
+      for (const name of ['since', 'until']) if (auditForm.elements[name].value) params.set(name, new Date(auditForm.elements[name].value).toISOString());
+      if (auditSnapshot !== null) params.set('snapshot_id', String(auditSnapshot));
+      try {
+        const data = await request(`/api/admin/plays/audit?${params}`);
+        if (controller.signal.aborted || current !== auditVersion) return;
+        auditSnapshot = data.snapshot_id;
+        const count = data.stations.reduce((total, station) => total + station.plays, 0);
+        message.textContent = `${count} passage(s) contrôlé(s) · ${data.total} signalement(s). Les motifs peuvent se cumuler. Historique en base uniquement, hors archives et exclusions.`;
+        for (const station of data.stations) {
+          summary.append(el('p', `${station.station_name} : ${station.plays} passages · durée connue pour ${station.with_duration} · ${station.suspects} signalements, dont ${station.source} mêmes événements source.`, 'hint'));
+        }
+        for (const pair of data.items) {
+          const article = el('article', '', 'candidate');
+          article.append(el('h3', `${pair.current.station_name} · ${pair.current.artist || 'Artiste inconnu'} — ${pair.current.title}`));
+          article.append(el('p', pair.reasons.map(reason => auditReasons[reason]).join(' · ')));
+          article.append(el('p', `Écart : ${duration(pair.gap_seconds)} · durée : ${duration(pair.duration)} · seuil : ${duration(pair.threshold_seconds)}`, 'hint'));
+          if (pair.previous_source_start !== null && pair.source_start !== null && pair.previous_source_start !== pair.source_start) article.append(el('p', 'Les horaires source sont distincts : une vraie rediffusion reste possible.', 'hint'));
+          for (const row of [pair.previous, pair.current]) {
+            const details = el('details'); details.append(el('summary', describe(row)), el('pre', `${row.source} · ${row.raw_metadata}`, 'lyrics')); article.append(details);
+          }
+          const review = el('button', 'Préparer le regroupement de cette paire', 'text-button'); review.type = 'button';
+          review.onclick = () => {
+            selected = new Map([[pair.previous.id, pair.previous], [pair.current.id, pair.current]]); updateSelection();
+            correction.elements.action.value = 'merge'; correction.elements.keep_id.value = String(pair.previous.id); correctionFields();
+            correction.scrollIntoView({block: 'center', behavior: 'smooth'});
+            playsStatus.textContent = 'Paire sélectionnée. Vérifiez les passages puis prévisualisez le regroupement avant de confirmer.';
+          };
+          article.append(review); target.append(article);
+        }
+        if (!data.total) target.append(el('p', 'Aucun signalement pour ces critères.', 'hint'));
+        pagination.hidden = false;
+        root.querySelector('#admin-audit-page').textContent = `Page ${auditPage} · ${data.total} signalements`;
+        root.querySelector('#admin-audit-previous').disabled = auditPage <= 1;
+        root.querySelector('#admin-audit-next').disabled = !data.has_more;
+      } catch (error) { if (error.name !== 'AbortError' && current === auditVersion) message.textContent = error.message; }
+      finally { if (current === auditVersion) submit.disabled = false; }
+    }
+    auditForm?.addEventListener('submit', event => { event.preventDefault(); auditPage = 1; auditSnapshot = null; audit(); });
+    auditForm?.addEventListener('input', () => {
+      auditVersion++; auditSnapshot = null; auditHasRun = false;
+      auditForm.querySelector('button').disabled = false;
+      root.querySelector('#admin-audit-status').textContent = 'Critères modifiés : relancez l’analyse.';
+      root.querySelector('#admin-audit-results').replaceChildren(); root.querySelector('#admin-audit-summary').replaceChildren(); root.querySelector('#admin-audit-pagination').hidden = true;
+      selected.clear(); updateSelection();
+    });
+    root.querySelector('#admin-audit-previous')?.addEventListener('click', () => { auditPage--; audit(); });
+    root.querySelector('#admin-audit-next')?.addEventListener('click', () => { auditPage++; audit(); });
     async function broadcasts() {
       const current = ++playsVersion;
       const params = new URLSearchParams({page: String(playsPage)});
@@ -404,7 +467,7 @@ window.RadioPages = window.RadioPages || {};
         const target = root.querySelector('#admin-plays-results'); target.replaceChildren();
         data.items.forEach(row => {
           const article = el('article', '', 'candidate'); const label = el('label', '', 'checkbox');
-          const check = el('input'); check.type = 'checkbox';
+          const check = el('input'); check.type = 'checkbox'; check.dataset.playId = String(row.id);
           check.onchange = () => { if (check.checked) selected.set(row.id, row); else selected.delete(row.id); updateSelection(); };
           label.append(check, document.createTextNode(describe(row))); article.append(label);
           if (row.suspect) article.append(el('p', `Passage rapproché · précédent à ${new Date(row.previous_at).toLocaleString()}`, 'hint'));
@@ -455,7 +518,8 @@ window.RadioPages = window.RadioPages || {};
           try {
             await request('/api/admin/plays/apply', {token: data.token});
             window.RadioCache.clear(); window.dispatchEvent(new Event('radio:catalogchange'));
-            previewPane.replaceChildren(); await Promise.all([broadcasts(), catalogue()]); playsStatus.textContent = 'Modifications enregistrées.';
+            previewPane.replaceChildren(); auditSnapshot = null; auditPage = 1;
+            await Promise.all([broadcasts(), catalogue(), auditHasRun ? audit() : Promise.resolve()]); playsStatus.textContent = 'Modifications enregistrées.';
           } catch (error) { if (error.name !== 'AbortError') { playsStatus.textContent = error.message; previewPane.replaceChildren(); } }
         };
         previewPane.append(apply, cancel);
@@ -477,10 +541,17 @@ window.RadioPages = window.RadioPages || {};
     root.querySelector('[data-admin-next]')?.addEventListener('click', () => { page++; catalogue(); });
     const refreshExclusions = () => { if (view === 'exclusions' && window.RadioAdmin.authenticated()) loadExclusions().catch(error => { if (error.name !== 'AbortError') status.textContent = error.message; }); };
     const refreshOverview = () => { if (view === 'dashboard' && window.RadioAdmin.authenticated()) overview(); };
+    const refreshAudit = () => {
+      if (view !== 'diffusions' || !window.RadioAdmin.authenticated()) return;
+      selected.clear(); updateSelection(); auditSnapshot = null; auditPage = 1;
+      if (auditHasRun) audit();
+    };
+    window.addEventListener('radio:filterschange', refreshAudit);
+    window.addEventListener('radio:globalfilterschange', refreshAudit);
     window.addEventListener('radio:filterschange', refreshOverview);
     window.addEventListener('radio:globalfilterschange', refreshExclusions);
     window.addEventListener('radio:adminchange', displaySession);
     window.RadioAdmin.refresh().then(load);
-    return () => { controller.abort(); clearTimeout(timer); window.removeEventListener('radio:filterschange', refreshOverview); window.removeEventListener('radio:adminchange', displaySession); window.removeEventListener('radio:globalfilterschange', refreshExclusions); };
+    return () => { controller.abort(); clearTimeout(timer); window.removeEventListener('radio:filterschange', refreshOverview); window.removeEventListener('radio:adminchange', displaySession); window.removeEventListener('radio:globalfilterschange', refreshExclusions); window.removeEventListener('radio:filterschange', refreshAudit); window.removeEventListener('radio:globalfilterschange', refreshAudit); };
   };
 })();

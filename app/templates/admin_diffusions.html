@@ -1,3 +1,25 @@
+<section class="panel admin-section" aria-labelledby="admin-audit-title">
+  <h2 id="admin-audit-title">Contrôler les doublons</h2>
+  <p>Analysez toutes les radios et tout l’historique en base, ou choisissez une radio et une période. Les exclusions personnelles et globales sont appliquées aux résultats et aux compteurs.</p>
+  <p class="hint">Même événement source : doublon confirmé par son horaire. Un retour avant la durée du morceau moins la marge, ou deux titres identiques consécutifs, reste un signal à vérifier. Une version radio peut être plus courte. Sans durée connue, le seuil de secours s’applique. Aucune donnée n’est modifiée par l’analyse.</p>
+  <form id="admin-audit-form" class="metric-filters">
+    <label>Radio à contrôler<select name="station_id"><option value="">Toutes les radios</option></select></label>
+    <label>Depuis<input name="since" type="datetime-local"></label>
+    <label>Jusqu’au<input name="until" type="datetime-local"></label>
+    <label>Marge sur la durée (secondes)<input name="margin" type="number" min="0" max="120" value="15" required></label>
+    <label>Seuil sans durée (secondes)<input name="fallback" type="number" min="10" max="900" value="180" required></label>
+    <label>Motif<select name="reason"><option value="all">Tous les signalements</option><option value="source">Même événement source</option><option value="duration">Retour avant la fin du morceau</option><option value="consecutive">Même titre consécutif</option><option value="unknown">Rapprochés sans durée connue</option></select></label>
+    <button type="submit" class="text-button">Analyser l’historique</button>
+  </form>
+  <p id="admin-audit-status" role="status">Lancez l’analyse pour contrôler les passages existants.</p>
+  <div id="admin-audit-summary"></div>
+  <div id="admin-audit-results"></div>
+  <nav class="pagination" aria-label="Pages des signalements" id="admin-audit-pagination" hidden>
+    <button type="button" id="admin-audit-previous" disabled>← Précédent</button>
+    <span id="admin-audit-page">Page 1</span>
+    <button type="button" id="admin-audit-next" disabled>Suivant →</button>
+  </nav>
+</section>
 <section class="panel admin-section" aria-labelledby="admin-plays-title">
       <h2 id="admin-plays-title">Rechercher dans l’historique</h2>
       <p class="hint">Les passages du même titre à moins de 3 minutes sont suspects, sans constituer une preuve de doublon. Consultez les données source avant de corriger. Les dates sont affichées dans le fuseau de votre appareil.</p>
