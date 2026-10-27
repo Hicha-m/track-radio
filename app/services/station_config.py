@@ -25,6 +25,7 @@ class StationConfig(BaseModel):
     metadata_url: str | None = Field(None, max_length=2048)
     json_artist_path: str | None = Field(None, max_length=200)
     json_title_path: str | None = Field(None, max_length=200)
+    json_started_path: str | None = Field(None, max_length=200)
     html: HtmlConfig | None = None
 
     @field_validator("stream_url", "metadata_url", "website_url")

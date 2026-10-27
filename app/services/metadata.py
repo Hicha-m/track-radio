@@ -83,7 +83,8 @@ def _json_path(payload: Any, path: str | None) -> Any:
 async def fetch_json(station: Station, client: httpx.AsyncClient) -> TrackMetadata | None:
     if not station.metadata_url or not station.json_title_path:
         return None
-    content = await read_bounded(client, station.metadata_url)
+    url = station.metadata_url.replace("{now_ms}", str(int(datetime.now(UTC).timestamp() * 1000)))
+    content = await read_bounded(client, url)
     try:
         payload = json.loads(content)
     except UnicodeDecodeError:
@@ -104,8 +105,12 @@ async def fetch_json(station: Station, client: httpx.AsyncClient) -> TrackMetada
     checked = checked_metadata(artist, title, raw, "json")
     # Radio France exposes the event time independently of the display label.
     # Keep it in durable raw metadata, as for the Fun Radio adapter.
-    if urlsplit(station.metadata_url).hostname == "api.radiofrance.fr":
-        start = radiofrance_start(payload.get("now", {}).get("startTime"))
+    if station.json_started_path or urlsplit(station.metadata_url).hostname == "api.radiofrance.fr":
+        try:
+            value = _json_path(payload, station.json_started_path or "now.startTime")
+        except (KeyError, IndexError, TypeError):
+            value = None
+        start = radiofrance_start(value)
         if start is not None and start > int(datetime.now(UTC).timestamp() * 1000):
             return None
         raw = json.dumps({"start": start, "payload": payload}, ensure_ascii=False)

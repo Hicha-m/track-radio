@@ -44,5 +44,43 @@
     "metadata_url": "https://api.radiofrance.fr/livemeta/live/6/transistor_mouv_player",
     "json_title_path": "now.secondLine",
     "website_url": "https://www.radiofrance.fr/mouv"
+  },
+  {
+    "name": "RFM",
+    "slug": "rfm",
+    "stream_url": "https://rfm.lmn.fm/rfm.mp3",
+    "website_url": "https://www.rfm.fr/",
+    "source_type": "json",
+    "metadata_url": "https://www.rfm.fr/cetait-quoi-ce-titre/history?idplayer=1&player_id=1&limit=8&ts=&date_diffusion=",
+    "json_artist_path": "nowplaying.0.artist",
+    "json_title_path": "nowplaying.0.title",
+    "json_started_path": "nowplaying.0.time"
+  },
+  {
+    "name": "FIP",
+    "slug": "fip",
+    "stream_url": "https://icecast.radiofrance.fr/fip-midfi.mp3",
+    "website_url": "https://www.radiofrance.fr/fip",
+    "source_type": "json",
+    "metadata_url": "https://api.radiofrance.fr/livemeta/live/7/transistor_musical_player",
+    "json_title_path": "now.secondLine",
+    "json_started_path": "now.startTime"
+  },
+  {
+    "name": "Hit West",
+    "slug": "hit-west",
+    "stream_url": "https://stream.rcs.revma.com/qp4tnghnfm3vv",
+    "website_url": "https://hitwest.ouest-france.fr/",
+    "source_type": "json",
+    "metadata_url": "https://hitwest.ouest-france.fr/api/TitleDiffusions?size=6&radioStreamId=2174546520932614388&date={now_ms}",
+    "json_artist_path": "0.title.artist",
+    "json_title_path": "0.title.title",
+    "json_started_path": "0.timestamp"
+  },
+  {
+    "name": "ENJOY 33",
+    "slug": "enjoy-33",
+    "stream_url": "https://radiotrg.ice.infomaniak.ch/radiotrg-high.mp3",
+    "website_url": "https://www.enjoy33.fr/"
   }
 ]
