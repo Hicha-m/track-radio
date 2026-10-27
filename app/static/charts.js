@@ -1,6 +1,10 @@
 window.RadioPages = window.RadioPages || {};
 window.RadioPages.charts = () => {
 const filters = document.querySelector('#chart-filters');
+const controls = document.querySelector('#chart-controls');
+const compact = window.matchMedia('(max-width: 760px)');
+const resizeControls = () => { controls.open = !compact.matches; };
+resizeControls(); compact.addEventListener('change', resizeControls);
 const stationSelect = document.querySelector('#chart-station');
 const radioChoices = [...document.querySelectorAll('[data-chart-radio]')];
 const initial = new URLSearchParams(location.search);
@@ -99,6 +103,7 @@ async function loadChart(force = false) {
   stationParams(shared);
   history.replaceState(null, '', `/?${shared}${location.hash}`);
   const periods = {'1': '24 dernières heures', '7': '7 derniers jours', '30': '30 derniers jours', all: 'Tout l’historique'};
+  controls.querySelector('summary').textContent = `Filtres et outils · ${periods[days]} · ${selectedIds().length ? selectedIds().length + ' radio(s)' : 'toutes les radios'}`;
   document.querySelector('#chart-subtitle').textContent = `${selectedIds().length ? radioChoices.filter(input => input.checked).map(input => input.parentElement.textContent.trim()).join(', ') : 'Toutes les radios'} · ${periods[days]}`;
   document.querySelectorAll('[data-days]').forEach(button => {
     const active = button.dataset.days === days;
@@ -164,6 +169,7 @@ loadChart();
 return () => {
   chartVersion++;
   pending?.abort();
+  compact.removeEventListener('change', resizeControls);
   window.clearInterval(timer);
   document.removeEventListener('visibilitychange', onVisibility);
   window.removeEventListener('radio:filterschange', onFilters);

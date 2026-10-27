@@ -17,6 +17,7 @@ with tempfile.TemporaryDirectory(prefix="radio-station-set-") as directory:
     os.environ["ADMIN_TOKEN"] = "browser-test-only"
     from app.database import SessionLocal, engine
     from app.models import Base, Play, Station
+    from app.services.catalog import ensure_entry
 
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
@@ -26,6 +27,18 @@ with tempfile.TemporaryDirectory(prefix="radio-station-set-") as directory:
             )
             db.add(station)
             db.flush()
+            entry = ensure_entry(db, "Artist", f"Song {i}")
+            entry.selected = {
+                "provider": "itunes",
+                "provider_id": str(i),
+                "title": f"Song {i}",
+                "artist": "Artist",
+                "cover_url": None
+                if i == 0
+                else "https://example.test/missing.svg"
+                if i == 1
+                else "https://example.test/cover.svg",
+            }
             for _ in range(i + 1):
                 db.add(
                     Play(
@@ -58,14 +71,41 @@ with tempfile.TemporaryDirectory(prefix="radio-station-set-") as directory:
         with sync_playwright() as p:
             browser = p.chromium.launch(executable_path=os.environ.get("CHROME_EXECUTABLE"))
             for width in (1280, 414, 412, 320):
-                context = browser.new_context(viewport={"width": width, "height": 846})
+                context = browser.new_context(
+                    viewport={"width": width, "height": 883 if width == 412 else 846}
+                )
                 context.route("**/api/stations/*/artwork", lambda route: route.fulfill(status=404))
+                context.route(
+                    "https://example.test/cover.svg",
+                    lambda route: route.fulfill(
+                        content_type="image/svg+xml",
+                        body='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">'
+                        '<rect width="200" height="200" fill="#b42d65"/></svg>',
+                    ),
+                )
                 page = context.new_page()
+                context.route(
+                    "https://example.test/missing.svg", lambda route: route.fulfill(status=404)
+                )
                 errors = []
                 page.on("pageerror", lambda error, errors=errors: errors.append(str(error)))
                 page.goto(base + "/?station_ids=1,3")
+                expect(page.locator(".player-copy")).to_be_disabled()
                 expect(page.locator("#chart-podium article")).to_have_count(2)
                 expect(page.locator("#chart-subtitle")).to_contain_text("Radio 0, Radio 2")
+                Path("/tmp/radio-mobile-redesign").mkdir(exist_ok=True)
+                for theme in ("light", "dark"):
+                    page.evaluate("(theme)=>document.documentElement.dataset.theme=theme", theme)
+                    page.screenshot(
+                        path=f"/tmp/radio-mobile-redesign/home-{width}-{theme}.png", full_page=True
+                    )
+                if width <= 760:
+                    assert not page.locator("#chart-controls").evaluate("(e)=>e.open")
+                    cards = page.locator("#chart-podium article")
+                    first, second = cards.nth(0).bounding_box(), cards.nth(1).bounding_box()
+                    assert second["y"] >= first["y"] + first["height"]
+                    assert cards.first.locator(".cover").bounding_box()["width"] > width * 0.8
+                    page.locator("#chart-controls > summary").click()
                 page.locator("[data-open-export]").click()
                 expect(page.locator("dialog [data-export-radio]:checked")).to_have_count(2)
                 page.locator('dialog [name="format"]').select_option("json")
@@ -85,6 +125,28 @@ with tempfile.TemporaryDirectory(prefix="radio-station-set-") as directory:
                 expect(page.locator("#chart-podium")).to_contain_text("Song 1", timeout=20000)
                 page.reload()
                 expect(page.locator("#chart-podium")).to_contain_text("Song 1", timeout=20000)
+                expect(page.locator(".player-copy")).to_be_enabled()
+                page.locator(".player-copy").click()
+                expect(page.locator(".catalog-dialog")).to_be_visible()
+                expect(page.locator(".catalog-title")).to_have_text("Song 1")
+                page.locator(".catalog-close").click()
+                assert page.locator(".sidebar-bottom").count() == 0
+                if width <= 760:
+                    expect(page.locator(".sidebar")).not_to_be_visible()
+                    page.locator("#mobile-nav-toggle").click()
+                    expect(page.locator("#mobile-navigation")).to_be_visible()
+                    assert page.locator("#mobile-navigation").bounding_box()["x"] == 0
+                    page.keyboard.press("Escape")
+                    expect(page.locator("#mobile-nav-toggle")).to_be_focused()
+                    page.locator("#mobile-nav-toggle").click()
+                page.locator('.sidebar a[href="/recherche"]').click()
+                expect(page.locator("#results .search-artwork").first).to_be_visible()
+                expect(page.locator("#results .search-artwork img")).to_have_count(3)
+                if width <= 760:
+                    expect(page.locator("#mobile-navigation")).not_to_be_visible()
+                page.locator("#results .search-artwork").first.click()
+                expect(page.locator(".catalog-dialog")).to_be_visible()
+                page.locator(".catalog-close").click()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
                 Path("/tmp/radio-station-selection").mkdir(exist_ok=True)
                 page.screenshot(path=f"/tmp/radio-station-selection/{width}.png", full_page=True)

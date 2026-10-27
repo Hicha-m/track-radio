@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
 </head>
 <body data-asset-version="{{ asset_version }}">
+  <button id="mobile-nav-toggle" class="mobile-nav-toggle" type="button" aria-controls="mobile-navigation" aria-haspopup="dialog">☰ <span>Navigation</span></button>
+  <dialog id="mobile-navigation" aria-labelledby="mobile-nav-title"><div class="mobile-nav-heading"><h2 id="mobile-nav-title">Navigation</h2><button type="button" id="mobile-nav-close" class="text-button">Fermer</button></div></dialog>
   <aside class="sidebar">
     <a class="brand" href="/"><img class="brand-mark" src="/static/logo.svg?v={{ asset_version }}" width="36" height="36" alt=""> Radio Tracker</a>
     <button class="search-shortcut" type="button" data-open-search><span aria-hidden="true">⌕</span> Rechercher une musique <kbd>⌘ K</kbd></button>
@@ -24,7 +26,7 @@
       <a href="/stats" class="nav-item {{ 'active' if page == '/stats' else '' }}" {% if page == '/stats' %}aria-current="page"{% endif %}><span aria-hidden="true">▤</span> Stats</a>
       {% if page.startswith('/admin') %}<a href="/admin/dashboard" class="nav-item active" aria-current="page"><span aria-hidden="true">⚙</span> Administration</a>{% endif %}
     </nav>
-    <div class="sidebar-bottom"><span class="live-dot"></span> Au rythme des radios<p>Vos titres. Toutes les fréquences.</p></div>
+
   </aside>
   <div class="workspace">
     <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><span id="admin-session-controls" hidden><a href="/admin/dashboard">Tableau de bord</a><button type="button" class="text-button" data-admin-logout>Déconnexion</button></span><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
@@ -45,9 +47,9 @@
       </section>
       <section id="classement" class="chart-section" aria-labelledby="chart-title">
         <div class="section-heading"><div><h2 id="chart-title">Les plus diffusés</h2><p id="chart-subtitle">Toutes les radios · 7 derniers jours</p></div><span class="update-badge"><span class="live-dot"></span> Actualisé automatiquement</span></div>
-        <form id="chart-filters" class="chart-filters"><div class="period-tabs" role="group" aria-label="Période du classement"><button type="button" data-days="1" aria-pressed="false">24 heures</button><button type="button" data-days="7" class="active" aria-pressed="true">7 jours</button><button type="button" data-days="30" aria-pressed="false">30 jours</button><button type="button" data-days="all" aria-pressed="false">Tout l’historique</button></div><label class="station-filter"><span class="sr-only">Radio du classement</span><select id="chart-station"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}" {% if station.id == station_id %}selected{% endif %}>{{ station.name }}</option>{% endfor %}</select></label><details class="station-selection"><summary>Composer ma sélection de radios</summary><fieldset><legend>Radios du classement</legend><p class="hint">Aucune case cochée : toutes les radios.</p>{% for station in stations %}<label class="checkbox"><input type="checkbox" data-chart-radio value="{{ station.id }}">{{ station.name }}</label>{% endfor %}<button type="button" data-chart-all class="text-button">Toutes les radios</button></fieldset></details></form>
+        <details id="chart-controls" class="chart-controls" open><summary>Filtres et outils du classement</summary><form id="chart-filters" class="chart-filters"><div class="period-tabs" role="group" aria-label="Période du classement"><button type="button" data-days="1" aria-pressed="false">24 heures</button><button type="button" data-days="7" class="active" aria-pressed="true">7 jours</button><button type="button" data-days="30" aria-pressed="false">30 jours</button><button type="button" data-days="all" aria-pressed="false">Tout l’historique</button></div><label class="station-filter"><span class="sr-only">Radio du classement</span><select id="chart-station"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}" {% if station.id == station_id %}selected{% endif %}>{{ station.name }}</option>{% endfor %}</select></label><details class="station-selection"><summary>Composer ma sélection de radios</summary><fieldset><legend>Radios du classement</legend><p class="hint">Aucune case cochée : toutes les radios.</p>{% for station in stations %}<label class="checkbox"><input type="checkbox" data-chart-radio value="{{ station.id }}">{{ station.name }}</label>{% endfor %}<button type="button" data-chart-all class="text-button">Toutes les radios</button></fieldset></details></form>
         <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués</button><button type="button" data-open-export>Export personnalisable</button></div>
-        <p id="chart-status" class="hint" role="status" aria-live="polite">Chargement du classement…</p>
+        </details><p id="chart-status" class="hint" role="status" aria-live="polite">Chargement du classement…</p>
         <div id="chart-podium" class="podium"></div>
         <div id="chart-list" class="chart-list" aria-busy="true"></div>
         <a class="more-link" href="/recherche?view=tracks&sort=frequency">Explorer toute la base musicale <span aria-hidden="true">→</span></a>
@@ -69,7 +71,7 @@
     </main>
   </div>
   <section class="player" aria-label="Lecteur radio" data-station-id="{{ station_id or '' }}">
-    <div class="player-cover" aria-hidden="true">♫</div><div class="player-copy"><strong id="track-title">Sélectionnez une radio</strong><small id="track-artist"></small><span id="player-name">{{ selected_station.name if selected_station else 'Le direct vous attend' }}</span></div>
+    <div class="player-cover" aria-hidden="true">♫</div><button class="player-copy" type="button" disabled aria-label="Aucun morceau disponible"><strong id="track-title">Sélectionnez une radio</strong><small id="track-artist"></small><span id="player-name">{{ selected_station.name if selected_station else 'Le direct vous attend' }}</span></button>
     <audio id="radio-player" preload="none" {% if selected_station %}src="{{ selected_station.stream_url }}"{% endif %}></audio>
     <div class="player-transport">
       <button id="player-toggle" class="player-toggle" type="button" aria-label="Écouter la radio" disabled><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></button>
@@ -96,6 +98,7 @@
   <p id="navigation-status" class="navigation-status" role="status" hidden></p>
   <script src="/static/charts.js?v={{ asset_version }}"></script>
   <script src="/static/dashboard.js?v={{ asset_version }}"></script>
+  <script src="/static/mobile-navigation.js?v={{ asset_version }}"></script>
   <script src="/static/navigation.js?v={{ asset_version }}"></script>
 </body>
 </html>

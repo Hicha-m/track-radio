@@ -124,6 +124,15 @@ function render(data) {
     };
     if (!tracks) cell(formatDate(item.detected_at));
     const music = element('div', '', 'music-cell');
+    const artwork = element('button', '', 'search-artwork'); artwork.type = 'button';
+    artwork.setAttribute('aria-label', `Ouvrir la fiche de ${item.title}`);
+    artwork.onclick = () => window.TrackCatalog.open(item);
+    artwork.append(element('span', '♫'));
+    if (item.metadata?.cover_url) {
+      const image = element('img'); image.src = item.metadata.cover_url; image.alt = ''; image.loading = 'lazy'; image.referrerPolicy = 'no-referrer';
+      image.onerror = () => image.remove(); artwork.append(image);
+    }
+    music.append(artwork);
     music.append(action(item.title, () => selectTrack(item), 'Voir les passages de cette musique'));
     music.append(window.TrackCatalog.button(item), window.TrackCatalog.playButton(item));
     cell(music);

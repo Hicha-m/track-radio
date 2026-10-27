@@ -38,6 +38,14 @@
   }
   let mode = 'radio';
   let previewKey = null;
+  let currentTrack = null;
+  const trackButton = document.querySelector('.player-copy');
+  function setCurrentTrack(track) {
+    currentTrack = track?.title ? track : null;
+    trackButton.disabled = !currentTrack;
+    trackButton.setAttribute('aria-label', currentTrack ? `Ouvrir la fiche de ${currentTrack.title}` : 'Aucun morceau disponible');
+  }
+  trackButton.addEventListener('click', () => { if (currentTrack) window.TrackCatalog.open(currentTrack); });
   let radio = audio.getAttribute('src') ? {url: audio.getAttribute('src'), id: panel.dataset.stationId, name: name.textContent} : null;
   let metadataVersion = 0;
   try {
@@ -108,6 +116,7 @@
       const [track] = await response.json();
       if (current !== metadataVersion || mode !== 'radio') return;
       title.textContent = track?.title || 'Titre indisponible';
+      setCurrentTrack(track);
       artist.textContent = track?.artist || '';
       showArtwork(track || {}, radio);
     } catch (_) { /* Keep the previous radio information through a temporary failure. */ }
@@ -125,6 +134,7 @@
   function selectRadio(station) {
     metadataVersion++;
     mode = 'radio'; previewKey = null; radio = station;
+    setCurrentTrack(null);
     showArtwork({}, radio);
     panel.dataset.stationId = station.id;
     if (audio.src !== new URL(station.url, location.href).href) audio.src = station.url;
@@ -140,6 +150,7 @@
     }
     metadataVersion++;
     mode = 'preview'; previewKey = next;
+    setCurrentTrack(track);
     showArtwork(track);
     audio.src = url;
     title.textContent = track.title || 'Extrait'; artist.textContent = track.artist || '';
@@ -180,6 +191,7 @@
   window.addEventListener('radio:globalfilterschange', () => {
     if (mode === 'radio' && radio) {
       metadataVersion++; title.textContent = 'Titre indisponible'; artist.textContent = '';
+      setCurrentTrack(null);
       showArtwork({}, radio); refreshNowPlaying();
     }
   });

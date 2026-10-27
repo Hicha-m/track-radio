@@ -205,6 +205,8 @@ with tempfile.TemporaryDirectory(prefix="radio-admin-layout-") as directory:
                         page.get_by_role("link", name="Revenir aux classements").click()
                         expect(page.locator("h1")).to_have_text("Classements")
                         expect(page.locator("#track-title")).to_have_text("Sélectionnez une radio")
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         page.locator(".search-shortcut").click()
                         expect(page.locator(".music-search-dialog")).to_be_visible()
                         page.keyboard.press("Escape")
