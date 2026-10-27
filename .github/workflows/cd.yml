@@ -76,8 +76,16 @@ jobs:
         run: |
           release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh "$VPS" "mkdir -m 700 '$release'"
-          tar -czf - compose.production.yaml .env.example config/stations.json scripts/deploy.sh |
+          tar -czf - compose.production.yaml .env.example config/stations.json scripts/deploy.sh scripts/configure_lastfm.py |
             ssh "$VPS" "tar -xzf - -C '$release'"
+      - name: Transfer Last.fm configuration
+        env:
+          LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
+        run: |
+          if [[ -n "$LASTFM_API_KEY" ]]; then
+            release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            printf '%s' "$LASTFM_API_KEY" | ssh "$VPS" "umask 077; cat > '$release/lastfm.key'"
+          fi
       - name: Authenticate VPS to GHCR
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

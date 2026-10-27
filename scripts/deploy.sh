@@ -45,9 +45,33 @@ printf 'RADIO_IMAGE=%s\n' "$image" > image.env
 sed -i '/^RADIO_IMAGE=/d' .env
 printf '\nRADIO_IMAGE=%s\n' "$image" >> .env
 chmod 600 .env image.env
+if [[ -s "$release/lastfm.key" ]]; then
+  python3 "$release/scripts/configure_lastfm.py" "$release/lastfm.key" .env
+fi
 if ! compose up -d --wait --wait-timeout 420; then
   compose logs --tail 80 >&2
   echo 'Deployment failed. Backups retained; no automatic database downgrade.' >&2
   exit 1
+fi
+if [[ -s "$release/lastfm.key" ]]; then
+  compose exec -T api python - <<'PY'
+import asyncio
+import sys
+import httpx
+from app.services.providers import search_lastfm
+
+async def verify():
+    async with httpx.AsyncClient(timeout=30, headers={"User-Agent": "RadioTracker/0.1"}) as client:
+        for artist, title, page in [(None, "Believe", 1), (None, "Believe", 2), ("GRADUR", "Comme un sheguey", 1)]:
+            result = await search_lastfm(client, artist, title, page, 10)
+            if not result["candidates"]:
+                raise ValueError("No Last.fm results")
+            print("Last.fm production search verified, page", page)
+try:
+    asyncio.run(verify())
+except Exception as error:
+    print("Last.fm verification failed:", type(error).__name__)
+    sys.exit(1)
+PY
 fi
 echo 'Deployment healthy'
