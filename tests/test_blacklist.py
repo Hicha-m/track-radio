@@ -124,6 +124,7 @@ def test_noise_excluded_before_all_statistics_and_exports(db, client, mode):
     key = identity(**NOISE)
     # Warm caches before changing filters.
     assert client.get("/api/stats/genres").json()["total"] == 12
+    assert client.get("/api/stats/summary").json()["total"] == 12
     assert len(client.get("/api/stats/repetitions").json()["items"]) == 4
     params = {}
     if mode == "global":
@@ -146,6 +147,9 @@ def test_noise_excluded_before_all_statistics_and_exports(db, client, mode):
         assert len(offsets) == 3 and all(r["title"] == "Music" for r in offsets)
         genres = stats("genres")
         assert genres["total"] == 6 and genres["coverage"] == 100
+        summary = stats("summary")
+        assert summary["total"] == 6 and summary["unique_tracks"] == 1
+        assert summary["known_genres"] == 6 and summary["genre_coverage"] == 100
         assert sum(r["plays"] for r in stats("hourly", track_id=key)["items"]) == 0
         assert all(r["title"] == "Music" for r in stats("top"))
         assert all(

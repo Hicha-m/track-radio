@@ -59,7 +59,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.revision }}
+          ref: ${{ github.event.workflow_run.head_sha }}
       - name: Configure SSH
         env:
           SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
@@ -87,11 +87,20 @@ jobs:
             printf '%s' "$LASTFM_API_KEY" | ssh "$VPS" "umask 077; cat > '$release/lastfm.key'"
           fi
       - name: Authenticate VPS to GHCR
+        # Provider keys travel on SSH stdin, never in command arguments.
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           printf '%s' "$GHCR_TOKEN" | ssh "$VPS" \
             "docker --config \"\$HOME/.docker-track-radio-${GITHUB_RUN_ID}\" login ghcr.io -u '${{ github.actor }}' --password-stdin"
+      - name: Transfer YouTube configuration
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          if [[ -n "$YOUTUBE_API_KEY" ]]; then
+            release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            printf '%s' "$YOUTUBE_API_KEY" | ssh "$VPS" "umask 077; cat > '$release/youtube.key'"
+          fi
       - name: Deploy validated image
         env:
           IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}

@@ -1,14 +1,22 @@
 <div class="page-heading"><span class="eyebrow">LES ONDES EN CHIFFRES</span><h1>Stats</h1><p>Répétitions, diversité et points communs entre radios.</p></div>
 <div id="stats-root">
   <section class="panel metric-panel">
-    <p class="hint">Les heures sont celles des détections, avec une précision limitée par la cadence de collecte. Une absence de données ne signifie pas une absence de diffusion. Les titres masqués pour vous et la blacklist globale sont exclus de tous ces calculs.</p>
+    <details class="stats-method"><summary>Comment lire ces chiffres</summary><p class="hint">Les heures sont celles des détections, avec une précision limitée par la cadence de collecte. Une absence de données ne signifie pas une absence de diffusion. Les titres masqués pour vous et la blacklist globale sont exclus de tous ces calculs.</p></details>
     <form class="filter-grid metric-filters">
       <label>Radio des indicateurs<select name="station_id"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
-      <label>Décalages · première radio<select name="station_a"><option value="">Choisir une radio</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
-      <label>Décalages · seconde radio<select name="station_b"><option value="">Choisir une radio</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+      <label>Fenêtre du titre le plus diffusé et des répétitions<select id="repetition-hours"><option value="6">6 heures</option><option value="12" selected>12 heures</option><option value="24">24 heures</option></select></label>
+      <details class="stats-comparison-controls"><summary>Comparer deux radios</summary><div class="filter-grid"><label>Décalages · première radio<select name="station_a"><option value="">Choisir une radio</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+      <label>Décalages · seconde radio<select name="station_b"><option value="">Choisir une radio</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label></div></details>
     </form>
     <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués</button><button type="button" data-refresh>Actualiser</button></div>
   </section>
+  <section class="stats-summary" aria-labelledby="stats-summary-title">
+    <h2 id="stats-summary-title">Votre synthèse</h2>
+    <p id="stats-summary-status" class="hint" role="status">Chargement des indicateurs…</p>
+    <div id="stats-summary-cards" class="stats-summary-cards"></div>
+    <div id="stats-summary-top" class="stats-summary-top"></div>
+  </section>
+  <h2 class="stats-details-heading">Explorer les détails</h2>
   {% for kind, title, description in [
     ('repetitions', 'Détecteur de répétition', 'Au moins 3 passages du même titre sur une radio. Intervalle moyen entre les détections de la fenêtre choisie.'),
     ('diversity', 'Diversité sur 24 heures', 'Titres distincts et passages collectés par radio, sur une fenêtre glissante.'),
@@ -16,12 +24,11 @@
     ('offsets', 'Décalages entre radios sur 24 heures', 'Même artiste et même titre, à 5 minutes d’intervalle maximum. Chaque passage n’est associé qu’une fois ; les plus proches sont prioritaires.'),
     ('genres', 'Genres sur 24 heures', 'Répartition des passages selon leur genre principal disponible. Les métadonnées absentes restent dans Inconnu.')
   ] %}
-  <section class="panel metric-panel" data-metric="{{ kind }}" aria-labelledby="metric-{{ kind }}">
-    <h2 id="metric-{{ kind }}">{{ title }}</h2><p class="hint">{{ description }}</p>
-    {% if kind == 'repetitions' %}<label class="metric-period">Fenêtre<select id="repetition-hours"><option value="6">6 heures</option><option value="12" selected>12 heures</option><option value="24">24 heures</option></select></label>{% endif %}
+  <details class="panel metric-panel stats-detail" data-metric="{{ kind }}" aria-labelledby="metric-{{ kind }}">
+    <summary><h2 id="metric-{{ kind }}">{{ title }}</h2><span data-metric-window class="hint">{{ "Fenêtre choisie" if kind == "repetitions" else "7 jours" if kind == "overlap" else "24 heures" }}</span></summary><p class="hint">{{ description }}</p>
     <p class="hint metric-status" role="status">Chargement…</p>
     <div class="metric-output"></div>
     <nav class="pagination" aria-label="Pages · {{ title }}"><button type="button" data-previous disabled>← Précédent</button><span data-page>Page 1</span><button type="button" data-next disabled>Suivant →</button></nav>
-  </section>
+  </details>
   {% endfor %}
 </div>

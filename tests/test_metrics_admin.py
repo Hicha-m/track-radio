@@ -48,6 +48,41 @@ def test_repetitions_normalized_identity_average_and_exclusions(db):
     assert not compute(db, "repetitions", MetricsFilters(exclusions=hidden), NOW)["items"]
 
 
+def test_summary_uses_full_sets_and_separate_windows_before_aggregation(db):
+    a, b = station(db, "A"), station(db, "B")
+    for radio in (a, b):
+        play(db, radio, at=NOW - timedelta(hours=1))
+    play(db, a, title="Other", at=NOW - timedelta(hours=20))
+    play(db, a, title="Old", at=NOW - timedelta(hours=26))
+    entry = ensure_entry(db, "Artist", "Song")
+    entry.primary_genre = "Pop"
+    db.commit()
+    data = compute(db, "summary", MetricsFilters(page_size=1), NOW)
+    assert data["total"] == 3 and data["unique_tracks"] == 2
+    assert data["stations"] == 2 and data["known_genres"] == 2
+    assert data["genre_coverage"] == 66.7
+    assert data["top"]["title"] == "Song" and data["top"]["plays"] == 2
+    assert data["top_since"] == NOW - timedelta(hours=12)
+    filtered = compute(
+        db,
+        "summary",
+        MetricsFilters(
+            station_id=a.id, exclusions=json.dumps([{"artist": "Artist", "title": "Song"}])
+        ),
+        NOW,
+    )
+    assert filtered["total"] == 1 and filtered["unique_tracks"] == 1
+    assert filtered["genre_coverage"] == 0 and filtered["top"] is None
+    day = compute(db, "summary", MetricsFilters(hours=24, station_id=a.id), NOW)
+    assert day["top"] is not None and day["top_since"] == NOW - timedelta(hours=24)
+
+
+def test_summary_empty_and_api_exclusion_cache(client, db):
+    data = client.get("/api/stats/summary").json()
+    assert data["total"] == data["unique_tracks"] == data["stations"] == 0
+    assert data["top"] is None and data["genre_coverage"] == 0
+
+
 def test_diversity_overlap_empty_radios_and_pagination(db):
     a, b, empty = [station(db, name) for name in ["A", "B", "C"]]
     for radio, titles in [(a, ["One", "One", "Two"]), (b, ["One", "Three"])]:

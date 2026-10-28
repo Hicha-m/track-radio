@@ -80,7 +80,42 @@ def compute(db, kind, filters, now):
         rows = db.execute(query.offset((page - 1) * size).limit(size + 1)).mappings().all()
         return {"items": [dict(r) for r in rows[:size]], "has_more": len(rows) > size}
 
-    if kind == "repetitions":
+    if kind == "summary":
+        total = db.scalar(select(func.count(Play.id)).where(*base)) or 0
+        distinct = select(Play.track_id).where(*base).group_by(Play.track_id).subquery()
+        unique = db.scalar(select(func.count()).select_from(distinct)) or 0
+        radios = db.scalar(select(func.count(func.distinct(Play.station_id))).where(*base)) or 0
+        genres = compute(db, "genres", filters, now)
+        top_base = [Play.detected_at >= now - timedelta(hours=filters.hours), *base[1:]]
+        top = (
+            db.execute(
+                select(
+                    Play.track_id,
+                    func.min(Play.artist).label("artist"),
+                    func.min(Play.title).label("title"),
+                    func.count().label("plays"),
+                )
+                .where(*top_base)
+                .group_by(Play.track_id)
+                .order_by(func.count().desc(), Play.track_id)
+                .limit(1)
+            )
+            .mappings()
+            .first()
+        )
+        from app.services.catalog import attach_metadata
+
+        result.update(
+            total=total,
+            unique_tracks=unique,
+            stations=radios,
+            genre_coverage=genres["coverage"],
+            known_genres=sum(row["plays"] for row in genres["items"] if row["genre"] != "Inconnu"),
+            top=attach_metadata(db, [dict(top)])[0] if top else None,
+            top_since=now - timedelta(hours=filters.hours),
+            has_more=False,
+        )
+    elif kind == "repetitions":
         count = func.count(Play.id)
         interval = (
             func.max(epoch(Play.detected_at, sqlite)) - func.min(epoch(Play.detected_at, sqlite))
@@ -103,6 +138,9 @@ def compute(db, kind, filters, now):
                 .order_by(count.desc(), Station.name, Play.track_id)
             )
         )
+        from app.services.catalog import attach_metadata
+
+        result["items"] = attach_metadata(db, result["items"])
     elif kind == "diversity":
         aggregate = (
             select(
@@ -296,7 +334,7 @@ def compute(db, kind, filters, now):
 
 @router.get("/{kind}")
 def metrics(
-    kind: Literal["repetitions", "diversity", "overlap", "offsets", "genres", "hourly"],
+    kind: Literal["repetitions", "diversity", "overlap", "offsets", "genres", "hourly", "summary"],
     db: Db,
     filters: Annotated[MetricsFilters, Query()],
 ):

@@ -16,6 +16,49 @@ let resettingFromStation = false;
 let lastInput = 0;
 let shownPage = 1;
 let rendered = null;
+let lastData = null;
+const columnPreferences = new Map();
+const viewSelect = document.querySelector('#result-view');
+const columnPicker = document.querySelector('#result-columns');
+const compactResults = window.matchMedia('(max-width: 760px)');
+const columnDefinitions = {
+  tracks: [['music', 'Musique', 'title'], ['artist', 'Artiste', 'artist'], ['plays', 'Diffusions', 'frequency'], ['stations', 'Stations', null], ['first', 'Première diffusion', 'oldest'], ['last', 'Dernière diffusion', 'newest']],
+  plays: [['music', 'Musique', 'title'], ['date', 'Diffusion', 'newest'], ['artist', 'Artiste', 'artist'], ['station', 'Station', 'station'], ['source', 'Source / détails', null]],
+};
+function columnKey() { return `radio:columns:${compactResults.matches ? 'mobile' : 'desktop'}:${form.elements.view.value}`; }
+function visibleColumns() {
+  const definitions = columnDefinitions[form.elements.view.value];
+  if (columnPreferences.has(columnKey())) return new Set(columnPreferences.get(columnKey()));
+  try {
+    const saved = JSON.parse(localStorage.getItem(columnKey()));
+    if (Array.isArray(saved)) return new Set(['music', ...saved.filter(key => definitions.some(([id]) => id === key))]);
+  } catch (_) { /* Storage may be unavailable. */ }
+  return new Set(compactResults.matches ? ['music', form.elements.view.value === 'tracks' ? 'plays' : 'date'] : definitions.map(([id]) => id));
+}
+function updateColumns() {
+  const selected = visibleColumns();
+  columnPicker.replaceChildren(element('legend', 'Personnaliser les résultats'));
+  for (const [key, name] of columnDefinitions[form.elements.view.value]) {
+    const label = element('label', '', 'checkbox');
+    const input = document.createElement('input'); input.type = 'checkbox'; input.checked = selected.has(key); input.disabled = key === 'music'; input.dataset.column = key;
+    label.append(input, document.createTextNode(name)); columnPicker.append(label);
+    input.onchange = () => {
+      const chosen = [...columnPicker.querySelectorAll('input:checked')].map(node => node.dataset.column);
+      columnPreferences.set(columnKey(), chosen);
+      try { localStorage.setItem(columnKey(), JSON.stringify(chosen)); } catch (_) { /* Keep this selection for this page. */ }
+      if (lastData) render(lastData, new Set(chosen));
+    };
+  }
+  if (lastData) render(lastData);
+}
+const onResultWidth = () => updateColumns();
+compactResults.addEventListener('change', onResultWidth);
+viewSelect.addEventListener('change', () => { setView(viewSelect.value); load(true); });
+document.querySelector('#reset-columns').onclick = () => {
+  columnPreferences.delete(columnKey());
+  try { localStorage.removeItem(columnKey()); } catch (_) { /* Optional storage. */ }
+  updateColumns();
+};
 
 function element(tag, text = '', className = '') {
   const node = document.createElement(tag);
@@ -57,11 +100,9 @@ function paramsFromForm() {
 
 function setView(view) {
   form.elements.view.value = view;
-  document.querySelectorAll('[data-view]').forEach((button) => {
-    const active = button.dataset.view === view;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
+  viewSelect.value = view;
+  lastData = null;
+  updateColumns();
   for (const option of form.elements.sort.options) {
     option.disabled = Boolean(option.dataset.only && option.dataset.only !== view);
   }
@@ -91,19 +132,19 @@ function selectTrack(item) {
   load(true);
 }
 
-function render(data) {
-  const signature = JSON.stringify([form.elements.view.value, data]);
+function render(data, selected = visibleColumns()) {
+  lastData = data;
+  const signature = JSON.stringify([form.elements.view.value, [...selected], data]);
   if (signature === rendered) return;
   rendered = signature;
   const tracks = form.elements.view.value === 'tracks';
   const table = document.createElement('table');
   const header = document.createElement('tr');
-  const columns = tracks
-    ? [['Musique', 'title'], ['Artiste', 'artist'], ['Passages', 'frequency'], ['Stations', null], ['Première diffusion', 'oldest'], ['Dernière diffusion', 'newest']]
-    : [['Diffusion', 'newest'], ['Musique', 'title'], ['Artiste', 'artist'], ['Station', 'station'], ['Source / détails', null]];
-  columns.forEach(([label, sort]) => {
+  const columns = columnDefinitions[form.elements.view.value].filter(([id]) => selected.has(id));
+  columns.forEach(([id, label, sort]) => {
     const th = element('th');
     th.scope = 'col';
+    th.dataset.column = id;
     if (sort) th.append(action(label, () => {
       form.elements.sort.value = sort;
       load(true);
@@ -117,12 +158,14 @@ function render(data) {
   const body = document.createElement('tbody');
   for (const item of data.items) {
     const row = document.createElement('tr');
-    const cell = (content) => {
+    const cells = new Map();
+    const cell = (key, content) => {
       const td = document.createElement('td');
       td.append(typeof content === 'string' ? document.createTextNode(content) : content);
-      row.append(td);
+      td.dataset.column = key;
+      cells.set(key, td);
     };
-    if (!tracks) cell(formatDate(item.detected_at));
+    if (!tracks) cell('date', formatDate(item.detected_at));
     const music = element('div', '', 'music-cell');
     const artwork = element('button', '', 'search-artwork'); artwork.type = 'button';
     artwork.setAttribute('aria-label', `Ouvrir la fiche de ${item.title}`);
@@ -135,15 +178,16 @@ function render(data) {
     music.append(artwork);
     music.append(action(item.title, () => selectTrack(item), 'Voir les passages de cette musique'));
     music.append(window.TrackCatalog.button(item), window.TrackCatalog.playButton(item));
-    cell(music);
-    cell(action(item.artist || 'Artiste inconnu', () => selectArtist(item.artist), 'Voir les musiques de cet artiste'));
+    if (!selected.has('artist')) music.append(element('small', item.artist || 'Artiste inconnu', 'music-artist'));
+    cell('music', music);
+    cell('artist', action(item.artist || 'Artiste inconnu', () => selectArtist(item.artist), 'Voir les musiques de cet artiste'));
     if (tracks) {
-      cell(Number(item.plays).toLocaleString('fr-FR'));
-      cell(String(item.stations));
-      cell(formatDate(item.first_at));
-      cell(formatDate(item.last_at));
+      cell('plays', Number(item.plays).toLocaleString('fr-FR'));
+      cell('stations', String(item.stations));
+      cell('first', formatDate(item.first_at));
+      cell('last', formatDate(item.last_at));
     } else {
-      cell(action(item.station_name, () => {
+      cell('station', action(item.station_name, () => {
         form.elements.station_id.value = String(item.station_id);
         load(true);
       }, 'Restreindre les résultats à cette station'));
@@ -152,8 +196,9 @@ function render(data) {
       details.append(element('p', `Passage #${item.id} · Station #${item.station_id}`));
       details.append(element('p', `Dernière observation : ${formatDate(item.last_seen_at)}`));
       details.append(element('pre', item.raw_metadata));
-      cell(details);
+      cell('source', details);
     }
+    for (const [id] of columns) row.append(cells.get(id));
     body.append(row);
   }
   table.append(body);
@@ -235,7 +280,7 @@ for (const [key, value] of new URLSearchParams(location.search)) {
     }
   } else input.value = value;
 }
-if (!['plays', 'tracks'].includes(form.elements.view.value)) form.elements.view.value = 'plays';
+if (!['plays', 'tracks'].includes(form.elements.view.value)) form.elements.view.value = 'tracks';
 if (!['25', '50', '100'].includes(form.elements.page_size.value)) form.elements.page_size.value = '50';
 setView(form.elements.view.value);
 form.addEventListener('submit', (event) => { event.preventDefault(); load(true); });
@@ -246,12 +291,8 @@ form.addEventListener('input', (event) => {
 });
 form.addEventListener('change', () => load(true));
 form.addEventListener('reset', () => {
-  if (!resettingFromStation) window.setTimeout(() => { setView('plays'); load(true); }, 0);
+  if (!resettingFromStation) window.setTimeout(() => { setView('tracks'); load(true); }, 0);
 });
-document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => {
-  setView(button.dataset.view);
-  load(true);
-}));
 document.querySelectorAll('.explore-station').forEach((button) => button.addEventListener('click', () => {
   resettingFromStation = true;
   form.reset();
@@ -280,6 +321,7 @@ load();
 
 return () => {
   version++;
+  compactResults.removeEventListener('change', onResultWidth);
   request?.abort();
   window.clearTimeout(debounce);
   window.clearInterval(timer);

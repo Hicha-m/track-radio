@@ -120,7 +120,7 @@ with tempfile.TemporaryDirectory(prefix="radio-station-set-") as directory:
                 assert "station_id=3" in page.url
                 page.locator("[data-chart-all]").click()
                 expect(page.locator("#chart-podium article")).to_have_count(3)
-                page.locator("#chart-station").select_option("2")
+                page.locator('[data-chart-radio][value="2"]').check()
                 expect(page.locator("#chart-podium article")).to_have_count(1)
                 expect(page.locator("#chart-podium")).to_contain_text("Song 1", timeout=20000)
                 page.reload()
@@ -141,15 +141,68 @@ with tempfile.TemporaryDirectory(prefix="radio-station-set-") as directory:
                     page.locator("#mobile-nav-toggle").click()
                 page.locator('.sidebar a[href="/recherche"]').click()
                 expect(page.locator("#results .search-artwork").first).to_be_visible()
-                expect(page.locator("#results .search-artwork img")).to_have_count(3)
+                expect(page.locator("#results .search-artwork")).to_have_count(3)
+                expect(page.locator("#results .search-artwork img")).to_have_count(1)
                 if width <= 760:
                     expect(page.locator("#mobile-navigation")).not_to_be_visible()
                 page.locator("#results .search-artwork").first.click()
                 expect(page.locator(".catalog-dialog")).to_be_visible()
                 page.locator(".catalog-close").click()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                expect(page.locator("#result-view")).to_have_value("tracks")
+                expect(page.locator("#results tbody tr")).to_have_count(3)
+                assert page.locator(".view-tabs").count() == 0
+                if width <= 760:
+                    expect(page.locator("#results th")).to_have_count(2)
+                    assert page.locator("#results th").all_text_contents() == [
+                        "Musique",
+                        "Diffusions",
+                    ]
+                    assert page.locator("#results").evaluate("e=>e.scrollWidth<=e.clientWidth")
+                page.locator(".result-columns > summary").click()
+                page.locator('[data-column="artist"][type="checkbox"]').set_checked(width <= 760)
+                count = 3 if width <= 760 else 5
+                expect(page.locator("#results th")).to_have_count(count)
+                page.reload()
+                expect(page.locator("#results th")).to_have_count(count)
+                page.locator(".result-columns > summary").click()
+                page.locator("#reset-columns").click()
+                expect(page.locator("#results th")).to_have_count(2 if width <= 760 else 6)
+                page.locator(".result-columns > summary").click()
+                page.locator("#result-view").select_option("plays")
+                expect(page.locator("#results tbody tr")).to_have_count(6)
+                if width <= 760:
+                    assert page.locator("#results th").all_text_contents() == [
+                        "Musique",
+                        "Diffusion",
+                    ]
+                page.locator(".result-columns > summary").click()
+                page.locator('[data-column="source"][type="checkbox"]').check()
+                expect(page.locator('#results th[data-column="source"]')).to_be_visible()
+                page.locator(".result-columns > summary").click()
+                page.locator(".search-filters > summary").click()
+                page.locator('#explorer-form [name="station_id"]').select_option("2")
+                expect(page.locator("#results tbody tr")).to_have_count(2)
+                expect(page.locator("#results")).to_contain_text("Song 1")
+                page.locator('#explorer-form [name="q"]').fill("absent")
+                expect(page.locator("#results")).to_contain_text("Aucun résultat")
+                page.locator('#explorer-form [name="q"]').fill("")
+                expect(page.locator("#results tbody tr")).to_have_count(2)
+                page.get_by_role("button", name="Réinitialiser", exact=True).click()
+                expect(page.locator("#result-view")).to_have_value("tracks")
+                expect(page.locator("#results tbody tr")).to_have_count(3)
+                page.locator(".search-filters > summary").click()
+                assert (
+                    page.locator("#results").evaluate("e=>e.scrollWidth<=e.clientWidth")
+                    if width <= 760
+                    else True
+                )
                 Path("/tmp/radio-station-selection").mkdir(exist_ok=True)
-                page.screenshot(path=f"/tmp/radio-station-selection/{width}.png", full_page=True)
+                for theme in ("light", "dark"):
+                    page.evaluate("t=>document.documentElement.dataset.theme=t", theme)
+                    page.screenshot(
+                        path=f"/tmp/radio-station-selection/{width}-{theme}.png", full_page=True
+                    )
                 assert not errors, errors
                 context.close()
             browser.close()

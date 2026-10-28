@@ -190,6 +190,7 @@ window.TrackCatalog = (() => {
       }
       platforms.append(el('p', 'Spotify s’ouvre dans l’application, ou sur le web après une seconde si la page reste visible.', 'hint'));
       platforms.append(links); content.append(platforms);
+      window.TrackYouTube.mount(panel, content, links, data.track_id);
     } catch (error) { if (active()) message.textContent = error.message; }
   }
   return {button, open, playButton, searchUrl, genreList};

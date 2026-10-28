@@ -20,6 +20,14 @@ from app.services.network import metadata_client, validate_url
 router = APIRouter(prefix="/api/stations")
 _cache = OrderedDict()
 _lock = asyncio.Lock()
+# Explicit station logos supplied by the directory, rather than editorial og:images.
+_logos = {
+    "europe2": "europe-2",
+    "nrj": "nrj-france",
+    "rfm": "rfm",
+    "mouv": "mouv",
+    "fip": "fip",
+}
 
 
 def image_from_html(html, base):
@@ -62,6 +70,13 @@ async def station_artwork(station_id: int, db: Annotated[Session, Depends(get_db
     station = db.get(Station, station_id)
     if station is None:
         raise HTTPException(404, "Radio inconnue.")
+    if station.slug in _logos:
+        return RedirectResponse(
+            "https://cdn.instant.audio/images/logos/ecouterradioenligne-com/"
+            + _logos[station.slug]
+            + ".png",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
     site = station.website_url or station.metadata_url
     db.commit()
     if not site:

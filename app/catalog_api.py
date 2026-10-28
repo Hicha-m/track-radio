@@ -30,6 +30,41 @@ router = APIRouter(prefix="/api/catalog")
 Db = Annotated[Session, Depends(get_db)]
 
 
+@router.get("/{key}/youtube")
+async def youtube_video(
+    key: str, request: Request, db: Db, exclusions: str = Query("", max_length=12000)
+):
+    import json
+
+    from app.services.exclusions import normalized_pair
+    from app.services.youtube import discover
+
+    recording = db.get(TrackMetadata, key) or db.scalar(
+        select(Play).where(Play.track_id == key).limit(1)
+    )
+    if recording is None:
+        raise HTTPException(404, "Musique introuvable.")
+    ensure_visible(request, db, recording.artist, recording.title)
+    try:
+        hidden = json.loads(canonical_exclusions(exclusions) or "[]")
+    except ValueError:
+        raise HTTPException(422, "Exclusions invalides.") from None
+    if any(
+        normalized_pair(t.get("artist"), t["title"])
+        == normalized_pair(recording.artist, recording.title)
+        for t in hidden
+    ):
+        raise HTTPException(404, "Musique introuvable.")
+    selected = recording.selected if isinstance(recording, TrackMetadata) else None
+    selected = selected if isinstance(selected, dict) else {}
+    artist, title = (
+        selected.get("artist") or recording.artist,
+        selected.get("title") or recording.title,
+    )
+    db.commit()  # Release the database connection before the external search.
+    return await discover(artist, title)
+
+
 class Search(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     provider: Literal[

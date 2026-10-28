@@ -24,7 +24,7 @@ window.RadioExport = (() => {
     });
     radioChoices.forEach(input => input.addEventListener('change', () => {
       const ids = radioChoices.filter(choice => choice.checked);
-      form.elements.station_id.value = ids.length === 1 ? ids[0].value : '';
+      form.elements.station_id.value = ids.length === 1 ? ids[0].value : ids.length > 1 ? 'custom' : '';
     }));
     for (const [key, value] of captured) {
       const input = form.elements.namedItem(key);
@@ -32,6 +32,7 @@ window.RadioExport = (() => {
       if (input.type === 'checkbox') input.checked = value === 'true';
       else input.value = dates.includes(key) ? localDate(value) : value;
     }
+    if (radioChoices.filter(input => input.checked).length > 1) form.elements.station_id.value = 'custom';
     const view = form.elements.view;
     let schema;
     function renderFields() {

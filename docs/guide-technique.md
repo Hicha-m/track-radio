@@ -488,7 +488,7 @@ et `PYTHONPATH=. .venv/bin/python tests/browser_exports.py` (Chromium).
 
 ### Classement de plusieurs radios
 
-Dans « Les plus diffusés », « Composer ma sélection de radios » permet de cocher plusieurs stations. Les diffusions des radios sélectionnées sont réunies avant le classement et les exclusions sont appliquées avant les calculs. Aucune case cochée signifie toutes les radios ; le sélecteur simple reste disponible. L’URL conserve la période et la sélection, et les caches distinguent chaque groupe. L’export personnalisable reprend la même sélection et permet de la modifier.
+Dans « Les plus diffusés », « Composer ma sélection de radios » permet de cocher plusieurs stations. Les diffusions des radios sélectionnées sont réunies avant le classement et les exclusions sont appliquées avant les calculs. Aucune case cochée signifie toutes les radios ; cocher une seule case limite le classement à cette station. L’URL conserve la période et la sélection, et les caches distinguent chaque groupe. L’export personnalisable reprend la même sélection et permet de la modifier.
 
 Les API de classement, de recherche avancée et d’export acceptent `station_ids=1,3` (au maximum 100 identifiants positifs, normalisés et dédupliqués). Le paramètre historique `station_id` reste utilisable. Si les deux sont fournis, leurs filtres se combinent par intersection.
 
@@ -515,3 +515,30 @@ Les résultats de recherche avancée affichent une petite pochette ouvrant la fi
 Sur mobile (jusqu’à 760 px), le bouton Navigation à gauche ouvre un panneau modal contenant les liens et la recherche rapide. Échap, le bouton Fermer, un clic extérieur ou le choix d’une page le referment. Le passage à un écran plus large restaure la barre latérale. Les pages internes conservent le lecteur et la session administrateur.
 
 Le podium mobile empile les pochettes à la largeur du conteneur. Les filtres de période, les radios et les outils restent disponibles dans « Filtres et outils », replié initialement sur mobile et ouvert sur ordinateur ; son résumé indique la période et le nombre de radios choisies. Le bloc décoratif inférieur de la barre latérale est retiré. Contrôles dédiés aux formats 414×846 et 412×883, ainsi qu’à 320 px de largeur.
+
+
+### Recherche personnalisable et logos de radios
+
+La recherche avancée s’ouvre sur les musiques regroupées. Le sélecteur « Afficher » donne accès aux diffusions individuelles. « Colonnes à afficher » permet de choisir les informations visibles pour chaque vue ; la musique reste toujours présente. Le navigateur mémorise séparément les préférences ordinateur et mobile, ainsi que chaque vue. Le bouton « Colonnes par défaut » restaure la présentation initiale. Ces choix concernent la présentation : l’export conserve son propre choix de champs.
+
+Sur mobile, seules la musique (avec son artiste) et les diffusions apparaissent initialement. Les filtres supplémentaires restent dans « Affiner la recherche » ; les horaires, stations et sources peuvent être ajoutés à la demande. Les tableaux détaillés peuvent défiler horizontalement dans leur conteneur.
+
+Europe 2, NRJ, RFM, Mouv’ et FIP utilisent les logos identifiés du répertoire Ecouterradioenligne.com, servis par `cdn.instant.audio`. Les autres radios conservent la découverte d’image depuis leur site officiel. Si une image ne charge pas, les commandes et le nom de la station restent disponibles. Les cinq URL ont répondu HTTP 200 avec un contenu PNG lors du contrôle du 28 octobre 2026.
+
+L’API proposée `https://api.instant.audio/data/playlist/37/enjoy-33-bordeaux` a renvoyé HTTP 403 avec défi d’accès au même contrôle. Elle n’est pas activée : le flux ENJOY 33 reste écoutable sans titre ICY exploitable pendant l’essai. Les huit autres sources configurées ont chacune renvoyé un titre extractible lors d’une sonde sans écriture ; ce constat ponctuel ne garantit pas leur disponibilité permanente.
+
+### YouTube à la demande et synthèse Stats
+
+Le bouton YouTube de « Écouter sur une plateforme » recherche une vidéo uniquement après activation. La clé `YOUTUBE_API_KEY` reste côté serveur. La recherche utilise l’artiste et le titre de la fiche, quel que soit le fournisseur choisi, puis vérifie les statuts des vidéos : publiques, intégrables, accessibles en France et compatibles avec le morceau. Les versions manifestement différentes sont écartées et les chaînes portant le nom de l’artiste, VEVO ou Topic sont privilégiées ; la mention « Official » seule ne suffit pas à déclencher une sélection automatique. En cas d’ambiguïté, l’utilisateur choisit parmi les propositions. Une absence de résultat, une panne ou une intégration refusée restent explicites.
+
+Le lecteur intégré est placé en bas de la fiche, sur le domaine `youtube-nocookie.com`. Son lancement met la radio ou la préécoute en pause. Fermer la vidéo ou la fiche, changer de fiche ou reprendre l’audio détruit le lecteur. Si le navigateur refuse le lancement automatique, le message invite à appuyer sur la commande de la vidéo. Les recherches sont mises en cache six heures et limitées par processus à `YOUTUBE_SEARCHES_PER_DAY` (80 par défaut), afin de borner la consommation de quota. Cette limite en mémoire repart au redémarrage.
+
+Stats présente une synthèse sur 24 heures : passages, titres distincts, radios avec des données et couverture des genres. Le titre le plus diffusé utilise une fenêtre distincte de 6, 12 ou 24 heures, indiquée explicitement. Les autres analyses sont chargées à l’ouverture de leurs panneaux. Les exclusions personnelles et globales sont appliquées avant tous les agrégats, y compris en administration.
+
+
+Limite de validation YouTube : les recherches réelles du 28 octobre 2026 ont retourné des vidéos déclarées intégrables par l’API, mais YouTube a refusé leur lecture dans le navigateur de test avec le code 150. Ce refus est affiché avec un lien externe et la possibilité d’essayer une autre proposition ; l’API ne garantit donc pas à elle seule la lecture réelle. Les commandes et le cycle de vie ont aussi été vérifiés avec un lecteur simulé sur ordinateur/mobile.
+
+
+### Reprise facultative après un extrait
+
+Le bouton « Réglages d’écoute » (roue dentée du bandeau) permet d’activer ou désactiver la reprise de la dernière radio sélectionnée après la fin naturelle d’une préécoute. L’option est désactivée par défaut et mémorisée dans le navigateur. Sans radio sélectionnée pendant l’écoute courante, l’extrait se termine normalement. Une pause manuelle ou une erreur ne lance pas automatiquement une radio ; aucun flux ou enchaînement musical supplémentaire n’est créé.

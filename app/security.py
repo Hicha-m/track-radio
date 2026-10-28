@@ -50,7 +50,8 @@ class SecurityMiddleware:
             if message["type"] == "http.response.start":
                 policy = (
                     b"default-src 'self'; media-src http: https:; img-src 'self' https:; "
-                    b"object-src 'none'; frame-ancestors 'none'; base-uri 'self'"
+                    b"object-src 'none'; frame-ancestors 'none'; base-uri 'self'; "
+                    b"frame-src https://www.youtube-nocookie.com"
                 )
                 if scope["path"] in {"/docs", "/redoc", "/docs/oauth2-redirect"}:
                     policy += (
@@ -58,6 +59,8 @@ class SecurityMiddleware:
                         b"style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
                         b"img-src 'self' https://fastapi.tiangolo.com data:"
                     )
+                else:
+                    policy += b"; script-src 'self' https://www.youtube.com https://s.ytimg.com"
                 headers = list(message.get("headers", []))
                 if scope["path"].startswith(
                     ("/api/admin", "/admin", "/api/catalog", "/api/stats", "/api/exclusions")

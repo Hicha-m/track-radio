@@ -47,6 +47,17 @@
   }
   trackButton.addEventListener('click', () => { if (currentTrack) window.TrackCatalog.open(currentTrack); });
   let radio = audio.getAttribute('src') ? {url: audio.getAttribute('src'), id: panel.dataset.stationId, name: name.textContent} : null;
+  const listeningSettings = document.querySelector('#listening-settings');
+  const resumeRadio = document.querySelector('#resume-radio-after-preview');
+  const settingsToggle = document.querySelector('#listening-settings-toggle');
+  try { resumeRadio.checked = localStorage.getItem('radio-resume-after-preview') === 'true'; } catch (_) { /* Optional preference. */ }
+  resumeRadio.addEventListener('change', () => {
+    try { localStorage.setItem('radio-resume-after-preview', String(resumeRadio.checked)); } catch (_) { /* Keep the choice during this session. */ }
+  });
+  settingsToggle.addEventListener('click', () => listeningSettings.showModal());
+  document.querySelector('#listening-settings-close').addEventListener('click', () => listeningSettings.close());
+  window.RadioDialogs.dismissOutside(listeningSettings);
+  listeningSettings.addEventListener('close', () => settingsToggle.focus());
   let metadataVersion = 0;
   try {
     const saved = localStorage.getItem('radio-player-volume');
@@ -59,6 +70,7 @@
     return Number.isFinite(value) && value >= 0 ? `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}` : '0:00';
   }
   function sync() {
+    document.querySelector('#resume-radio-target').textContent = radio ? `Radio de reprise : ${radio.name}` : 'Choisissez d’abord une radio pour permettre la reprise.';
     document.querySelectorAll('.station-logo').forEach(img => {
       img.onerror = () => img.remove();
       if (img.complete && !img.naturalWidth) img.remove();
@@ -183,7 +195,10 @@
   audio.addEventListener('playing', () => { label.textContent = mode === 'radio' ? 'En direct' : 'Extrait'; sync(); });
   audio.addEventListener('waiting', () => { label.textContent = 'Chargement…'; });
   audio.addEventListener('pause', () => { label.textContent = 'En pause'; sync(); });
-  audio.addEventListener('ended', () => { label.textContent = mode === 'radio' ? 'Direct interrompu' : 'Extrait terminé'; sync(); });
+  audio.addEventListener('ended', () => {
+    if (mode === 'preview' && resumeRadio.checked && radio) { selectRadio(radio); return; }
+    label.textContent = mode === 'radio' ? 'Direct interrompu' : 'Extrait terminé'; sync();
+  });
   audio.addEventListener('error', () => { label.textContent = 'Lecture indisponible'; status.textContent = 'Lecture indisponible. Réessayez ou choisissez un autre titre.'; sync(); });
   ['timeupdate', 'loadedmetadata', 'durationchange', 'emptied', 'seeked'].forEach(event => audio.addEventListener(event, syncProgress));
   audio.addEventListener('volumechange', syncVolume);
@@ -195,7 +210,7 @@
       showArtwork({}, radio); refreshNowPlaying();
     }
   });
-  window.RadioPlayer = {preview, key, sync};
+  window.RadioPlayer = {preview, key, sync, pause: () => audio.pause()};
   if (radio) { showArtwork({}, radio); refreshNowPlaying(); }
   window.setInterval(() => { if (!document.hidden && mode === 'radio') refreshNowPlaying(); }, 20000);
   syncVolume(); sync(); syncProgress();

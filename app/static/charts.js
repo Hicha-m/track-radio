@@ -5,7 +5,6 @@ const controls = document.querySelector('#chart-controls');
 const compact = window.matchMedia('(max-width: 760px)');
 const resizeControls = () => { controls.open = !compact.matches; };
 resizeControls(); compact.addEventListener('change', resizeControls);
-const stationSelect = document.querySelector('#chart-station');
 const radioChoices = [...document.querySelectorAll('[data-chart-radio]')];
 const initial = new URLSearchParams(location.search);
 const initialIds = (initial.get('station_ids') || initial.get('station_id') || '').split(',');
@@ -149,14 +148,9 @@ async function loadChart(force = false) {
 }
 filters.addEventListener('submit', event => event.preventDefault());
 filters.querySelectorAll('[data-days]').forEach(button => button.addEventListener('click', () => { days = button.dataset.days; loadChart(); }));
-stationSelect.addEventListener('change', () => {
-  radioChoices.forEach(input => { input.checked = input.value === stationSelect.value; }); loadChart();
-});
-radioChoices.forEach(input => input.addEventListener('change', () => {
-  const ids = selectedIds(); stationSelect.value = ids.length === 1 ? ids[0] : ''; loadChart();
-}));
+radioChoices.forEach(input => input.addEventListener('change', () => loadChart()));
 filters.querySelector('[data-chart-all]').addEventListener('click', () => {
-  radioChoices.forEach(input => { input.checked = false; }); stationSelect.value = ''; loadChart();
+  radioChoices.forEach(input => { input.checked = false; }); loadChart();
 });
 const timer = window.setInterval(() => { if (!document.hidden) loadChart(true); }, 30000);
 const onVisibility = () => { if (!document.hidden) loadChart(true); };

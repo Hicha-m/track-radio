@@ -1,15 +1,16 @@
     <section class="panel explorer" aria-labelledby="explorer-title">
       <div class="explorer-heading">
-        <div><span class="eyebrow">BASE MUSICALE</span><h2 id="explorer-title">Historique des diffusions</h2><p class="hint">Retrouvez les titres passés à la radio, leurs horaires et leur nombre de passages. Filtrez par station, artiste ou date.</p></div>
+        <div><span class="eyebrow">BASE MUSICALE</span><h2 id="explorer-title">Rechercher une musique</h2><p class="hint">Retrouvez les titres passés à la radio, leurs horaires et leur nombre de passages. Filtrez par station, artiste ou date.</p></div>
         <label class="live-toggle"><input id="live" type="checkbox" checked> Actualisation auto · 10 s</label>
       </div>
-      <div class="view-tabs" role="group" aria-label="Vue des résultats">
-        <button type="button" class="active" data-view="plays" aria-pressed="true">Passages</button>
-        <button type="button" data-view="tracks" aria-pressed="false">Musiques</button>
+      <div class="result-options">
+        <label class="result-view">Afficher<select id="result-view"><option value="tracks">Musiques</option><option value="plays">Diffusions</option></select></label>
+        <details class="result-columns"><summary>Colonnes à afficher</summary><fieldset id="result-columns"><legend>Personnaliser les résultats</legend></fieldset><button type="button" id="reset-columns" class="text-button">Colonnes par défaut</button></details>
       </div>
       <form id="explorer-form" autocomplete="off">
-        <input type="hidden" name="view" value="plays">
+        <input type="hidden" name="view" value="tracks">
         <div class="search-line"><label>Rechercher<input name="q" type="search" maxlength="200" placeholder="Titre, artiste ou station…"></label></div>
+        <details class="search-filters"><summary>Affiner la recherche</summary>
         <div class="filter-grid">
           <label>Station<select name="station_id"><option value="">Toutes les stations</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
           <label>Genre<select name="genre"><option value="">Tous les genres</option><option value="__unknown__">Inconnu</option>{% for genre in genres %}<option value="{{ genre }}">{{ genre }}</option>{% endfor %}</select></label>
@@ -32,6 +33,7 @@
           </div>
           <label class="checkbox"><input name="exact" type="checkbox"> Correspondance exacte pour artiste et musique</label>
           <p class="hint">Dates dans votre fuseau horaire. La borne « avant » est exclusive. Les filtres se combinent.</p>
+        </details>
         </details>
         <div class="filter-footer"><span id="active-filters" class="hint">Tout l’historique actif</span><button type="reset" class="text-button">Réinitialiser</button></div>
       </form>

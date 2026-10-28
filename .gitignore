@@ -20,3 +20,4 @@ data/
 *.db-shm
 test-unused.db
 ci.db
+.plan/

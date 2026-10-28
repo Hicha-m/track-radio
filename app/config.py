@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     admin_session_hours: int = Field(8, ge=1, le=24)
     admin_token: SecretStr = SecretStr("")
     lastfm_api_key: SecretStr = SecretStr("")
+    youtube_api_key: SecretStr = SecretStr("")
+    youtube_searches_per_day: int = Field(80, ge=1, le=10000)
     spotify_client_id: SecretStr = SecretStr("")
     spotify_client_secret: SecretStr = SecretStr("")
     stats_cache_seconds: int = Field(30, ge=1, le=300)

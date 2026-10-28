@@ -172,9 +172,13 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         )
                         page.goto(base_url + "/")
                         expect(page).to_have_title("Classements · Radio Tracker")
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         expect(
                             page.get_by_role("link", name="Radio Tracker", exact=True)
                         ).to_be_visible()
+                        if width <= 760:
+                            page.keyboard.press("Escape")
                         page.wait_for_function(
                             "document.querySelector('.brand-mark').naturalWidth > 0"
                         )
@@ -250,9 +254,13 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             ), width
 
                         navigation = page.get_by_role("navigation", name="Navigation principale")
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         navigation.get_by_role("link", name="Stats", exact=True).click()
                         expect(page.locator("h1")).to_have_text("Stats")
+                        page.locator('[data-metric="diversity"] > summary').click()
                         expect(page.locator('[data-metric="diversity"] tbody tr')).to_have_count(1)
+                        page.locator('[data-metric="repetitions"] > summary').click()
                         expect(page.locator('[data-metric="repetitions"] tbody tr')).to_have_count(
                             1
                         )
@@ -332,6 +340,8 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             and admin_cookie["sameSite"] == "Strict"
                         )
                         assert "__Host-radio_admin" not in page.evaluate("document.cookie")
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         navigation.get_by_role("link", name="Stats", exact=True).click()
                         page.locator("#admin-session-controls a").click()
                         expect(page).to_have_url(base_url + "/admin/dashboard")
@@ -347,10 +357,15 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.get_by_role("button", name="Ouvrir l’administration").click()
                         expect(page.locator("#admin-workspace")).to_be_visible()
                         assert_uninterrupted()
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         navigation.get_by_role("link", name="Recherche avancée").click()
                         expect(page.locator("h1")).to_have_text("Recherche avancée")
+                        page.locator("#result-view").select_option("plays")
                         expect(page.locator("#results tbody tr")).to_have_count(7)
                         assert_uninterrupted()
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         navigation.get_by_role("link", name="Classements").click()
                         expect(page.locator("h1")).to_have_text("Classements")
                         assert_uninterrupted()
@@ -400,7 +415,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.locator(".admin-edit-dialog .catalog-close").click()
                         expect(page.locator(".catalog-dialog")).to_be_visible()
                         page.locator(".catalog-platforms summary").click()
-                        expect(page.locator(".catalog-platforms .platform-link")).to_have_count(2)
+                        expect(page.locator(".catalog-platforms .platform-link")).to_have_count(3)
                         expect(
                             page.locator('.catalog-dialog a[href*="open.spotify.com/search/"]')
                         ).to_be_visible()
@@ -429,6 +444,8 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.keyboard.press("Control+k")
                         expect(page.locator(".music-search-dialog")).to_be_visible()
                         page.keyboard.press("Escape")
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         page.locator(".search-shortcut").click()
                         expect(page.locator(".music-search-dialog")).to_be_visible()
                         page.locator(".music-search-dialog input").fill("Mosimann Soon")
@@ -449,6 +466,8 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(page.locator(".music-search-result")).to_have_count(1)
                         page.mouse.click(5, 5)
                         expect(page.locator(".music-search-dialog")).not_to_be_visible()
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         page.locator(".search-shortcut").click()
                         expect(page.locator(".music-search-dialog input")).to_have_value(
                             "Mosimann Soon"
@@ -481,6 +500,8 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.wait_for_function(
                             '() => !document.querySelector("#radio-player").paused'
                         )
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         navigation.get_by_role("link", name="Classements").click()
                         expect(page.locator("h1")).to_have_text("Classements")
                         page.route("**/api/catalog/*/preview", audio_response)
@@ -544,6 +565,8 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         expect(page.locator(".podium-detail").nth(2)).not_to_contain_text(
                             "Track Four"
                         )
+                        if width <= 760:
+                            page.locator("#chart-controls > summary").click()
                         page.locator("[data-open-export]").click()
                         export_dialog = page.locator(".export-dialog")
                         expect(export_dialog).to_be_visible()
@@ -569,6 +592,8 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             "**/recherche",
                             lambda route: route.fulfill(status=503, body="Unavailable"),
                         )
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         navigation.get_by_role("link", name="Recherche avancée").click()
                         expect(page.locator("#navigation-status")).to_contain_text("indisponible")
                         assert page.evaluate(
@@ -576,6 +601,8 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             "&& !retainedPlayer.paused"
                         )
                         page.unroute("**/recherche")
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         navigation.get_by_role("link", name="Classements").click()
                         expect(page.locator("h1")).to_have_text("Classements")
                         expect(page.locator("#page-content")).not_to_have_attribute(

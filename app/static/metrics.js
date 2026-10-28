@@ -56,6 +56,40 @@ window.RadioPages.stats = () => {
     const button = el('button', `${row.artist || 'Artiste inconnu'} — ${row.title}`, 'cell-link');
     button.type = 'button'; button.onclick = () => window.TrackCatalog.open(row, {showHourly: true}); return button;
   }
+  async function summary(current = generation) {
+    const status = root.querySelector('#stats-summary-status');
+    const cards = root.querySelector('#stats-summary-cards');
+    const top = root.querySelector('#stats-summary-top');
+    cards.replaceChildren(); top.replaceChildren(); status.textContent = 'Calcul des indicateurs…';
+    const params = window.MusicFilters.apply(new URLSearchParams(new FormData(form)));
+    params.set('hours', period.value);
+    for (const [key, value] of [...params]) if (!value) params.delete(key);
+    try {
+      const response = await window.MusicFilters.fetch(`/api/stats/summary?${params}`, {signal: controller.signal});
+      if (!response.ok) throw new Error('Synthèse indisponible. Réessayez avec Actualiser.');
+      const data = await response.json();
+      if (current !== generation || controller.signal.aborted) return;
+      status.textContent = `${data.total ? 'Diffusions observées' : 'Aucune diffusion observée'} · du ${new Date(data.since).toLocaleString('fr-FR')} au ${new Date(data.until).toLocaleString('fr-FR')}`;
+      for (const [label, value, detail] of [
+        ['Passages collectés', data.total, '24 dernières heures'],
+        ['Titres distincts', data.unique_tracks, '24 dernières heures · toutes radios sélectionnées réunies'],
+        ['Radios avec des données', data.stations, '24 dernières heures'],
+        ['Genres renseignés', data.total ? `${data.genre_coverage} %` : '—', `${data.known_genres} sur ${data.total} passages · 24 h`],
+      ]) {
+        const card = el('article', '', 'stats-summary-card');
+        card.append(el('span', label), el('strong', typeof value === 'number' ? new Intl.NumberFormat('fr-FR').format(value) : value), el('small', detail)); cards.append(card);
+      }
+      top.append(el('h3', `Le plus diffusé · ${period.value} heures`));
+      if (data.top) {
+        const row = el('div', '', 'stats-top-track');
+        if (data.top.metadata?.cover_url) {
+          const img = el('img'); img.src = data.top.metadata.cover_url; img.alt = ''; img.loading = 'lazy'; img.onerror = () => img.remove(); row.append(img);
+        }
+        row.append(trackLink(data.top), el('span', `${data.top.plays} passage(s)`)); top.append(row);
+      } else top.append(el('p', 'Aucun titre observé sur cette fenêtre.', 'hint'));
+      top.append(el('p', `Fenêtre distincte : du ${new Date(data.top_since).toLocaleString('fr-FR')} au ${new Date(data.until).toLocaleString('fr-FR')}`, 'hint'));
+    } catch (error) { if (error.name !== 'AbortError' && current === generation) status.textContent = error.message; }
+  }
   async function load(kind, current = generation) {
     const section = root.querySelector(`[data-metric="${kind}"]`);
     const status = section.querySelector('[role="status"]'); const output = section.querySelector('.metric-output');
@@ -75,7 +109,12 @@ window.RadioPages.stats = () => {
       const interval = `Du ${new Date(data.since).toLocaleString('fr-FR')} au ${new Date(data.until).toLocaleString('fr-FR')}`;
       status.textContent = interval;
       let node;
-      if (kind === 'repetitions') node = table(['Titre', 'Radio', 'Passages', 'Intervalle moyen'], data.items.map(row => [trackLink(row), row.station_name, row.plays, row.average_seconds == null ? 'Insuffisant' : `${Math.round(row.average_seconds / 60)} min`]));
+      if (kind === 'repetitions') node = table(['Titre', 'Radio', 'Passages', 'Intervalle moyen'], data.items.map(row => {
+        const music = el('div', '', 'stats-repeat-track');
+        if (row.metadata?.cover_url) { const img = el('img'); img.src = row.metadata.cover_url; img.alt = ''; img.loading = 'lazy'; img.onerror = () => img.remove(); music.append(img); }
+        music.append(trackLink(row));
+        return [music, row.station_name, row.plays, row.average_seconds == null ? 'Insuffisant' : `${Math.round(row.average_seconds / 60)} min`];
+      }));
       if (kind === 'diversity') node = table(['Radio', 'Titres uniques', 'Passages'], data.items.map(row => [row.station_name, row.unique_tracks, row.plays]));
       if (kind === 'overlap') {
         const pairs = new Map(data.items.map(pair => [`${pair.station_a}:${pair.station_b}`, pair]));
@@ -94,6 +133,7 @@ window.RadioPages.stats = () => {
         return [trackLink(row), `${names.get(first)} · ${new Date(row.seconds >= 0 ? row.at_a : row.at_b).toLocaleTimeString('fr-FR')}`, `${names.get(second)} · ${new Date(row.seconds >= 0 ? row.at_b : row.at_a).toLocaleTimeString('fr-FR')}`, row.seconds === 0 ? 'Même détection' : `${Math.abs(row.seconds)} s`];
       }));
       output.replaceChildren(node);
+      section.dataset.loadedGeneration = String(current);
       previous.disabled = (pages[kind] || 1) <= 1; next.disabled = !data.has_more;
       section.querySelector('[data-page]').textContent = `Page ${pages[kind] || 1}`;
       section.querySelector('.pagination').hidden = ['genres', 'overlap'].includes(kind);
@@ -103,15 +143,22 @@ window.RadioPages.stats = () => {
   }
   function refresh() {
     generation++;
-    for (const section of root.querySelectorAll('[data-metric]')) { pages[section.dataset.metric] = 1; load(section.dataset.metric); }
+    root.querySelector('[data-metric="repetitions"] [data-metric-window]').textContent = `${period.value} heures`;
+    summary();
+    for (const section of root.querySelectorAll('[data-metric]')) {
+      pages[section.dataset.metric] = 1;
+      if (section.open) load(section.dataset.metric);
+      else { section.querySelector('.metric-output').replaceChildren(); section.querySelector('[role="status"]').textContent = 'Dépliez pour charger les détails.'; }
+    }
   }
   for (const section of root.querySelectorAll('[data-metric]')) {
     const kind = section.dataset.metric;
+    section.addEventListener('toggle', () => { if (section.open && section.dataset.loadedGeneration !== String(generation)) load(kind); });
     section.querySelector('[data-previous]').onclick = () => { pages[kind]--; load(kind); };
     section.querySelector('[data-next]').onclick = () => { pages[kind] = (pages[kind] || 1) + 1; load(kind); };
   }
   form.onsubmit = event => { event.preventDefault(); refresh(); };
-  form.onchange = refresh; period.onchange = refresh;
+  form.onchange = refresh;
   const onFilters = () => refresh(); window.addEventListener('radio:filterschange', onFilters); window.addEventListener('radio:catalogchange', onFilters);
   root.querySelector('[data-refresh]').onclick = refresh;
   refresh();

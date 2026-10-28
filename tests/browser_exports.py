@@ -114,6 +114,8 @@ with tempfile.TemporaryDirectory(prefix="radio-exports-") as directory:
                             await window.MusicFilters.hide(
                                 {artist: 'Artist', title: 'Song 01'}, false);
                         }""")
+                        if width <= 760:
+                            page.locator("#chart-controls > summary").click()
                         page.locator("[data-open-export]").click()
                         dialog = page.locator(".export-dialog")
                         expect(dialog).to_be_visible()
@@ -185,8 +187,11 @@ with tempfile.TemporaryDirectory(prefix="radio-exports-") as directory:
                         page.screenshot(path=f"/tmp/track-radio-export-{width}.png")
                         dialog.locator("[data-export-close]").click()
                         # Internal navigation keeps the common export flow functional.
+                        if width <= 760:
+                            page.locator("#mobile-nav-toggle").click()
                         page.locator('a.nav-item[href="/recherche"]').click()
                         expect(page.locator("h1")).to_have_text("Recherche avancée")
+                        page.locator(".search-filters > summary").click()
                         page.locator("#explorer-form [name=artist]").fill("Artist")
                         page.wait_for_function(
                             "() => new URLSearchParams(location.search).get('artist') === 'Artist'"

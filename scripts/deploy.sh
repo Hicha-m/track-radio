@@ -48,6 +48,9 @@ chmod 600 .env image.env
 if [[ -s "$release/lastfm.key" ]]; then
   python3 "$release/scripts/configure_lastfm.py" "$release/lastfm.key" .env
 fi
+if [[ -s "$release/youtube.key" ]]; then
+  python3 "$release/scripts/configure_lastfm.py" "$release/youtube.key" .env YOUTUBE_API_KEY
+fi
 if ! compose up -d --wait --wait-timeout 420; then
   compose logs --tail 80 >&2
   echo 'Deployment failed. Backups retained; no automatic database downgrade.' >&2
@@ -71,6 +74,22 @@ try:
     asyncio.run(verify())
 except Exception as error:
     print("Last.fm verification failed:", type(error).__name__)
+    sys.exit(1)
+PY
+fi
+if [[ -s "$release/youtube.key" ]]; then
+  compose exec -T api python - <<'PY'
+import asyncio
+import sys
+from app.services.youtube import discover
+
+try:
+    result = asyncio.run(discover("Michael Jackson", "Billie Jean"))
+    if not result["candidates"]:
+        raise ValueError("No matching embeddable video")
+    print("YouTube production search verified:", result["status"])
+except Exception as error:
+    print("YouTube verification failed:", type(error).__name__)
     sys.exit(1)
 PY
 fi

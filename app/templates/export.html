@@ -6,7 +6,7 @@
     <form id="export-form">
       <div class="filter-grid">
         <label>Données<select name="view"><option value="tracks">Musiques (titres regroupés)</option><option value="plays">Passages</option></select></label>
-        <label>Radio<select name="station_id"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+        <label>Radio<select name="station_id"><option value="">Toutes les radios</option><option value="custom" disabled>Sélection personnalisée</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
         <label>Recherche<input name="q" type="search" maxlength="200"></label>
         <label>Artiste<input name="artist" maxlength="300"></label>
         <label>Titre<input name="title" maxlength="500"></label>
