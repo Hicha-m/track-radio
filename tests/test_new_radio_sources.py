@@ -72,3 +72,40 @@ def test_json_event_time_dynamic_url_restart_and_real_rebroadcast(db, source):
     assert db.query(Play).count() == 2
     missing, _ = fetch(station, payload(None))
     assert missing.source_started_ms is None
+
+
+def test_enjoy_config_latest_event_restart_and_rebroadcast(db):
+    from pathlib import Path
+
+    from app.services.station_config import load_stations
+
+    config = next(s for s in load_stations(Path("config/stations.json")) if s.slug == "enjoy-33")
+    station = Station(**config.model_dump())
+    db.add(station)
+    db.commit()
+    at = int((datetime.now(UTC) - timedelta(minutes=10)).timestamp())
+
+    def payload(start):
+        return {
+            "success": True,
+            "result": [
+                {"track_artist": "Test Artist", "track_title": "Test Song", "track_played": start},
+                {
+                    "track_artist": "Older Artist",
+                    "track_title": "Older Song",
+                    "track_played": at - 300,
+                },
+            ],
+        }
+
+    first, _ = fetch(station, payload(at))
+    assert first.artist == "Test Artist" and first.title == "Test Song"
+    assert first.source_started_ms == at * 1000
+    assert record_metadata(db, station, first)[1]
+    with Session(db.get_bind()) as restarted:
+        current = restarted.get(Station, station.id)
+        assert not record_metadata(restarted, current, first)[1]
+        again, _ = fetch(current, payload(at + 240))
+        assert record_metadata(restarted, current, again)[1]
+    assert db.query(Play).count() == 2
+    assert all(p.title == "Test Song" for p in db.query(Play).all())

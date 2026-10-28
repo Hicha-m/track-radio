@@ -81,6 +81,11 @@
     "name": "ENJOY 33",
     "slug": "enjoy-33",
     "stream_url": "https://radiotrg.ice.infomaniak.ch/radiotrg-high.mp3",
-    "website_url": "https://www.enjoy33.fr/"
+    "website_url": "https://www.enjoy33.fr/",
+    "source_type": "json",
+    "metadata_url": "https://api.instant.audio/data/playlist/37/enjoy-33-bordeaux",
+    "json_artist_path": "result.0.track_artist",
+    "json_title_path": "result.0.track_title",
+    "json_started_path": "result.0.track_played"
   }
 ]

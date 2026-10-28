@@ -546,3 +546,6 @@ Les essais isolés précédents avaient reçu le code 150 pour d’autres vidéo
 ### Reprise facultative après un extrait
 
 Le bouton « Réglages d’écoute » (roue dentée du bandeau) permet d’activer ou désactiver la reprise de la dernière radio sélectionnée après la fin naturelle d’une préécoute. L’option est désactivée par défaut et mémorisée dans le navigateur. Sans radio sélectionnée pendant l’écoute courante, l’extrait se termine normalement. Une pause manuelle ou une erreur ne lance pas automatiquement une radio ; aucun flux ou enchaînement musical supplémentaire n’est créé.
+
+
+ENJOY 33 — activation demandée par l’utilisateur : la collecte utilise désormais l’API Instant.audio, avec les chemins `result.0.track_artist`, `result.0.track_title` et `result.0.track_played`. Seul le premier événement est traité ; son horaire source protège contre les réinsertions après redémarrage. Le flux MP3 reste utilisé pour l’écoute. Cette activation est faite avec disponibilité réelle de la source encore à confirmer depuis le VPS ; un refus HTTP conserve le comportement de panne isolée de la station, sans suppression d’historique.
