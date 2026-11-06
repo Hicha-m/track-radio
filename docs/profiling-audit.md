@@ -72,3 +72,22 @@ Les deux conteneurs sont sains, sans OOM ni redémarrage dans les instantanés f
 Ces chiffres sont des observations ponctuelles internes, pas des p95 ni des mesures d’expérience utilisateur. Le cache applicatif et le cache système influencent les temps, et la collecte continue entre les deux séries. L’identité des résultats est vérifiée sur données synthétiques fixes, pas par export d’un catalogue réel. La vérification des plans réels renforce l’attribution de la baisse des lectures SQLite aux index, sans transformer deux échantillons en garantie permanente.
 
 Aucune augmentation de CPU/RAM, changement de quota, refonte de cache ou de normalisation n’est justifié par ces seules mesures. Le coût résiduel du classement complet et les tris/distincts restent à surveiller si le volume augmente. Les profils SQL et les essais synthétiques sont reproductibles avec les scripts de cette branche. Pour lancer un nouvel audit serveur, modifier explicitement `scripts/profiling/request.json` avec le SHA déployé attendu : une mise à jour de ce rapport ne relance pas de charge serveur et ne déploie rien.
+
+## Nouvelle vérification indépendante sur production réelle
+
+À la demande de l’utilisateur, les mêmes tests serveur ont été relancés sans simulation sur la révision déployée `8de8c3a55dab1302ad20eed600b7c139387cd0ea`. [Deuxième tentative du workflow serveur](https://github.com/Hicha-m/track-radio/actions/runs/42270144724/attempts/2), mesures 18:40–18:41 UTC : succès. Santé et révision contrôlées ; aucune purge, aucun redémarrage et aucune modification applicative ou de configuration.
+
+| Requête interne | Avant correction, appel 1 | Nouveau contrôle, appels 1 / 2 |
+| --- | ---: | ---: |
+| Classement sept jours | 505 ms | 153 / 7 ms |
+| Classement complet | 5 456 ms | 301 / 10 ms |
+| Recherche des musiques | 3 055 ms | 339 / 9 ms |
+| Synthèse Stats | 4 446 ms | 92 / 3 ms |
+
+Le profil Python/SQL est réexécuté dans un nouveau conteneur avec le volume réel en lecture seule et la même limite de 0,25 CPU : les calculs SQL sont effectivement relancés, sans réutilisation des résultats en cache du processus HTTP. Classement complet instrumenté : 4,31 s avant correction, 0,90 s à ce nouveau contrôle ; recherche : 4,79 → 1,06 s ; synthèse : 3,14 → 1,34 s. Ces durées instrumentées restent distinctes des latences HTTP. Les trois index couvrants sont toujours présents dans les plans ; quatre profils terminés sans erreur.
+
+En complément, trois tours via `https://radio.hicham.dpdns.org` avec le client `httpx` standard, sans changement de User-Agent, de 18:42 à 18:43 UTC : deux appels par endpoint (santé, classement complet, recherche des musiques, synthèse), pause de 35 secondes entre les tours, contrôle de la révision à chaque tour. Les 24 mesures sont HTTP 200. Premiers appels observés : classement 679 / 303 / 279 ms ; recherche 359 / 339 / 341 ms ; synthèse 113 / 140 / 151 ms. Seconds appels : classement 21–46 ms ; recherche 30–113 ms ; synthèse 16–41 ms. Ces temps publics incluent le réseau et Cloudflare. L’espacement dépasse le TTL nominal de trente secondes, mais ne garantit pas un cache froid si d’autres visiteurs l’ont alimenté.
+
+Le test public initial avec `urllib` a reçu HTTP 403, `server: cloudflare`, corps `error code: 1010`, alors que le client `httpx` normal reçoit HTTP 200. Les 24 refus `urllib` ne sont pas inclus dans les mesures de performance applicative. Aucun réglage Cloudflare ni contrôle d’accès n’a été modifié.
+
+Les conteneurs restent sains, sans OOM ni redémarrage observé. API : 94 puis 109 Mio / 160 Mio ; collecteur : 79 puis 62 Mio / 128 Mio. Ces instantanés ne prouvent pas l’absence de pic ou de fuite sur une longue période. Les observations confirment l’efficacité sur la vraie production, avec les limites d’échantillonnage déjà indiquées. Aucun nouveau correctif ni déploiement n’a été nécessaire pour cette vérification.
