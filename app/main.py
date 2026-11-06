@@ -19,6 +19,7 @@ from app.artwork_api import router as artwork_router
 from app.catalog_api import router as catalog_router
 from app.database import get_db
 from app.export_api import router as export_router
+from app.i18n import CATALOGUES, language, translate
 from app.metrics_api import router as metrics_router
 from app.models import Play, Station, TrackMetadata
 from app.schemas import PlayOut, StationOut, StatsOut
@@ -38,7 +39,11 @@ app.include_router(artwork_router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 ASSET_VERSION = hashlib.sha256(
-    b"".join(p.read_bytes() for p in sorted(Path("app/static").glob("*")) if p.is_file())
+    b"".join(
+        p.read_bytes()
+        for p in sorted([*Path("app/static").glob("*"), *Path("app/locales").glob("*.json")])
+        if p.is_file()
+    )
 ).hexdigest()[:12]
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -172,6 +177,7 @@ def parse_station_id(value: str | None) -> int | None:
 @app.get("/admin/diffusions", response_class=HTMLResponse)
 @app.get("/admin/exclusions", response_class=HTMLResponse)
 @app.get("/admin/catalogue", response_class=HTMLResponse)
+@app.get("/admin/workers", response_class=HTMLResponse)
 def dashboard(
     request: Request,
     db: DbSession,
@@ -186,6 +192,7 @@ def dashboard(
         if path == "/admin" and authenticated:
             return RedirectResponse("/admin/dashboard", status_code=303)
     admin_titles = {
+        "/admin/workers": ("Supervision", "Activité des workers et quota YouTube."),
         "/admin/dashboard": ("Tableau de bord", "La vue d’ensemble de votre administration."),
         "/admin/radios": ("Radios", "Pilotez la collecte de vos stations."),
         "/admin/diffusions": ("Diffusions", "Consultez et corrigez les passages collectés."),
@@ -199,6 +206,10 @@ def dashboard(
         request,
         "dashboard.html",
         {
+            "language": language(request),
+            "translations": CATALOGUES[language(request)],
+            "french_translations": CATALOGUES["fr"],
+            "t": lambda key, **params: translate(key, language(request), **params),
             "stations": stations_list,
             "station_id": station_id,
             "selected_station": selected_station,

@@ -1,17 +1,17 @@
-<section class="admin-overview" aria-label="Synthèse de l’administration" aria-busy="true">
-  <div class="admin-section-heading"><div><h2>En un coup d’œil</h2><p class="hint">Les indicateurs musicaux tiennent compte de vos exclusions et de la blacklist globale.</p></div><button type="button" class="admin-action" data-admin-refresh>Actualiser</button></div>
+<section class="admin-overview" aria-label="{{ t("ui.8361617e72d8") }}" aria-busy="true">
+  <div class="admin-section-heading"><div><h2>{{ t('ui.d897b3a9f502') }}</h2><p class="hint">{{ t('ui.85acb679b29d') }}</p></div><button type="button" class="admin-action" data-admin-refresh>{{ t('ui.d7d646faaecb') }}</button></div>
   <div class="admin-metrics">
-    {% for key, label, detail, path in [('active_stations', 'Radios en collecte', 'sur les radios configurées', '/admin/radios'), ('recent_plays', 'Détections sur 24 h', 'titres visibles uniquement', '/admin/diffusions'), ('visible_tracks', 'Titres du catalogue', 'hors titres masqués', '/admin/catalogue'), ('review_tracks', 'Fiches à vérifier', 'correspondances ou paroles', '/admin/catalogue?review=true')] %}
-    <a class="admin-metric" href="{{ path }}"><span>{{ label }}</span><strong data-admin-metric="{{ key }}">—</strong><small>{{ detail }} <span aria-hidden="true">↗</span></small></a>
+    {% for key, label, detail, path in [('active_stations', t('ui.7330f20ed6a6'), t('ui.56ca6eec5fef'), '/admin/radios'), ('recent_plays', t('ui.1beec1dbd261'), t('ui.6720f44e5fbe'), '/admin/diffusions'), ('visible_tracks', t('ui.4e3c656e97f5'), t('ui.2cae999448e8'), '/admin/catalogue'), ('review_tracks', t('ui.e162cfff81ff'), t('ui.d8873e8a9a6d'), '/admin/catalogue?review=true')] %}
+    <a class="admin-metric" href="{{ path }}"><span>{{ t(label) }}</span><strong data-admin-metric="{{ key }}">—</strong><small>{{ t(detail) }} <span aria-hidden="true">↗</span></small></a>
     {% endfor %}
   </div>
-  <p class="hint" id="admin-last-detection">Chargement de l’activité récente…</p>
+  <p class="hint" id="admin-last-detection">{{ t('ui.3d837d7a7f73') }}</p>
 </section>
 <section class="admin-tools" aria-labelledby="admin-tools-title">
-  <div class="admin-section-heading"><h2 id="admin-tools-title">Vos outils de gestion</h2></div>
+  <div class="admin-section-heading"><h2 id="admin-tools-title">{{ t('ui.00bda5f70827') }}</h2></div>
   <div class="admin-tool-grid">
-    {% for number, name, description, path, action in [('01', 'Radios', 'Pilotez la collecte et retrouvez les préférences de chaque station.', '/admin/radios', 'Gérer les radios'), ('02', 'Diffusions', 'Recherchez les passages et prévisualisez vos corrections avant de les appliquer.', '/admin/diffusions', 'Consulter les diffusions'), ('03', 'Catalogue', 'Vérifiez les correspondances, les versions et les paroles des titres.', '/admin/catalogue', 'Ouvrir le catalogue'), ('04', 'Exclusions', 'Gérez la blacklist globale et vos exclusions sur cet appareil.', '/admin/exclusions', 'Gérer les exclusions')] %}
-    <a class="admin-tool" href="{{ path }}"><span class="admin-tool-number" aria-hidden="true">{{ number }}</span><h3>{{ name }}</h3><p>{{ description }}</p><span class="admin-tool-link">{{ action }} <span aria-hidden="true">→</span></span></a>
+    {% for number, name, description, path, action in [('01', t('ui.745a8ec30dfa'), t('ui.78fa3b962be2'), '/admin/radios', t('ui.cf73b4f4c283')), ('02', t('ui.31467004fcea'), t('ui.e2f9aafb6a8d'), '/admin/diffusions', t('ui.e799cc1b5937')), ('03', t('ui.103451395067'), t('ui.1bc1d2dab58b'), '/admin/catalogue', t('ui.0ed5e7fc669d')), ('04', t('ui.fcc9f1f92978'), t('ui.51e0ff68f315'), '/admin/exclusions', t('ui.1d026c22fedb'))] %}
+    <a class="admin-tool" href="{{ path }}"><span class="admin-tool-number" aria-hidden="true">{{ number }}</span><h3>{{ name }}</h3><p>{{ t(description) }}</p><span class="admin-tool-link">{{ t(action) }} <span aria-hidden="true">→</span></span></a>
     {% endfor %}
   </div>
 </section>

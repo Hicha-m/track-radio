@@ -105,3 +105,28 @@ def test_admin_routes_require_session_and_render_only_their_tools(client):
         for name, section in sections.items():
             assert (f'id="{section}"' in response.text) == (page == name)
     _attempts.clear()
+
+
+def test_catalogue_excludes_hidden_entries_before_pagination(db, client):
+    for i in range(30):
+        ensure_entry(db, None, f"Hidden {i:02}")
+    visible = ensure_entry(db, "Artist", "Visible")
+    db.commit()
+    for i in range(29):
+        response = client.post(
+            "/api/admin/exclusions",
+            json={"artist": None, "title": f"Hidden {i:02}"},
+            headers=AUTH,
+        )
+        assert response.status_code == 200
+    data = client.get(
+        "/api/admin/catalog",
+        params={"exclusions": json.dumps([{"artist": None, "title": "Hidden 29"}])},
+        headers=AUTH,
+    ).json()
+    assert [row["track_id"] for row in data["items"]] == [visible.id]
+    assert data["has_more"] is False
+    assert (
+        client.get("/api/admin/catalog", params={"exclusions": "invalid"}, headers=AUTH).status_code
+        == 422
+    )

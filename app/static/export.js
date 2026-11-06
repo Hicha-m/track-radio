@@ -62,7 +62,7 @@ window.RadioExport = (() => {
     form.onsubmit = async event => {
       event.preventDefault();
       const chosen = [...fields.querySelectorAll('input:checked')].map(input => input.value);
-      if (!chosen.length) { status.textContent = 'Choisissez au moins un champ.'; return; }
+      if (!chosen.length) { status.textContent = window.RadioI18n.t("ui.964e477cb272"); return; }
       const params = new URLSearchParams();
       for (const [key, value] of new FormData(form)) {
         if (key !== 'field' && value) params.set(key, dates.includes(key) ? new Date(value).toISOString() : value);
@@ -75,23 +75,23 @@ window.RadioExport = (() => {
       }
       window.MusicFilters.apply(params);
       const filterKey = window.MusicFilters.key();
-      submit.disabled = true; status.textContent = 'Préparation de l’export…';
+      submit.disabled = true; status.textContent = window.RadioI18n.t("ui.569d158f2552");
       controller = new AbortController();
       try {
         const response = await fetch(`/api/export?${params}`, {signal: controller.signal, cache: 'no-store'});
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(typeof error.detail === 'string' ? error.detail : 'Vérifiez les filtres et les dates de l’export.');
+          throw new Error(typeof error.detail === 'string' ? error.detail : window.RadioI18n.t("ui.5f7b3e94c501"));
         }
         const blob = await response.blob();
         if (!panel.open) return;
-        if (filterKey !== window.MusicFilters.key()) throw new Error('Les exclusions ont changé. Relancez l’export.');
+        if (filterKey !== window.MusicFilters.key()) throw new Error(window.RadioI18n.t("ui.731a161a62da"));
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a'); link.href = url;
         link.download = `radio-${params.get('view')}.${params.get('format')}`;
         document.body.append(link); link.click(); link.remove();
         window.setTimeout(() => URL.revokeObjectURL(url), 60000);
-        status.textContent = 'Export téléchargé.';
+        status.textContent = window.RadioI18n.t("ui.f77315c189db");
       } catch (error) { if (error.name !== 'AbortError') status.textContent = error.message; }
       finally { submit.disabled = false; }
     };
@@ -99,7 +99,7 @@ window.RadioExport = (() => {
     document.body.append(panel); panel.showModal(); submit.disabled = true;
     try {
       const response = await fetch('/api/export/fields');
-      if (!response.ok) throw new Error('Les champs sont indisponibles. Fermez puis réessayez.');
+      if (!response.ok) throw new Error(window.RadioI18n.t("ui.ec07da9e4752"));
       schema = await response.json(); renderFields(); submit.disabled = false;
     } catch (error) { status.textContent = error.message; }
   }

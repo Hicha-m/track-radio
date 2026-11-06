@@ -25,7 +25,7 @@ from app.services.broadcast_audit import AuditFilters, audit
 from app.services.catalog import public_metadata
 from app.services.catalog_completion import candidate_completions
 from app.services.data_admin import Correction, apply, play_data, preview
-from app.services.exclusions import ExclusionFilters, exclusion_conditions
+from app.services.exclusions import ExclusionFilters, canonical_exclusions, exclusion_conditions
 from app.services.explorer import text_match
 
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
@@ -160,6 +160,7 @@ def catalogue(
     q: str = Query("", max_length=200),
     review: bool = False,
     sort: Literal["review", "title", "artist", "recent"] = "review",
+    exclusions: str = Query("", max_length=12000),
     page: int = Query(1, ge=1, le=1000000),
 ):
     recent = (
@@ -188,6 +189,15 @@ def catalogue(
         .outerjoin(recent, TrackMetadata.id == recent.c.track_id)
     )
     unicode = db.get_bind().dialect.name == "sqlite"
+    try:
+        exclusions = canonical_exclusions(exclusions)
+    except ValueError:
+        raise HTTPException(422, "Exclusions invalides.") from None
+    query = query.where(
+        *exclusion_conditions(
+            exclusions, unicode, artist=TrackMetadata.artist, title=TrackMetadata.title
+        )
+    )
     for word in q.split():
         query = query.where(
             or_(
@@ -414,3 +424,62 @@ class ApplyCorrection(BaseModel):
 @router.post("/plays/apply")
 def apply_broadcasts(payload: ApplyCorrection, db: Db):
     return apply(db, payload.token)
+
+
+@router.get("/workers")
+def workers(db: Db, filters: Annotated[ExclusionFilters, Query()]):
+    from app.config import settings
+    from app.models import ServiceQuota, WorkerEvent, WorkerState, YouTubeMatch
+    from app.services.youtube import quota_day
+
+    now = datetime.now(UTC)
+    rows = {row.name: row for row in db.scalars(select(WorkerState))}
+    items = []
+    for name in ("collector", "enrichment", "youtube"):
+        row = rows.get(name)
+        stale_after = max(120, settings.poll_interval_seconds * 3) if name == "collector" else 180
+        items.append(
+            {
+                "name": name,
+                "state": "unknown"
+                if not row
+                else "stale"
+                if (now - row.heartbeat_at.replace(tzinfo=UTC)).total_seconds() > stale_after
+                else row.state,
+                "heartbeat_at": row.heartbeat_at if row else None,
+                "started_at": row.started_at if row else None,
+                "completed": row.completed if row else 0,
+                "failed": row.failed if row else 0,
+                "total": row.total if row else 0,
+                "activity": row.activity if row else "",
+            }
+        )
+    quota = db.get(ServiceQuota, "youtube")
+    pending = db.scalar(
+        select(func.count())
+        .select_from(YouTubeMatch)
+        .where(
+            YouTubeMatch.status.in_(["pending", "error"]),
+            *exclusion_conditions(
+                filters.exclusions,
+                db.get_bind().dialect.name == "sqlite",
+                artist=YouTubeMatch.artist,
+                title=YouTubeMatch.title,
+            ),
+        )
+    )
+    return {
+        "items": items,
+        "youtube": {
+            "configured": bool(settings.youtube_api_key.get_secret_value()),
+            "pending": pending,
+            "used": quota.used if quota and quota.day == quota_day(now) else 0,
+            "limit": settings.youtube_searches_per_day,
+            "retry_at": quota.retry_at if quota else None,
+            "reset": "America/Los_Angeles",
+        },
+        "events": [
+            {"worker": e.worker, "at": e.at, "code": e.code}
+            for e in db.scalars(select(WorkerEvent).order_by(WorkerEvent.id.desc()).limit(100))
+        ],
+    }

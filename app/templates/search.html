@@ -1,46 +1,46 @@
     <section class="panel explorer" aria-labelledby="explorer-title">
       <div class="explorer-heading">
-        <div><span class="eyebrow">BASE MUSICALE</span><h2 id="explorer-title">Rechercher une musique</h2><p class="hint">Retrouvez les titres passés à la radio, leurs horaires et leur nombre de passages. Filtrez par station, artiste ou date.</p></div>
-        <label class="live-toggle"><input id="live" type="checkbox" checked> Actualisation auto · 10 s</label>
+        <div><span class="eyebrow">{{ t('ui.6028bc0884c7') }}</span><h2 id="explorer-title">{{ t('ui.2cc0068baef8') }}</h2><p class="hint">{{ t('ui.5731764d7b18') }}</p></div>
+        <label class="live-toggle"><input id="live" type="checkbox" checked> {{ t('ui.1679f37b5259') }}</label>
       </div>
       <div class="result-options">
-        <label class="result-view">Afficher<select id="result-view"><option value="tracks">Musiques</option><option value="plays">Diffusions</option></select></label>
-        <details class="result-columns"><summary>Colonnes à afficher</summary><fieldset id="result-columns"><legend>Personnaliser les résultats</legend></fieldset><button type="button" id="reset-columns" class="text-button">Colonnes par défaut</button></details>
+        <label class="result-view">{{ t('ui.e5adbe81e8aa') }}<select id="result-view"><option value="tracks">{{ t('ui.70fe869bedde') }}</option><option value="plays">{{ t('ui.31467004fcea') }}</option></select></label>
+        <details class="result-columns"><summary>{{ t('ui.efc23e9e8a30') }}</summary><fieldset id="result-columns"><legend>{{ t('ui.78def24f5bbe') }}</legend></fieldset><button type="button" id="reset-columns" class="text-button">{{ t('ui.58a37d6d2551') }}</button></details>
       </div>
       <form id="explorer-form" autocomplete="off">
         <input type="hidden" name="view" value="tracks">
-        <div class="search-line"><label>Rechercher<input name="q" type="search" maxlength="200" placeholder="Titre, artiste ou station…"></label></div>
-        <details class="search-filters"><summary>Affiner la recherche</summary>
+        <div class="search-line"><label>{{ t('ui.733d1c742675') }}<input name="q" type="search" maxlength="200" placeholder="{{ t("ui.b99e685a9f50") }}"></label></div>
+        <details class="search-filters"><summary>{{ t('ui.390a67f70687') }}</summary>
         <div class="filter-grid">
-          <label>Station<select name="station_id"><option value="">Toutes les stations</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
-          <label>Genre<select name="genre"><option value="">Tous les genres</option><option value="__unknown__">Inconnu</option>{% for genre in genres %}<option value="{{ genre }}">{{ genre }}</option>{% endfor %}</select></label>
-          <label>Artiste<input name="artist" type="search" maxlength="300" placeholder="Tous les artistes"></label>
-          <label>Musique<input name="title" type="search" maxlength="500" placeholder="Tous les titres"></label>
-          <label>Trier par<select name="sort"><option value="newest">Plus récent</option><option value="oldest">Plus ancien</option><option value="artist">Artiste A–Z</option><option value="title">Titre A–Z</option><option value="station" data-only="plays">Station A–Z</option><option value="frequency" data-only="tracks">Plus diffusé</option></select></label>
+          <label>{{ t('ui.115ccf961065') }}<select name="station_id"><option value="">{{ t('ui.4c5302244390') }}</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+          <label>{{ t('ui.6da795a8664f') }}<select name="genre"><option value="">{{ t('ui.84d66eab2f60') }}</option><option value="__unknown__">{{ t('ui.3b986a55bf84') }}</option>{% for genre in genres %}<option value="{{ genre }}">{{ genre }}</option>{% endfor %}</select></label>
+          <label>{{ t('ui.2966c11adad7') }}<input name="artist" type="search" maxlength="300" placeholder="{{ t("ui.4b1fde3a893c") }}"></label>
+          <label>{{ t('ui.5ef9328572f0') }}<input name="title" type="search" maxlength="500" placeholder="{{ t("ui.22586d3392ec") }}"></label>
+          <label>{{ t('ui.cdcede56427e') }}<select name="sort"><option value="newest">{{ t('ui.eabfc20d3057') }}</option><option value="oldest">{{ t('ui.697db2e5ddaa') }}</option><option value="artist">{{ t('ui.a43366156f43') }}</option><option value="title">{{ t('ui.9efbe355824c') }}</option><option value="station" data-only="plays">{{ t('ui.56088296e1e1') }}</option><option value="frequency" data-only="tracks">{{ t('ui.ad04815b3c46') }}</option></select></label>
         </div>
-        <details class="advanced-filters"><summary>Dates et filtres avancés</summary>
+        <details class="advanced-filters"><summary>{{ t('ui.f875dd7dac17') }}</summary>
           <div class="filter-grid">
-            <label>Diffusé après<input name="since" type="datetime-local"></label>
-            <label>Diffusé avant<input name="until" type="datetime-local"></label>
-            <label>Dernière observation après<input name="seen_since" type="datetime-local"></label>
-            <label>Dernière observation avant<input name="seen_until" type="datetime-local"></label>
-            <label>Source<select name="source"><option value="">Toutes les sources</option><option value="icy">ICY</option><option value="json">JSON</option><option value="html">HTML</option></select></label>
-            <label>Artiste renseigné<select name="artist_status"><option value="any">Indifférent</option><option value="known">Oui</option><option value="missing">Non</option></select></label>
-            <label>Suivi de la station<select name="enabled"><option value="">Indifférent</option><option value="true">Actif</option><option value="false">Désactivé</option></select></label>
-            <label>Texte des métadonnées<input name="raw" type="search" maxlength="200" placeholder="Contenu brut"></label>
-            <label>Nombre minimum de passages<input name="min_plays" type="number" min="1" value="1" disabled></label>
-            <label>Résultats par page<select name="page_size"><option>25</option><option selected>50</option><option>100</option></select></label>
+            <label>{{ t('ui.bc2e12d6abbf') }}<input name="since" type="datetime-local"></label>
+            <label>{{ t('ui.9fc8521f5ab9') }}<input name="until" type="datetime-local"></label>
+            <label>{{ t('ui.b15feece4022') }}<input name="seen_since" type="datetime-local"></label>
+            <label>{{ t('ui.5827153de36d') }}<input name="seen_until" type="datetime-local"></label>
+            <label>{{ t('ui.0e570ca6fabe') }}<select name="source"><option value="">{{ t('ui.a7eb89285dae') }}</option><option value="icy">{{ t('ui.cf5860ec52fc') }}</option><option value="json">{{ t('ui.db1a21a0bc2e') }}</option><option value="html">{{ t('ui.07239dbd2a1a') }}</option></select></label>
+            <label>{{ t('ui.d4a8e77f1fd6') }}<select name="artist_status"><option value="any">{{ t('ui.df7dacfd557f') }}</option><option value="known">{{ t('ui.0a90407639c4') }}</option><option value="missing">{{ t('ui.7f62496b0cb8') }}</option></select></label>
+            <label>{{ t('ui.8f3c87e80924') }}<select name="enabled"><option value="">{{ t('ui.df7dacfd557f') }}</option><option value="true">{{ t('ui.ad26287ab66b') }}</option><option value="false">{{ t('ui.da60ff35b212') }}</option></select></label>
+            <label>{{ t('ui.42ca66b83fbe') }}<input name="raw" type="search" maxlength="200" placeholder="{{ t("ui.7fe2236bd7bd") }}"></label>
+            <label>{{ t('ui.4ebb140c7fa5') }}<input name="min_plays" type="number" min="1" value="1" disabled></label>
+            <label>{{ t('ui.6cab2baa56e8') }}<select name="page_size"><option>25</option><option selected>50</option><option>100</option></select></label>
           </div>
-          <label class="checkbox"><input name="exact" type="checkbox"> Correspondance exacte pour artiste et musique</label>
-          <p class="hint">Dates dans votre fuseau horaire. La borne « avant » est exclusive. Les filtres se combinent.</p>
+          <label class="checkbox"><input name="exact" type="checkbox"> {{ t('ui.f3a82a6afd53') }}</label>
+          <p class="hint">{{ t('ui.931222919c03') }}</p>
         </details>
         </details>
-        <div class="filter-footer"><span id="active-filters" class="hint">Tout l’historique actif</span><button type="reset" class="text-button">Réinitialiser</button></div>
+        <div class="filter-footer"><span id="active-filters" class="hint">{{ t('ui.50909a639f8f') }}</span><button type="reset" class="text-button">{{ t('ui.5b35e0e35591') }}</button></div>
       </form>
-      <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués</button><button type="button" data-open-export>Export personnalisable</button></div>
-      <div class="result-heading"><p id="result-status" role="status" aria-live="polite">Chargement des passages…</p><button id="refresh" type="button" class="text-button">Actualiser</button></div>
+      <div class="music-tools"><button type="button" data-open-exclusions>{{ t('ui.ddce6f5b8fc3') }}</button><button type="button" data-open-export>{{ t('ui.47fef94d2b0b') }}</button></div>
+      <div class="result-heading"><p id="result-status" role="status" aria-live="polite">{{ t('ui.9e7e2bef520b') }}</p><button id="refresh" type="button" class="text-button">{{ t('ui.d7d646faaecb') }}</button></div>
       <div id="results" class="table-wrap" aria-busy="true"></div>
-      <nav class="pagination" aria-label="Pages de résultats"><button id="previous-page" type="button" disabled>← Précédent</button><span id="page-label">Page 1</span><button id="next-page" type="button" disabled>Suivant →</button></nav>
-      <p class="hint">Cliquez sur un artiste, un titre ou une station dans les résultats pour explorer ses passages.</p>
-      <noscript>Activez JavaScript pour explorer les passages et actualiser les résultats.</noscript>
+      <nav class="pagination" aria-label="{{ t("ui.cc1f91347775") }}"><button id="previous-page" type="button" disabled>{{ t('ui.9a910fc71e8f') }}</button><span id="page-label">{{ t('ui.e8b8355262d0') }}</span><button id="next-page" type="button" disabled>{{ t('ui.e284bde10808') }}</button></nav>
+      <p class="hint">{{ t('ui.5aefbb9d9251') }}</p>
+      <noscript>{{ t('ui.e86ad1017835') }}</noscript>
     </section>

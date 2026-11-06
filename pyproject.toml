@@ -31,7 +31,7 @@ addopts = "-q"
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["templates/*.html", "static/*.css", "static/*.js", "static/*.svg", "static/*.png"]
+app = ["templates/*.html", "static/*.css", "static/*.js", "static/*.svg", "static/*.png", "locales/*.json"]
 
 [tool.ruff]
 line-length = 100

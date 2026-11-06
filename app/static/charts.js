@@ -47,11 +47,11 @@ function cover(track, rank, large = false) {
 }
 function copy(track) {
   const text = node('div', '', 'track-copy');
-  text.append(node('strong', track.title), node('small', track.artist || 'Artiste inconnu'));
+  text.append(node('strong', track.title), node('small', track.artist || window.RadioI18n.t("ui.133df509234a")));
   return text;
 }
 function count(track) {
-  return node('span', `${Number(track.plays).toLocaleString('fr-FR')} ${track.plays === 1 ? 'diffusion' : 'diffusions'}`, 'play-count');
+  return node('span', window.RadioI18n.plural('airplay.one', 'airplay.other', track.plays), 'play-count');
 }
 function renderChart(tracks) {
   const signature = JSON.stringify([selectedIds(), tracks]);
@@ -65,7 +65,7 @@ function renderChart(tracks) {
     link.type = 'button';
     const detailTrack = {...track, station_id: selectedIds().length === 1 ? selectedIds()[0] : null};
     link.addEventListener('click', () => window.TrackCatalog.open(detailTrack));
-    link.setAttribute('aria-label', `${rank}. ${track.title}, ${track.artist || 'Artiste inconnu'}, ${track.plays} diffusions. Ouvrir les détails`);
+    link.setAttribute('aria-label', window.RadioI18n.t("ui.3de4c767b8b4", {p0: (rank), p1: (track.title), p2: (track.artist || window.RadioI18n.t("ui.133df509234a")), p3: (track.plays)}));
     if (index < 3) {
       const card = node('article', '', 'podium-card');
       link.className = 'podium-detail';
@@ -84,8 +84,8 @@ function renderChart(tracks) {
   });
   podium.replaceChildren(...cards);
   list.replaceChildren(...rows);
-  if (!tracks.length) list.append(node('p', 'Aucune diffusion sur cette période. Essayez une autre période ou une autre radio.', 'empty'));
-  status.textContent = tracks.length ? `Top ${tracks.length} · Classement par nombre de diffusions observées` : 'Le classement attend ses premiers titres.';
+  if (!tracks.length) list.append(node('p', window.RadioI18n.t("ui.50bd7ac3ece8"), 'empty'));
+  status.textContent = tracks.length ? window.RadioI18n.t("ui.8f7f0c04bc93", {p0: (tracks.length)}) : window.RadioI18n.t("ui.1d37e42be836");
 }
 async function loadChart(force = false) {
   if (pending) pending.abort();
@@ -101,9 +101,9 @@ async function loadChart(force = false) {
   const shared = new URLSearchParams({days});
   stationParams(shared);
   history.replaceState(null, '', `/?${shared}${location.hash}`);
-  const periods = {'1': '24 dernières heures', '7': '7 derniers jours', '30': '30 derniers jours', all: 'Tout l’historique'};
-  controls.querySelector('summary').textContent = `Filtres et outils · ${periods[days]} · ${selectedIds().length ? selectedIds().length + ' radio(s)' : 'toutes les radios'}`;
-  document.querySelector('#chart-subtitle').textContent = `${selectedIds().length ? radioChoices.filter(input => input.checked).map(input => input.parentElement.textContent.trim()).join(', ') : 'Toutes les radios'} · ${periods[days]}`;
+  const periods = {'1': window.RadioI18n.t("ui.68294a9a19aa"), '7': window.RadioI18n.t("ui.1ffaa48893f1"), '30': window.RadioI18n.t("ui.558ee1cbc179"), all: window.RadioI18n.t("ui.0dd29de4afba")};
+  controls.querySelector('summary').textContent = window.RadioI18n.t("ui.7b3d0d0c9bf0", {p0: (periods[days]), p1: (selectedIds().length ? selectedIds().length + window.RadioI18n.t("ui.0e97c9b48c9b") : window.RadioI18n.t("ui.f34cfabe0946"))});
+  document.querySelector('#chart-subtitle').textContent = `${selectedIds().length ? radioChoices.filter(input => input.checked).map(input => input.parentElement.textContent.trim()).join(', ') : window.RadioI18n.t("ui.3d7e6d53866b")} · ${periods[days]}`;
   document.querySelectorAll('[data-days]').forEach(button => {
     const active = button.dataset.days === days;
     button.classList.toggle('active', active);
@@ -113,31 +113,31 @@ async function loadChart(force = false) {
   const cached = window.RadioCache.get(cacheKey);
   if (cached) {
     renderChart(cached.data);
-    status.textContent = `Classement mémorisé · ${new Date(cached.time).toLocaleTimeString('fr-FR')}`;
+    status.textContent = window.RadioI18n.t("ui.1e9584892754", {p0: (new Date(cached.time).toLocaleTimeString((window.RadioI18n?.locale || 'fr-FR')))});
     if (!force && Date.now() - cached.time < 60000) {
       list.setAttribute('aria-busy', 'false');
       return;
     }
   }
   list.setAttribute('aria-busy', 'true');
-  if (!cached) status.textContent = 'Actualisation du classement…';
+  if (!cached) status.textContent = window.RadioI18n.t("ui.92b44edc9279");
   try {
     const response = await window.MusicFilters.fetch(`/api/stats/top?${params}`, {signal: pending.signal, cache: 'no-store'});
-    if (!response.ok) throw new Error('Classement indisponible. Réessayez dans quelques instants.');
+    if (!response.ok) throw new Error(window.RadioI18n.t("ui.1855e03b96c6"));
     const data = await response.json();
     if (version === chartVersion) {
       window.RadioCache.put(cacheKey, data);
       renderChart(data);
-      status.textContent = `Top ${data.length} · actualisé à ${new Date().toLocaleTimeString('fr-FR')}`;
+      status.textContent = window.RadioI18n.t("ui.4ec8bec2064c", {p0: (data.length), p1: (new Date().toLocaleTimeString((window.RadioI18n?.locale || 'fr-FR')))});
     }
   } catch (error) {
     if (error.name !== 'AbortError' && version === chartVersion) {
-      status.textContent = `${error.message}${cached ? ' · Classement mémorisé conservé.' : ''}`;
+      status.textContent = `${error.message}${cached ? window.RadioI18n.t("ui.5e11c8bfaea3") : ''}`;
       if (cached) return;
       renderedChart = null;
       podium.replaceChildren();
       list.replaceChildren();
-      const retry = node('button', 'Réessayer', 'text-button');
+      const retry = node('button', window.RadioI18n.t("ui.af273d956b5b"), 'text-button');
       retry.type = 'button';
       retry.addEventListener('click', () => loadChart(true));
       list.append(retry);

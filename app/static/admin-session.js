@@ -26,23 +26,23 @@ window.RadioAdmin = (() => {
   }
   async function login(token) {
     generation++;
-    if (!window.isSecureContext) throw new Error('Une connexion HTTPS est nécessaire.');
+    if (!window.isSecureContext) throw new Error(window.RadioI18n.t("ui.acc870afb308"));
     const response = await fetch('/api/admin/login', {method: 'POST', cache: 'no-store', credentials: 'same-origin',
       headers: {'Content-Type': 'application/json', 'X-Admin-Login': '1'}, body: JSON.stringify({token})});
     const data = await response.json();
-    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Connexion impossible.');
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? window.RadioI18n.t(data.detail) : window.RadioI18n.t("ui.e0b04978f00e"));
     return update(data);
   }
   async function request(url, payload, method = 'POST', signal) {
     if (!session.authenticated) await refresh();
-    if (!session.authenticated) throw new Error('Session administrateur expirée. Connectez-vous sur /admin.');
+    if (!session.authenticated) throw new Error(window.RadioI18n.t("ui.5526c9c2fc80"));
     const response = await fetch(url, {method: payload === undefined ? 'GET' : method,
       cache: 'no-store', credentials: 'same-origin', signal,
       headers: payload === undefined ? {} : {'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token},
       ...(payload === undefined ? {} : {body: JSON.stringify(payload)})});
     const data = await response.json();
     if (response.status === 401) { generation++; update({authenticated: false}); }
-    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Opération impossible.');
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? window.RadioI18n.t(data.detail) : window.RadioI18n.t("ui.9c05ba039ab9"));
     if (url.endsWith('/correction') || url.endsWith('/complete') || url.endsWith('/complete-candidate')) {
       window.RadioCache.clear();
       window.dispatchEvent(new Event('radio:catalogchange'));

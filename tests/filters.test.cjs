@@ -10,6 +10,7 @@ function create({authenticated = false, stored = [], request, fetch: fetchImpl} 
   const listeners = {};
   let clears = 0;
   const window = {
+    RadioI18n: {t: (key, params = {}) => JSON.parse(readFileSync("app/locales/fr.json", "utf8"))[key]?.replace(/\{(\w+)\}/g, (match, name) => String(params[name] ?? match)) || key},
     RadioAdmin: {authenticated: () => authenticated, request},
     RadioCache: {clear: () => clears++},
     addEventListener: (name, callback) => { listeners[name] = callback; },

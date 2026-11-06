@@ -1,44 +1,44 @@
 <section class="panel admin-section" aria-labelledby="admin-audit-title">
-  <h2 id="admin-audit-title">Contrôler les doublons</h2>
-  <p>Analysez toutes les radios et tout l’historique en base, ou choisissez une radio et une période. Les exclusions personnelles et globales sont appliquées aux résultats et aux compteurs.</p>
-  <p class="hint">Même événement source : doublon confirmé par son horaire. Un retour avant la durée du morceau moins la marge, ou deux titres identiques consécutifs, reste un signal à vérifier. Une version radio peut être plus courte. Sans durée connue, le seuil de secours s’applique. Aucune donnée n’est modifiée par l’analyse.</p>
+  <h2 id="admin-audit-title">{{ t('ui.9020f7e86090') }}</h2>
+  <p>{{ t('ui.b82d505cd342') }}</p>
+  <p class="hint">{{ t('ui.450c003ba930') }}</p>
   <form id="admin-audit-form" class="metric-filters">
-    <label>Radio à contrôler<select name="station_id"><option value="">Toutes les radios</option></select></label>
-    <label>Depuis<input name="since" type="datetime-local"></label>
-    <label>Jusqu’au<input name="until" type="datetime-local"></label>
-    <label>Marge sur la durée (secondes)<input name="margin" type="number" min="0" max="120" value="15" required></label>
-    <label>Seuil sans durée (secondes)<input name="fallback" type="number" min="10" max="900" value="180" required></label>
-    <label>Motif<select name="reason"><option value="all">Tous les signalements</option><option value="source">Même événement source</option><option value="duration">Retour avant la fin du morceau</option><option value="consecutive">Même titre consécutif</option><option value="unknown">Rapprochés sans durée connue</option></select></label>
-    <button type="submit" class="text-button">Analyser l’historique</button>
+    <label>{{ t('ui.7a22eff5f683') }}<select name="station_id"><option value="">{{ t('ui.3d7e6d53866b') }}</option></select></label>
+    <label>{{ t('ui.991c85f5f794') }}<input name="since" type="datetime-local"></label>
+    <label>{{ t('ui.8a89b7b149d6') }}<input name="until" type="datetime-local"></label>
+    <label>{{ t('ui.e0df573c430f') }}<input name="margin" type="number" min="0" max="120" value="15" required></label>
+    <label>{{ t('ui.29cbc080f5db') }}<input name="fallback" type="number" min="10" max="900" value="180" required></label>
+    <label>{{ t('ui.c89ac8f0d41a') }}<select name="reason"><option value="all">{{ t('ui.84868796cbff') }}</option><option value="source">{{ t('ui.e52ba9ce7cb1') }}</option><option value="duration">{{ t('ui.397426b85f47') }}</option><option value="consecutive">{{ t('ui.bd1f15479450') }}</option><option value="unknown">{{ t('ui.2e1a5adafbeb') }}</option></select></label>
+    <button type="submit" class="text-button">{{ t('ui.7b22138a62ba') }}</button>
   </form>
-  <p id="admin-audit-status" role="status">Lancez l’analyse pour contrôler les passages existants.</p>
+  <p id="admin-audit-status" role="status">{{ t('ui.bf4b47cbcd60') }}</p>
   <div id="admin-audit-summary"></div>
   <div id="admin-audit-results"></div>
-  <nav class="pagination" aria-label="Pages des signalements" id="admin-audit-pagination" hidden>
-    <button type="button" id="admin-audit-previous" disabled>← Précédent</button>
-    <span id="admin-audit-page">Page 1</span>
-    <button type="button" id="admin-audit-next" disabled>Suivant →</button>
+  <nav class="pagination" aria-label="{{ t("ui.8a167b5696fb") }}" id="admin-audit-pagination" hidden>
+    <button type="button" id="admin-audit-previous" disabled>{{ t('ui.9a910fc71e8f') }}</button>
+    <span id="admin-audit-page">{{ t('ui.e8b8355262d0') }}</span>
+    <button type="button" id="admin-audit-next" disabled>{{ t('ui.e284bde10808') }}</button>
   </nav>
 </section>
 <section class="panel admin-section" aria-labelledby="admin-plays-title">
-      <h2 id="admin-plays-title">Rechercher dans l’historique</h2>
-      <p class="hint">Les passages du même titre à moins de 3 minutes sont suspects, sans constituer une preuve de doublon. Consultez les données source avant de corriger. Les dates sont affichées dans le fuseau de votre appareil.</p>
+      <h2 id="admin-plays-title">{{ t('ui.61de51750951') }}</h2>
+      <p class="hint">{{ t('ui.e13c79788042') }}</p>
       <form id="admin-plays-form" class="metric-filters">
-        <label>Titre ou artiste<input name="q" type="search" maxlength="200"></label>
-        <label>Radio<select name="station_id"><option value="">Toutes</option></select></label>
-        <label>Du<input name="since" type="datetime-local"></label><label>Au<input name="until" type="datetime-local"></label>
-        <label>Tri<select name="sort"><option value="newest">Plus récentes</option><option value="oldest">Plus anciennes</option><option value="title">Titre</option><option value="artist">Artiste</option></select></label>
-        <label class="checkbox"><input name="suspicious" type="checkbox">Passages rapprochés uniquement</label>
-        <button type="submit" class="text-button">Rechercher</button>
+        <label>{{ t('ui.43e0f248fc2f') }}<input name="q" type="search" maxlength="200"></label>
+        <label>{{ t('ui.2a7dfeb2f2b0') }}<select name="station_id"><option value="">{{ t('ui.42623b97b481') }}</option></select></label>
+        <label>{{ t('ui.0b6722a8adfb') }}<input name="since" type="datetime-local"></label><label>{{ t('ui.3325c2b56f2b') }}<input name="until" type="datetime-local"></label>
+        <label>{{ t('ui.f138990301f9') }}<select name="sort"><option value="newest">{{ t('ui.a7a051ae062b') }}</option><option value="oldest">{{ t('ui.785394bfb720') }}</option><option value="title">{{ t('ui.78e7920010aa') }}</option><option value="artist">{{ t('ui.2966c11adad7') }}</option></select></label>
+        <label class="checkbox"><input name="suspicious" type="checkbox">{{ t('ui.6fef5075c0d8') }}</label>
+        <button type="submit" class="text-button">{{ t('ui.733d1c742675') }}</button>
       </form>
       <p id="admin-plays-status" role="status"></p>
       <div id="admin-plays-results"></div>
-      <nav class="pagination" aria-label="Pages des diffusions"><button type="button" id="admin-plays-previous" disabled>← Précédent</button><span id="admin-plays-page">Page 1</span><button type="button" id="admin-plays-next" disabled>Suivant →</button></nav>
+      <nav class="pagination" aria-label="{{ t("ui.cf6ac95ff76c") }}"><button type="button" id="admin-plays-previous" disabled>{{ t('ui.9a910fc71e8f') }}</button><span id="admin-plays-page">{{ t('ui.e8b8355262d0') }}</span><button type="button" id="admin-plays-next" disabled>{{ t('ui.e284bde10808') }}</button></nav>
       <form id="admin-play-correction" class="metric-filters" hidden>
-        <label>Action<select name="action"><option value="delete">Supprimer la sélection</option><option value="merge">Regrouper les doublons sélectionnés</option><option value="correct">Corriger une diffusion</option></select></label>
-        <label>Diffusion à conserver pour le regroupement<select name="keep_id"><option value="">Choisir dans la sélection</option></select></label>
-        <label>Artiste corrigé<input name="artist" maxlength="300"></label><label>Titre corrigé<input name="title" maxlength="500"></label><label>Détection corrigée (facultatif)<input name="detected_at" type="datetime-local"></label>
-        <button type="submit" class="text-button">Prévisualiser les modifications</button>
+        <label>{{ t('ui.64cff1319d2f') }}<select name="action"><option value="delete">{{ t('ui.10d2e66dda46') }}</option><option value="merge">{{ t('ui.7f9bf4e737aa') }}</option><option value="correct">{{ t('ui.c79ec554e356') }}</option></select></label>
+        <label>{{ t('ui.a971d9fd22d1') }}<select name="keep_id"><option value="">{{ t('ui.c657decec207') }}</option></select></label>
+        <label>{{ t('ui.dfcab20db67a') }}<input name="artist" maxlength="300"></label><label>{{ t('ui.0af1a0536f7a') }}<input name="title" maxlength="500"></label><label>{{ t('ui.0afef01b703d') }}<input name="detected_at" type="datetime-local"></label>
+        <button type="submit" class="text-button">{{ t('ui.4ee13bbe63af') }}</button>
       </form>
       <div id="admin-play-preview" aria-live="polite"></div>
     </section>

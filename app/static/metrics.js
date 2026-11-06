@@ -13,7 +13,7 @@ window.RadioMetrics = (() => {
       row.append(el('span', name), meter, el('strong', String(count)));
       chart.append(row);
     }
-    if (!items.length) chart.append(el('p', 'Aucune donnée sur cette période.', 'hint'));
+    if (!items.length) chart.append(el('p', window.RadioI18n.t("ui.4e14defa0f18"), 'hint'));
     return chart;
   }
   function table(headers, rows) {
@@ -27,7 +27,7 @@ window.RadioMetrics = (() => {
       body.append(row);
     }
     table.append(head, body); wrap.append(table);
-    if (!rows.length) wrap.append(el('p', 'Aucune donnée sur cette période.', 'hint'));
+    if (!rows.length) wrap.append(el('p', window.RadioI18n.t("ui.4e14defa0f18"), 'hint'));
     return wrap;
   }
   function hourly(items) {
@@ -36,7 +36,7 @@ window.RadioMetrics = (() => {
     for (const item of items) {
       const column = el('div', '', 'hourly-column');
       const meter = el('meter'); meter.min = 0; meter.max = max; meter.value = item.plays;
-      meter.title = `${item.hour} h : ${item.plays} détections`; meter.setAttribute('aria-label', meter.title);
+      meter.title = window.RadioI18n.t("ui.c85e2a475367", {p0: (item.hour), p1: (item.plays)}); meter.setAttribute('aria-label', meter.title);
       column.append(meter, el('span', item.hour % 3 === 0 ? String(item.hour) : '')); chart.append(column);
     }
     return chart;
@@ -53,41 +53,41 @@ window.RadioPages.stats = () => {
   const pages = {};
   const names = new Map([...form.elements.station_id.options].filter(o => o.value).map(o => [Number(o.value), o.textContent]));
   function trackLink(row) {
-    const button = el('button', `${row.artist || 'Artiste inconnu'} — ${row.title}`, 'cell-link');
+    const button = el('button', `${row.artist || window.RadioI18n.t("ui.133df509234a")} — ${row.title}`, 'cell-link');
     button.type = 'button'; button.onclick = () => window.TrackCatalog.open(row, {showHourly: true}); return button;
   }
   async function summary(current = generation) {
     const status = root.querySelector('#stats-summary-status');
     const cards = root.querySelector('#stats-summary-cards');
     const top = root.querySelector('#stats-summary-top');
-    cards.replaceChildren(); top.replaceChildren(); status.textContent = 'Calcul des indicateurs…';
+    cards.replaceChildren(); top.replaceChildren(); status.textContent = window.RadioI18n.t("ui.c737b3c96f52");
     const params = window.MusicFilters.apply(new URLSearchParams(new FormData(form)));
     params.set('hours', period.value);
     for (const [key, value] of [...params]) if (!value) params.delete(key);
     try {
       const response = await window.MusicFilters.fetch(`/api/stats/summary?${params}`, {signal: controller.signal});
-      if (!response.ok) throw new Error('Synthèse indisponible. Réessayez avec Actualiser.');
+      if (!response.ok) throw new Error(window.RadioI18n.t("ui.423b18ec505d"));
       const data = await response.json();
       if (current !== generation || controller.signal.aborted) return;
-      status.textContent = `${data.total ? 'Diffusions observées' : 'Aucune diffusion observée'} · du ${new Date(data.since).toLocaleString('fr-FR')} au ${new Date(data.until).toLocaleString('fr-FR')}`;
+      status.textContent = window.RadioI18n.t("ui.653e418cd193", {p0: (data.total ? window.RadioI18n.t("ui.eb209352b8d1") : window.RadioI18n.t("ui.d608b8805136")), p1: (new Date(data.since).toLocaleString((window.RadioI18n?.locale || 'fr-FR'))), p2: (new Date(data.until).toLocaleString((window.RadioI18n?.locale || 'fr-FR')))});
       for (const [label, value, detail] of [
-        ['Passages collectés', data.total, '24 dernières heures'],
-        ['Titres distincts', data.unique_tracks, '24 dernières heures · toutes radios sélectionnées réunies'],
-        ['Radios avec des données', data.stations, '24 dernières heures'],
-        ['Genres renseignés', data.total ? `${data.genre_coverage} %` : '—', `${data.known_genres} sur ${data.total} passages · 24 h`],
+        [window.RadioI18n.t("ui.7da8e332a6ef"), data.total, window.RadioI18n.t("ui.68294a9a19aa")],
+        [window.RadioI18n.t("ui.555672b24471"), data.unique_tracks, window.RadioI18n.t("ui.8c9982dbf2c8")],
+        [window.RadioI18n.t("ui.4b1e0fbe4b96"), data.stations, window.RadioI18n.t("ui.68294a9a19aa")],
+        [window.RadioI18n.t("ui.330972f0da1f"), data.total ? `${data.genre_coverage} %` : '—', window.RadioI18n.t("ui.52dad73107d6", {p0: (data.known_genres), p1: (data.total)})],
       ]) {
         const card = el('article', '', 'stats-summary-card');
-        card.append(el('span', label), el('strong', typeof value === 'number' ? new Intl.NumberFormat('fr-FR').format(value) : value), el('small', detail)); cards.append(card);
+        card.append(el('span', label), el('strong', typeof value === 'number' ? new Intl.NumberFormat((window.RadioI18n?.locale || 'fr-FR')).format(value) : value), el('small', detail)); cards.append(card);
       }
-      top.append(el('h3', `Le plus diffusé · ${period.value} heures`));
+      top.append(el('h3', window.RadioI18n.t("ui.6f275afa918c", {p0: (period.value)})));
       if (data.top) {
         const row = el('div', '', 'stats-top-track');
         if (data.top.metadata?.cover_url) {
           const img = el('img'); img.src = data.top.metadata.cover_url; img.alt = ''; img.loading = 'lazy'; img.onerror = () => img.remove(); row.append(img);
         }
-        row.append(trackLink(data.top), el('span', `${data.top.plays} passage(s)`)); top.append(row);
-      } else top.append(el('p', 'Aucun titre observé sur cette fenêtre.', 'hint'));
-      top.append(el('p', `Fenêtre distincte : du ${new Date(data.top_since).toLocaleString('fr-FR')} au ${new Date(data.until).toLocaleString('fr-FR')}`, 'hint'));
+        row.append(trackLink(data.top), el('span', window.RadioI18n.t("ui.143ab1c9f90b", {p0: (data.top.plays)}))); top.append(row);
+      } else top.append(el('p', window.RadioI18n.t("ui.4fe68628cf6c"), 'hint'));
+      top.append(el('p', window.RadioI18n.t("ui.d312ed2dde18", {p0: (new Date(data.top_since).toLocaleString((window.RadioI18n?.locale || 'fr-FR'))), p1: (new Date(data.until).toLocaleString((window.RadioI18n?.locale || 'fr-FR')))}), 'hint'));
     } catch (error) { if (error.name !== 'AbortError' && current === generation) status.textContent = error.message; }
   }
   async function load(kind, current = generation) {
@@ -97,45 +97,45 @@ window.RadioPages.stats = () => {
     const params = window.MusicFilters.apply(new URLSearchParams(new FormData(form)));
     for (const [key, value] of [...params]) if (!value) params.delete(key);
     params.set('hours', period.value); params.set('page', String(pages[kind] || 1));
-    output.replaceChildren(); status.textContent = 'Chargement…'; previous.disabled = true; next.disabled = true;
+    output.replaceChildren(); status.textContent = window.RadioI18n.t("ui.66474911d953"); previous.disabled = true; next.disabled = true;
     try {
       if (kind === 'offsets' && (!params.get('station_a') || params.get('station_a') === params.get('station_b'))) {
-        output.replaceChildren(); status.textContent = 'Choisissez deux radios différentes pour comparer leurs détections.'; return;
+        output.replaceChildren(); status.textContent = window.RadioI18n.t("ui.4564454fbf9b"); return;
       }
       const response = await window.MusicFilters.fetch(`/api/stats/${kind}?${params}`, {signal: controller.signal});
-      if (!response.ok) throw new Error('Statistiques indisponibles. Réessayez.');
+      if (!response.ok) throw new Error(window.RadioI18n.t("ui.ec260dcc09d1"));
       const data = await response.json();
       if (current !== generation || controller.signal.aborted) return;
-      const interval = `Du ${new Date(data.since).toLocaleString('fr-FR')} au ${new Date(data.until).toLocaleString('fr-FR')}`;
+      const interval = window.RadioI18n.t("ui.73798f51e5ae", {p0: (new Date(data.since).toLocaleString((window.RadioI18n?.locale || 'fr-FR'))), p1: (new Date(data.until).toLocaleString((window.RadioI18n?.locale || 'fr-FR')))});
       status.textContent = interval;
       let node;
-      if (kind === 'repetitions') node = table(['Titre', 'Radio', 'Passages', 'Intervalle moyen'], data.items.map(row => {
+      if (kind === 'repetitions') node = table([window.RadioI18n.t("ui.78e7920010aa"), window.RadioI18n.t("ui.2a7dfeb2f2b0"), window.RadioI18n.t("ui.4413ab069b7c"), window.RadioI18n.t("ui.e0e5f23e11b7")], data.items.map(row => {
         const music = el('div', '', 'stats-repeat-track');
         if (row.metadata?.cover_url) { const img = el('img'); img.src = row.metadata.cover_url; img.alt = ''; img.loading = 'lazy'; img.onerror = () => img.remove(); music.append(img); }
         music.append(trackLink(row));
-        return [music, row.station_name, row.plays, row.average_seconds == null ? 'Insuffisant' : `${Math.round(row.average_seconds / 60)} min`];
+        return [music, row.station_name, row.plays, row.average_seconds == null ? window.RadioI18n.t("ui.65e8907706fa") : `${Math.round(row.average_seconds / 60)} min`];
       }));
-      if (kind === 'diversity') node = table(['Radio', 'Titres uniques', 'Passages'], data.items.map(row => [row.station_name, row.unique_tracks, row.plays]));
+      if (kind === 'diversity') node = table([window.RadioI18n.t("ui.2a7dfeb2f2b0"), window.RadioI18n.t("ui.7e391bce2b02"), window.RadioI18n.t("ui.4413ab069b7c")], data.items.map(row => [row.station_name, row.unique_tracks, row.plays]));
       if (kind === 'overlap') {
         const pairs = new Map(data.items.map(pair => [`${pair.station_a}:${pair.station_b}`, pair]));
-        node = table(['Radio / titres uniques', ...data.stations.map(s => `${s.name} (${s.unique_tracks})`)], data.stations.map(a => [a.name, ...data.stations.map(b => {
+        node = table([window.RadioI18n.t("ui.a65c86b67354"), ...data.stations.map(s => `${s.name} (${s.unique_tracks})`)], data.stations.map(a => [a.name, ...data.stations.map(b => {
           const pair = pairs.get(`${a.id}:${b.id}`);
-          return pair.percent == null ? 'Non calculable' : `${pair.percent} % · ${pair.shared}/${pair.union}`;
+          return pair.percent == null ? window.RadioI18n.t("ui.10bf33d28104") : `${pair.percent} % · ${pair.shared}/${pair.union}`;
         })]));
       }
       if (kind === 'genres') {
         node = bars(data.items, row => row.genre, row => row.plays);
-        status.textContent += ` · Genres connus : ${data.coverage} % des ${data.total} passages`;
+        status.textContent += window.RadioI18n.t("ui.ef4462bc3fe5", {p0: (data.coverage), p1: (data.total)});
       }
-      if (kind === 'offsets') node = table(['Titre', 'Première détection', 'Autre détection', 'Décalage'], data.items.map(row => {
+      if (kind === 'offsets') node = table([window.RadioI18n.t("ui.78e7920010aa"), window.RadioI18n.t("ui.cdefb32a3d84"), window.RadioI18n.t("ui.2db5ee014424"), window.RadioI18n.t("ui.c67a79e290c8")], data.items.map(row => {
         const first = row.seconds >= 0 ? Number(params.get('station_a')) : Number(params.get('station_b'));
         const second = row.seconds >= 0 ? Number(params.get('station_b')) : Number(params.get('station_a'));
-        return [trackLink(row), `${names.get(first)} · ${new Date(row.seconds >= 0 ? row.at_a : row.at_b).toLocaleTimeString('fr-FR')}`, `${names.get(second)} · ${new Date(row.seconds >= 0 ? row.at_b : row.at_a).toLocaleTimeString('fr-FR')}`, row.seconds === 0 ? 'Même détection' : `${Math.abs(row.seconds)} s`];
+        return [trackLink(row), `${names.get(first)} · ${new Date(row.seconds >= 0 ? row.at_a : row.at_b).toLocaleTimeString((window.RadioI18n?.locale || 'fr-FR'))}`, `${names.get(second)} · ${new Date(row.seconds >= 0 ? row.at_b : row.at_a).toLocaleTimeString((window.RadioI18n?.locale || 'fr-FR'))}`, row.seconds === 0 ? window.RadioI18n.t("ui.02ff944bd107") : `${Math.abs(row.seconds)} s`];
       }));
       output.replaceChildren(node);
       section.dataset.loadedGeneration = String(current);
       previous.disabled = (pages[kind] || 1) <= 1; next.disabled = !data.has_more;
-      section.querySelector('[data-page]').textContent = `Page ${pages[kind] || 1}`;
+      section.querySelector('[data-page]').textContent = window.RadioI18n.t("ui.dfeb8707a5c4", {p0: (pages[kind] || 1)});
       section.querySelector('.pagination').hidden = ['genres', 'overlap'].includes(kind);
     } catch (error) {
       if (error.name !== 'AbortError' && current === generation) status.textContent = error.message;
@@ -143,12 +143,12 @@ window.RadioPages.stats = () => {
   }
   function refresh() {
     generation++;
-    root.querySelector('[data-metric="repetitions"] [data-metric-window]').textContent = `${period.value} heures`;
+    root.querySelector('[data-metric="repetitions"] [data-metric-window]').textContent = window.RadioI18n.t("ui.ac974d046792", {p0: (period.value)});
     summary();
     for (const section of root.querySelectorAll('[data-metric]')) {
       pages[section.dataset.metric] = 1;
       if (section.open) load(section.dataset.metric);
-      else { section.querySelector('.metric-output').replaceChildren(); section.querySelector('[role="status"]').textContent = 'Dépliez pour charger les détails.'; }
+      else { section.querySelector('.metric-output').replaceChildren(); section.querySelector('[role="status"]').textContent = window.RadioI18n.t("ui.26f72a5bbaac"); }
     }
   }
   for (const section of root.querySelectorAll('[data-metric]')) {

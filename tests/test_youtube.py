@@ -7,7 +7,7 @@ from fastapi import HTTPException
 from pydantic import SecretStr
 
 from app.config import settings
-from app.models import GlobalExclusion, TrackMetadata
+from app.models import GlobalExclusion, TrackMetadata, YouTubeMatch
 from app.services import youtube
 from app.services.exclusions import exclusion_id, normalized_pair
 from app.services.track_identity import identity
@@ -15,12 +15,10 @@ from app.services.track_identity import identity
 
 @pytest.fixture(autouse=True)
 def video_state(monkeypatch):
-    youtube._cache.clear()
-    youtube._requests.clear()
     monkeypatch.setattr(settings, "youtube_api_key", SecretStr("private-test-only-key"))
 
 
-def test_verified_video_cache_versions_and_quota(monkeypatch):
+def test_verified_video_cache_versions_and_quota(monkeypatch, db):
     requests = []
     original = httpx.AsyncClient
 
@@ -52,13 +50,13 @@ def test_verified_video_cache_versions_and_quota(monkeypatch):
         lambda **kw: original(**kw, transport=httpx.MockTransport(response)),
     )
     monkeypatch.setattr(settings, "youtube_searches_per_day", 1)
-    result = asyncio.run(youtube.discover("Artist", "Song"))
+    result = asyncio.run(youtube.discover("Artist", "Song", db))
     assert result["status"] == "matched"
     assert result["candidates"][0]["id"] == "abcdefghijk"
-    assert asyncio.run(youtube.discover("ARTIST", "SONG")) == result
+    assert asyncio.run(youtube.discover("ARTIST", "SONG", db)) == result
     assert len(requests) == 2
     with pytest.raises(HTTPException) as error:
-        asyncio.run(youtube.discover("Other", "Song"))
+        asyncio.run(youtube.discover("Other", "Song", db))
     assert error.value.status_code == 429
     assert (
         youtube.candidate_score(
@@ -68,7 +66,7 @@ def test_verified_video_cache_versions_and_quota(monkeypatch):
     )
 
 
-def test_unknown_artist_ambiguous_regions_errors_and_missing_configuration(monkeypatch):
+def test_unknown_artist_ambiguous_regions_errors_and_missing_configuration(monkeypatch, db):
     original = httpx.AsyncClient
     mode = ["ambiguous"]
 
@@ -102,18 +100,20 @@ def test_unknown_artist_ambiguous_regions_errors_and_missing_configuration(monke
         "AsyncClient",
         lambda **kw: original(**kw, transport=httpx.MockTransport(response)),
     )
-    assert asyncio.run(youtube.discover("Artist", "Song"))["status"] == "ambiguous"
-    youtube._cache.clear()
+    assert asyncio.run(youtube.discover("Artist", "Song", db))["status"] == "ambiguous"
+    db.query(YouTubeMatch).delete()
+    db.commit()
     mode[0] = "blocked"
-    assert asyncio.run(youtube.discover("Artist", "Song"))["status"] == "not_found"
-    youtube._cache.clear()
+    assert asyncio.run(youtube.discover("Artist", "Song", db))["status"] == "not_found"
+    db.query(YouTubeMatch).delete()
+    db.commit()
     mode[0] = "error"
     with pytest.raises(HTTPException) as error:
-        asyncio.run(youtube.discover("Artist", "Song"))
+        asyncio.run(youtube.discover("Artist", "Song", db))
     assert error.value.status_code == 503 and "private-test-only-key" not in error.value.detail
     monkeypatch.setattr(settings, "youtube_api_key", SecretStr(""))
     with pytest.raises(HTTPException) as error:
-        asyncio.run(youtube.discover("Artist", "Song"))
+        asyncio.run(youtube.discover("Artist", "Song", db))
     assert error.value.status_code == 503
 
 
@@ -140,7 +140,7 @@ def test_endpoint_respects_exclusions_before_external_search(db, client, monkeyp
     db.commit()
     calls = []
 
-    async def discover(artist, title):
+    async def discover(artist, title, db, key):
         calls.append((artist, title))
         return {"status": "not_found", "candidates": []}
 

@@ -14,7 +14,7 @@ function events(object = {}) {
 function setup() {
   let now = 0; let sequence = 0;
   const timers = new Map(); const navigations = [];
-  const window = events({location: {href: 'https://radio.test/'}});
+  const window = events({RadioI18n: {t: (key, params = {}) => (JSON.parse(readFileSync('app/locales/fr.json', 'utf8'))[key] || key).replace(/\{(\w+)\}/g, (match, name) => String(params[name] ?? match))}, location: {href: 'https://radio.test/'}});
   window.location.assign = url => { navigations.push(url); };
   const document = events({visibilityState: 'visible'});
   runInNewContext(source, {window, document, URL,

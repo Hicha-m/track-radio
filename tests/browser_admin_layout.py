@@ -82,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix="radio-admin-layout-") as directory:
                 except OSError:
                     time.sleep(0.1)
             with sync_playwright() as p:
-                browser = p.chromium.launch()
+                browser = p.chromium.launch(executable_path=os.environ.get("CHROME_EXECUTABLE"))
                 try:
                     for width in (1440, 1024, 390, 320):
                         context = browser.new_context(
@@ -172,9 +172,9 @@ with tempfile.TemporaryDirectory(prefix="radio-admin-layout-") as directory:
                         # Browser history and direct reload preserve the route and the session.
                         page.go_back()
                         expect(page).to_have_url(base + "/admin/catalogue")
-                        expect(page.locator(".admin-track")).to_have_count(3)
+                        expect(page.locator(".admin-track")).to_have_count(2)
                         page.reload()
-                        expect(page.locator(".admin-track")).to_have_count(3)
+                        expect(page.locator(".admin-track")).to_have_count(2)
                         page.evaluate("window.retainedAdminAudio = document.querySelector('audio')")
                         admin_nav.get_by_role("link", name="Tableau de bord", exact=True).click()
                         page.locator('a[href="/admin/catalogue?review=true"]').click()

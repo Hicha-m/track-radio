@@ -22,8 +22,8 @@ const viewSelect = document.querySelector('#result-view');
 const columnPicker = document.querySelector('#result-columns');
 const compactResults = window.matchMedia('(max-width: 760px)');
 const columnDefinitions = {
-  tracks: [['music', 'Musique', 'title'], ['artist', 'Artiste', 'artist'], ['plays', 'Diffusions', 'frequency'], ['stations', 'Stations', null], ['first', 'Première diffusion', 'oldest'], ['last', 'Dernière diffusion', 'newest']],
-  plays: [['music', 'Musique', 'title'], ['date', 'Diffusion', 'newest'], ['artist', 'Artiste', 'artist'], ['station', 'Station', 'station'], ['source', 'Source / détails', null]],
+  tracks: [['music', window.RadioI18n.t("ui.5ef9328572f0"), 'title'], ['artist', window.RadioI18n.t("ui.2966c11adad7"), 'artist'], ['plays', window.RadioI18n.t("ui.31467004fcea"), 'frequency'], ['stations', window.RadioI18n.t("ui.9d3d204f2a3c"), null], ['first', window.RadioI18n.t("ui.8895fd7d8074"), 'oldest'], ['last', window.RadioI18n.t("ui.97d95886251e"), 'newest']],
+  plays: [['music', window.RadioI18n.t("ui.5ef9328572f0"), 'title'], ['date', window.RadioI18n.t("ui.89ad3663bb60"), 'newest'], ['artist', window.RadioI18n.t("ui.2966c11adad7"), 'artist'], ['station', window.RadioI18n.t("ui.115ccf961065"), 'station'], ['source', window.RadioI18n.t("ui.d8c2536fb91e"), null]],
 };
 function columnKey() { return `radio:columns:${compactResults.matches ? 'mobile' : 'desktop'}:${form.elements.view.value}`; }
 function visibleColumns() {
@@ -37,7 +37,7 @@ function visibleColumns() {
 }
 function updateColumns() {
   const selected = visibleColumns();
-  columnPicker.replaceChildren(element('legend', 'Personnaliser les résultats'));
+  columnPicker.replaceChildren(element('legend', window.RadioI18n.t("ui.78def24f5bbe")));
   for (const [key, name] of columnDefinitions[form.elements.view.value]) {
     const label = element('label', '', 'checkbox');
     const input = document.createElement('input'); input.type = 'checkbox'; input.checked = selected.has(key); input.disabled = key === 'music'; input.dataset.column = key;
@@ -82,7 +82,7 @@ function dateValue(value) {
 
 function formatDate(value) {
   const date = dateValue(value);
-  return date && !Number.isNaN(date.getTime()) ? date.toLocaleString('fr-FR') : '—';
+  return date && !Number.isNaN(date.getTime()) ? date.toLocaleString((window.RadioI18n?.locale || 'fr-FR')) : '—';
 }
 
 function paramsFromForm() {
@@ -148,7 +148,7 @@ function render(data, selected = visibleColumns()) {
     if (sort) th.append(action(label, () => {
       form.elements.sort.value = sort;
       load(true);
-    }, 'Trier les résultats'));
+    }, window.RadioI18n.t("ui.c960ba687194")));
     else th.textContent = label;
     header.append(th);
   });
@@ -168,7 +168,7 @@ function render(data, selected = visibleColumns()) {
     if (!tracks) cell('date', formatDate(item.detected_at));
     const music = element('div', '', 'music-cell');
     const artwork = element('button', '', 'search-artwork'); artwork.type = 'button';
-    artwork.setAttribute('aria-label', `Ouvrir la fiche de ${item.title}`);
+    artwork.setAttribute('aria-label', window.RadioI18n.t("ui.b04c6850d768", {p0: (item.title)}));
     artwork.onclick = () => window.TrackCatalog.open(item);
     artwork.append(element('span', '♫'));
     if (item.metadata?.cover_url) {
@@ -176,13 +176,13 @@ function render(data, selected = visibleColumns()) {
       image.onerror = () => image.remove(); artwork.append(image);
     }
     music.append(artwork);
-    music.append(action(item.title, () => selectTrack(item), 'Voir les passages de cette musique'));
+    music.append(action(item.title, () => selectTrack(item), window.RadioI18n.t("ui.e680a32dbd8e")));
     music.append(window.TrackCatalog.button(item), window.TrackCatalog.playButton(item));
-    if (!selected.has('artist')) music.append(element('small', item.artist || 'Artiste inconnu', 'music-artist'));
+    if (!selected.has('artist')) music.append(element('small', item.artist || window.RadioI18n.t("ui.133df509234a"), 'music-artist'));
     cell('music', music);
-    cell('artist', action(item.artist || 'Artiste inconnu', () => selectArtist(item.artist), 'Voir les musiques de cet artiste'));
+    cell('artist', action(item.artist || window.RadioI18n.t("ui.133df509234a"), () => selectArtist(item.artist), window.RadioI18n.t("ui.b29d758e38e4")));
     if (tracks) {
-      cell('plays', Number(item.plays).toLocaleString('fr-FR'));
+      cell('plays', Number(item.plays).toLocaleString((window.RadioI18n?.locale || 'fr-FR')));
       cell('stations', String(item.stations));
       cell('first', formatDate(item.first_at));
       cell('last', formatDate(item.last_at));
@@ -190,11 +190,11 @@ function render(data, selected = visibleColumns()) {
       cell('station', action(item.station_name, () => {
         form.elements.station_id.value = String(item.station_id);
         load(true);
-      }, 'Restreindre les résultats à cette station'));
+      }, window.RadioI18n.t("ui.b2a0c4e78be3")));
       const details = document.createElement('details');
       details.append(element('summary', item.source.toUpperCase()));
-      details.append(element('p', `Passage #${item.id} · Station #${item.station_id}`));
-      details.append(element('p', `Dernière observation : ${formatDate(item.last_seen_at)}`));
+      details.append(element('p', window.RadioI18n.t("ui.01aed2cd9b68", {p0: (item.id), p1: (item.station_id)})));
+      details.append(element('p', window.RadioI18n.t("ui.7ee460271b61", {p0: (formatDate(item.last_seen_at))})));
       details.append(element('pre', item.raw_metadata));
       cell('source', details);
     }
@@ -202,17 +202,17 @@ function render(data, selected = visibleColumns()) {
     body.append(row);
   }
   table.append(body);
-  results.replaceChildren(data.items.length ? table : element('p', 'Aucun résultat pour ces filtres.', 'empty'));
+  results.replaceChildren(data.items.length ? table : element('p', window.RadioI18n.t("ui.4c981e31156c"), 'empty'));
   shownPage = data.page;
   previous.disabled = data.page <= 1;
   next.disabled = !data.has_more;
-  pageLabel.textContent = `Page ${data.page}`;
+  pageLabel.textContent = window.RadioI18n.t("ui.dfeb8707a5c4", {p0: (data.page)});
   const first = (data.page - 1) * data.page_size + 1;
   const last = first + data.items.length - 1;
-  const noun = tracks ? 'Musiques' : 'Passages';
+  const noun = tracks ? window.RadioI18n.t("ui.70fe869bedde") : window.RadioI18n.t("ui.4413ab069b7c");
   statusLine.textContent = data.items.length
-    ? `${noun} ${first}–${last}${data.has_more ? ' · suite disponible' : ''} · actualisé à ${new Date().toLocaleTimeString('fr-FR')}`
-    : 'Aucun résultat. Essayez de retirer un filtre.';
+    ? window.RadioI18n.t("ui.33ea752b017d", {p0: (noun), p1: (first), p2: (last), p3: (data.has_more ? window.RadioI18n.t("ui.919a6b0a5de4") : ''), p4: (new Date().toLocaleTimeString((window.RadioI18n?.locale || 'fr-FR')))})
+    : window.RadioI18n.t("ui.a23eb9ebb7c1");
 }
 
 async function load(reset = false, force = false) {
@@ -229,7 +229,7 @@ async function load(reset = false, force = false) {
   const active = [...params].filter(([key, value]) => !['view', 'sort', 'page_size', 'artist_status', 'min_plays'].includes(key) && value);
   if (form.elements.artist_status.value !== 'any') active.push(['artist_status', 'active']);
   if (!form.elements.min_plays.disabled && Number(form.elements.min_plays.value) > 1) active.push(['min_plays', 'active']);
-  document.querySelector('#active-filters').textContent = active.length ? `${active.length} filtre(s) actif(s)` : 'Tout l’historique actif';
+  document.querySelector('#active-filters').textContent = active.length ? window.RadioI18n.plural('filters.one', 'filters.other', active.length) : window.RadioI18n.t("ui.50909a639f8f");
   params.set('page', page);
   if (snapshot !== null && page > 1) params.set('snapshot_id', snapshot);
   params.sort();
@@ -238,30 +238,30 @@ async function load(reset = false, force = false) {
   if (cached) {
     snapshot = cached.data.snapshot_id;
     render(cached.data);
-    statusLine.textContent = `Résultats mémorisés · ${new Date(cached.time).toLocaleTimeString('fr-FR')}`;
+    statusLine.textContent = window.RadioI18n.t("ui.7f20360f4f92", {p0: (new Date(cached.time).toLocaleTimeString((window.RadioI18n?.locale || 'fr-FR')))});
     if (!force && Date.now() - cached.time < 60000) {
       results.setAttribute('aria-busy', 'false');
       return;
     }
   }
   results.setAttribute('aria-busy', 'true');
-  if (!cached) statusLine.textContent = 'Recherche en cours…';
+  if (!cached) statusLine.textContent = window.RadioI18n.t("ui.bc73d93550aa");
   try {
     const response = await window.MusicFilters.fetch(`/api/explore?${params}`, {signal: request.signal, cache: 'no-store'});
     const data = await response.json();
     if (current !== version) return;
     if (!response.ok) {
-      const detail = typeof data.detail === 'string' ? data.detail : data.detail?.[0]?.msg;
-      throw new Error(detail || 'Recherche impossible. Réessayez.');
+      const detail = typeof data.detail === 'string' ? window.RadioI18n.t(data.detail) : data.detail?.[0]?.msg;
+      throw new Error(detail || window.RadioI18n.t("ui.c6eb2e1a2e3f"));
     }
     window.RadioCache.put(cacheKey, data);
     snapshot = data.snapshot_id;
     render(data);
-    statusLine.textContent = `${data.items.length} résultat(s) sur cette page · actualisé à ${new Date().toLocaleTimeString('fr-FR')}`;
+    statusLine.textContent = window.RadioI18n.t("ui.546684ff42f8", {p0: (data.items.length), p1: (new Date().toLocaleTimeString((window.RadioI18n?.locale || 'fr-FR')))});
   } catch (error) {
     if (error.name !== 'AbortError' && current === version) {
       page = shownPage;
-      statusLine.textContent = `${error.message}${cached ? ' · Résultats mémorisés conservés.' : ''}`;
+      statusLine.textContent = `${error.message}${cached ? window.RadioI18n.t("ui.0ff11a242315") : ''}`;
     }
   } finally {
     if (current === version) results.setAttribute('aria-busy', 'false');

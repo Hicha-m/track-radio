@@ -183,9 +183,9 @@ button.search-shortcut { width: 100%; text-align: left; background: var(--surfac
   .topbar-actions { gap: 8px; }
 }
 
-/* Shared excerpt/radio player. The audio element and its volume never change. */
-:root[data-player-mode=preview] { --player-height: 112px; }
-.player[data-mode=preview] { padding-bottom: calc(34px + env(safe-area-inset-bottom, 0px)); }
+/* Shared radio, excerpt and video controls. */
+:root:is([data-player-mode=preview], [data-player-mode=video]) { --player-height: 112px; }
+.player:is([data-mode=preview], [data-mode=video]) { padding-bottom: calc(34px + env(safe-area-inset-bottom, 0px)); }
 .player-seek { position: absolute; left: 28px; right: 28px; bottom: calc(7px + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center; gap: 10px; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .player-seek[hidden], #player-return-radio[hidden], .player-live[hidden] { display: none; }
 .player-seek time:last-child { text-align: right; }
@@ -211,10 +211,10 @@ button.search-shortcut { width: 100%; text-align: left; background: var(--surfac
 @media (max-width: 760px) {
   .player-seek { left: 16px; right: 16px; gap: 8px; }
   .music-tools { gap: 10px; }
-  :root[data-player-mode=preview] { --player-height: 124px; }
-  .player[data-mode=preview] { padding-top: 28px; }
-  .player[data-mode=preview] .player-volume { display: flex; }
-  .player[data-mode=preview] #player-return-radio { position: absolute; top: 3px; left: 16px; max-width: none; padding: 4px 0; white-space: nowrap; }
+  :root:is([data-player-mode=preview], [data-player-mode=video]) { --player-height: 124px; }
+  .player:is([data-mode=preview], [data-mode=video]) { padding-top: 28px; }
+  .player:is([data-mode=preview], [data-mode=video]) .player-volume { display: flex; }
+  .player:is([data-mode=preview], [data-mode=video]) #player-return-radio { position: absolute; top: 3px; left: 16px; max-width: none; padding: 4px 0; white-space: nowrap; }
 }
 
 .player-cover { overflow: hidden; }
@@ -449,3 +449,24 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
  #results .music-cell>.preview-button{grid-column:3;grid-row:1}
  #results .music-artist{grid-column:2/-1;grid-row:2;min-width:0;overflow-wrap:anywhere}
 }
+
+/* Persistent YouTube host and operational state. */
+.youtube-dock { min-width: 0; background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 14px; padding: 12px; color: var(--text, #191919); }
+.youtube-dock.is-floating { position: fixed; z-index: 70; right: 18px; bottom: 145px; width: min(360px, calc(100vw - 24px)); max-height: calc(100dvh - 180px); overflow: auto; box-shadow: 0 10px 40px #0004; }
+.youtube-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.youtube-toolbar h3 { flex: 1 1 100%; margin: 0; }
+.youtube-toolbar button { font-size: .8rem; }
+.preview-actions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.preview-actions .youtube-button { padding: 6px 8px; font-size: .75rem; }
+.youtube-admin { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.worker-states { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 16px; }
+.worker-state { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
+.worker-state progress { width: 100%; accent-color: var(--accent); }
+#worker-events { max-height: 400px; overflow: auto; padding-left: 24px; }
+@media (max-width: 600px) { .youtube-dock.is-floating { right: 12px; bottom: 185px; width: min(300px, calc(100vw - 24px)); max-height: calc(100dvh - 210px); } }
+@media (max-width: 760px) {
+  .player:is([data-mode=preview], [data-mode=video]) .player-volume label { display: block; position: absolute; top: 2px; right: 16px; width: 96px; }
+}
+.preview-entry { flex-wrap: wrap; }
+.podium-card > .preview-actions { position: absolute; top: 8px; right: 8px; z-index: 3; }
+.podium-card > .preview-actions .youtube-button { background: var(--surface); }

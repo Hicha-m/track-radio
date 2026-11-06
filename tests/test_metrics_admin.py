@@ -289,5 +289,5 @@ def test_review_queue_orders_doubtful_then_most_played(db, client):
     result = client.get("/api/admin/catalog?review=true", headers=AUTH).json()["items"]
     assert [r["title"] for r in result] == ["Doubtful", "Popular", "Obscure"]
     assert [r["recent_plays"] for r in result] == [1, 4, 0]
-    assert "Administration" not in client.get("/").text.split("</nav>")[0]
+    assert 'href="/admin/dashboard"' not in client.get("/").text.split("</nav>")[0]
     assert client.get("/admin/catalogue").status_code == 200

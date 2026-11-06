@@ -1,19 +1,19 @@
 // Generate links locally: no provider search runs when a track dialog opens.
 window.TrackPlatforms = (() => {
-  const providers = {deezer: 'Deezer', itunes: 'Apple Music', spotify: 'Spotify', musicbrainz: 'MusicBrainz', lastfm: 'Last.fm'};
+  const providers = {deezer: window.RadioI18n.t("ui.4997d093758b"), itunes: window.RadioI18n.t("ui.3b00b32d64af"), spotify: window.RadioI18n.t("ui.7005c0064bda"), musicbrainz: 'MusicBrainz', lastfm: 'Last.fm'};
   function links(data, track) {
     const result = [];
     const seen = new Set();
     for (const source of [data, ...(data.additional_sources || [])]) {
       if (source.provider === 'spotify' || !source.url || seen.has(source.provider)) continue;
       try { if (new URL(source.url).protocol !== 'https:') continue; } catch (_) { continue; }
-      result.push({label: `Ouvrir sur ${providers[source.provider] || source.provider}`, url: source.url});
+      result.push({label: window.RadioI18n.t("ui.84538b698f6c", {p0: (providers[source.provider] || source.provider)}), url: source.url});
       seen.add(source.provider);
     }
     const spotify = [data, ...(data.additional_sources || [])].find(source => source.provider === 'spotify' && /^[A-Za-z0-9]{22}$/.test(source.provider_id || ''));
     const query = encodeURIComponent(`${data.artist || track.artist || ''} ${data.title || track.title}`.trim());
     const path = spotify ? `track/${spotify.provider_id}` : `search/${query}`;
-    result.push({label: spotify ? 'Ouvrir sur Spotify' : 'Rechercher sur Spotify', url: `https://open.spotify.com/${path}`, appUrl: spotify ? `spotify:track:${spotify.provider_id}` : `spotify:search:${query}`});
+    result.push({label: spotify ? window.RadioI18n.t("ui.295ee92b8fb0") : window.RadioI18n.t("ui.82e9f195a60e"), url: `https://open.spotify.com/${path}`, appUrl: spotify ? `spotify:track:${spotify.provider_id}` : `spotify:search:${query}`});
     return result;
   }
   let cancelPending = () => {};

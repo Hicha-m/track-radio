@@ -15,7 +15,7 @@
     if (button) {
       button.hidden = false;
       button.setAttribute('aria-pressed', String(dark));
-      button.title = dark ? 'Passer au mode clair' : 'Passer au mode sombre';
+      button.title = dark ? window.RadioI18n.t("ui.1aa61fa6b399") : window.RadioI18n.t("ui.d2b88049a619");
     }
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#18181a' : '#ffffff');
   }

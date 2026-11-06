@@ -44,7 +44,7 @@ async def youtube_video(
     )
     if recording is None:
         raise HTTPException(404, "Musique introuvable.")
-    ensure_visible(request, db, recording.artist, recording.title)
+    video_visible(request, db, recording.artist, recording.title)
     try:
         hidden = json.loads(canonical_exclusions(exclusions) or "[]")
     except ValueError:
@@ -55,14 +55,116 @@ async def youtube_video(
         for t in hidden
     ):
         raise HTTPException(404, "Musique introuvable.")
-    selected = recording.selected if isinstance(recording, TrackMetadata) else None
-    selected = selected if isinstance(selected, dict) else {}
-    artist, title = (
-        selected.get("artist") or recording.artist,
-        selected.get("title") or recording.title,
+    artist, title = recording.artist, recording.title
+    db.commit()
+    result = await discover(artist, title, db, key)
+    video_visible(request, db, artist, title)
+    return result
+
+
+def video_visible(request, db, artist, title):
+    import json
+
+    from app.models import GlobalExclusion
+    from app.services.exclusions import exclusion_id, normalized_pair
+
+    try:
+        hidden = json.loads(
+            canonical_exclusions(request.query_params.get("exclusions", "")) or "[]"
+        )
+    except ValueError:
+        raise HTTPException(422, "Exclusions invalides.") from None
+    if db.get(GlobalExclusion, exclusion_id(artist, title)) or any(
+        normalized_pair(row.get("artist"), row["title"]) == normalized_pair(artist, title)
+        for row in hidden
+    ):
+        raise HTTPException(404, "Musique introuvable.")
+
+
+class VideoChoice(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    candidate_id: str | None = Field(None, pattern=r"^[A-Za-z0-9_-]{11}$")
+    automatic: bool = False
+    revision: int = Field(ge=0)
+
+
+@router.get("/{key}/youtube/state", dependencies=[Depends(require_admin)])
+def video_state(key: str, request: Request, db: Db):
+    from app.models import YouTubeMatch
+    from app.services.youtube import public
+
+    entry = find(db, key)
+    video_visible(request, db, entry.artist, entry.title)
+    match = db.get(YouTubeMatch, key)
+    return (
+        public(match)
+        if match
+        else {
+            "status": "pending",
+            "candidates": [],
+            "selected": None,
+            "manual": False,
+            "revision": 0,
+            "checked_at": None,
+        }
     )
-    db.commit()  # Release the database connection before the external search.
-    return await discover(artist, title)
+
+
+@router.post("/{key}/youtube/search", dependencies=[Depends(require_admin)])
+async def video_search(key: str, request: Request, db: Db):
+    from app.services.youtube import discover
+
+    entry = find(db, key)
+    video_visible(request, db, entry.artist, entry.title)
+    artist, title = entry.artist, entry.title
+    db.commit()
+    result = await discover(artist, title, db, key, refresh=True)
+    video_visible(request, db, artist, title)
+    return result
+
+
+@router.post("/{key}/youtube/choice", dependencies=[Depends(require_admin)])
+def video_choice(key: str, payload: VideoChoice, request: Request, db: Db):
+    from app.models import YouTubeMatch
+    from app.services.youtube import public
+
+    entry = find(db, key)
+    video_visible(request, db, entry.artist, entry.title)
+    match = db.get(YouTubeMatch, key)
+    if match is None or match.revision != payload.revision:
+        raise HTTPException(409, "Les propositions ont changé. Rouvrez la fiche.")
+    selected = next((c for c in match.candidates if c["id"] == payload.candidate_id), None)
+    if payload.candidate_id and selected is None:
+        raise HTTPException(422, "Vidéo absente des propositions vérifiées.")
+    if payload.automatic:
+        # Explicitly release a manual choice; the next requested search may replace it.
+        from app.services.youtube import automatic_choice
+
+        selected = automatic_choice(entry.artist, entry.title, match.candidates)
+    changed = db.execute(
+        update(YouTubeMatch)
+        .where(
+            YouTubeMatch.track_id == key,
+            YouTubeMatch.revision == payload.revision,
+        )
+        .values(
+            selected=selected,
+            manual=not payload.automatic,
+            status="matched"
+            if selected
+            else "ambiguous"
+            if payload.automatic and match.candidates
+            else "rejected",
+            revision=payload.revision + 1,
+            lease_until=None,
+        )
+    )
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Les propositions ont changé. Rouvrez la fiche.")
+    db.commit()
+    db.expire_all()
+    return public(db.get(YouTubeMatch, key))
 
 
 class Search(BaseModel):

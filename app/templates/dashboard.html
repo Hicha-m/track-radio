@@ -1,35 +1,38 @@
 <!doctype html>
-<html lang="fr">
+<html lang="{{ language }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#fa243c">
-  <title>{{ 'Stats' if page == '/stats' else admin_title if page.startswith('/admin') else 'Recherche' if is_search else 'Classements' }} · Radio Tracker</title>
+  <title>{{ t('ui.b4a7365740ef') if page == '/stats' else t(admin_title) if page.startswith('/admin') else t('ui.a12b73cf58da') if is_search else t('ui.417b18ec649c') }} {{ t('ui.db1c12425501') }}</title>
   <meta name="application-name" content="Radio Tracker">
   <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ asset_version }}">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ asset_version }}">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v={{ asset_version }}">
+  <script id="i18n-catalog" type="application/json">{{ translations | tojson }}</script>
+  <script id="i18n-fallback" type="application/json">{{ french_translations | tojson }}</script>
+  <script src="/static/i18n.js?v={{ asset_version }}"></script>
   <script src="/static/theme.js?v={{ asset_version }}"></script>
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
 </head>
 <body data-asset-version="{{ asset_version }}">
-  <button id="mobile-nav-toggle" class="mobile-nav-toggle" type="button" aria-controls="mobile-navigation" aria-haspopup="dialog">☰ <span>Navigation</span></button>
-  <dialog id="mobile-navigation" aria-labelledby="mobile-nav-title"><div class="mobile-nav-heading"><h2 id="mobile-nav-title">Navigation</h2><button type="button" id="mobile-nav-close" class="text-button">Fermer</button></div></dialog>
+  <button id="mobile-nav-toggle" class="mobile-nav-toggle" type="button" aria-controls="mobile-navigation" aria-haspopup="dialog">☰ <span>{{ t('ui.3db65f8c2a7d') }}</span></button>
+  <dialog id="mobile-navigation" aria-labelledby="mobile-nav-title"><div class="mobile-nav-heading"><h2 id="mobile-nav-title">{{ t('ui.3db65f8c2a7d') }}</h2><button type="button" id="mobile-nav-close" class="text-button">{{ t('ui.711e5f2e198d') }}</button></div></dialog>
   <aside class="sidebar">
     <a class="brand" href="/"><img class="brand-mark" src="/static/logo.svg?v={{ asset_version }}" width="36" height="36" alt=""> Radio Tracker</a>
-    <button class="search-shortcut" type="button" data-open-search><span aria-hidden="true">⌕</span> Rechercher une musique <kbd>⌘ K</kbd></button>
-    <p class="nav-label">DÉCOUVRIR</p>
-    <nav aria-label="Navigation principale">
-      <a href="/" class="nav-item {{ 'active' if page == '/' else '' }}" {% if page == '/' %}aria-current="page"{% endif %}><span aria-hidden="true">▥</span> Classements</a>
-      <a href="/#radios" class="nav-item"><span aria-hidden="true">◉</span> Radios</a>
-      <a href="/recherche" class="nav-item {{ 'active' if is_search else '' }}" {% if is_search %}aria-current="page"{% endif %}><span aria-hidden="true">⌕</span> Recherche avancée</a>
-      <a href="/stats" class="nav-item {{ 'active' if page == '/stats' else '' }}" {% if page == '/stats' %}aria-current="page"{% endif %}><span aria-hidden="true">▤</span> Stats</a>
-      {% if page.startswith('/admin') %}<a href="/admin/dashboard" class="nav-item active" aria-current="page"><span aria-hidden="true">⚙</span> Administration</a>{% endif %}
+    <button class="search-shortcut" type="button" data-open-search><span aria-hidden="true">⌕</span> {{ t('ui.2cc0068baef8') }} <kbd>⌘ K</kbd></button>
+    <p class="nav-label">{{ t('ui.3e7ee5c3288c') }}</p>
+    <nav aria-label="{{ t("ui.4ea15f9a0d37") }}">
+      <a href="/" class="nav-item {{ 'active' if page == '/' else '' }}" {% if page == '/' %}aria-current="page"{% endif %}><span aria-hidden="true">▥</span> {{ t('ui.417b18ec649c') }}</a>
+      <a href="/#radios" class="nav-item"><span aria-hidden="true">◉</span> {{ t('ui.745a8ec30dfa') }}</a>
+      <a href="/recherche" class="nav-item {{ 'active' if is_search else '' }}" {% if is_search %}aria-current="page"{% endif %}><span aria-hidden="true">⌕</span> {{ t('ui.1d3312d846c8') }}</a>
+      <a href="/stats" class="nav-item {{ 'active' if page == '/stats' else '' }}" {% if page == '/stats' %}aria-current="page"{% endif %}><span aria-hidden="true">▤</span> {{ t('ui.b4a7365740ef') }}</a>
+      {% if page.startswith('/admin') %}<a href="/admin/dashboard" class="nav-item active" aria-current="page"><span aria-hidden="true">⚙</span> {{ t('ui.4b42c6690ebe') }}</a>{% endif %}
     </nav>
 
   </aside>
   <div class="workspace">
-    <header class="topbar"><span>La musique, au fil des ondes.</span><div class="topbar-actions"><span id="admin-session-controls" hidden><a href="/admin/dashboard">Tableau de bord</a><button type="button" class="text-button" data-admin-logout>Déconnexion</button></span><button id="listening-settings-toggle" type="button" aria-label="Réglages d’écoute" title="Réglages d’écoute">⚙</button><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> Mode sombre</button></div></header>
+    <header class="topbar"><span>{{ t('ui.39f6017ab767') }}</span><div class="topbar-actions"><span id="admin-session-controls" hidden><a href="/admin/dashboard">{{ t('ui.ac0e5fc936ad') }}</a><button type="button" class="text-button" data-admin-logout>{{ t('ui.fb5f9e92c1ae') }}</button></span><button id="listening-settings-toggle" type="button" aria-label="{{ t("ui.86b17cd1fcce") }}" title="{{ t("ui.86b17cd1fcce") }}">⚙</button><button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false" hidden><span aria-hidden="true">☾</span> {{ t('ui.edd937663dfa') }}</button></div></header>
     <main id="page-content">
       {% if page == '/stats' %}
       {% include 'stats.html' %}
@@ -37,57 +40,58 @@
       {% include 'admin.html' %}
       {% else %}
       {% if is_search %}
-      <div class="page-heading"><span class="eyebrow">VOTRE EXPLORATEUR MUSICAL</span><h1>Recherche avancée</h1><p>Retrouvez un titre, un artiste ou un passage à la radio.</p></div>
+      <div class="page-heading"><span class="eyebrow">{{ t('ui.7378ec610dcc') }}</span><h1>{{ t('ui.1d3312d846c8') }}</h1><p>{{ t('ui.3207294e6d3b') }}</p></div>
       {% include 'search.html' %}
       {% else %}
-      <div class="page-heading"><span class="eyebrow">LE POULS DES RADIOS</span><h1>Classements</h1><p>Les titres qui font vibrer les ondes.</p></div>
-      <section class="chart-hero" aria-label="Le classement radio">
-        <div class="hero-copy"><span class="hero-kicker">EN ROTATION</span><h2>Le rythme <br>des radios.</h2><p>Les musiques les plus diffusées.<br>Toutes vos radios, un seul classement.</p><a class="hero-button" href="#classement">Découvrir le top <span aria-hidden="true">↓</span></a></div>
-        <div class="hero-art" aria-hidden="true"><div class="record"><div class="record-label">radio<br><b>hits.</b><span>VOL. 01</span></div></div><span class="art-caption">LES TITRES DU MOMENT</span></div>
+      <div class="page-heading"><span class="eyebrow">{{ t('ui.c81e39cd92ce') }}</span><h1>{{ t('ui.417b18ec649c') }}</h1><p>{{ t('ui.ea0e0089abd4') }}</p></div>
+      <section class="chart-hero" aria-label="{{ t("ui.a5b3350100d3") }}">
+        <div class="hero-copy"><span class="hero-kicker">{{ t('ui.daf921edc2d6') }}</span><h2>{{ t('ui.75433a0923b2') }} <br>{{ t('ui.711750a8c91e') }}</h2><p>{{ t('ui.11b3de016a21') }}<br>{{ t('ui.bde06765e7ac') }}</p><a class="hero-button" href="#classement">{{ t('ui.8c2aa497bc78') }} <span aria-hidden="true">↓</span></a></div>
+        <div class="hero-art" aria-hidden="true"><div class="record"><div class="record-label">{{ t('ui.aa3a05d9d57c') }}<br><b>hits.</b><span>{{ t('ui.c4498cb67100') }}</span></div></div><span class="art-caption">{{ t('ui.f5c5ca86b54d') }}</span></div>
       </section>
       <section id="classement" class="chart-section" aria-labelledby="chart-title">
-        <div class="section-heading"><div><h2 id="chart-title">Les plus diffusés</h2><p id="chart-subtitle">Toutes les radios · 7 derniers jours</p></div><span class="update-badge"><span class="live-dot"></span> Actualisé automatiquement</span></div>
-        <details id="chart-controls" class="chart-controls" open><summary>Filtres et outils du classement</summary><form id="chart-filters" class="chart-filters"><div class="period-tabs" role="group" aria-label="Période du classement"><button type="button" data-days="1" aria-pressed="false">24 heures</button><button type="button" data-days="7" class="active" aria-pressed="true">7 jours</button><button type="button" data-days="30" aria-pressed="false">30 jours</button><button type="button" data-days="all" aria-pressed="false">Tout l’historique</button></div><details class="station-selection"><summary>Composer ma sélection de radios</summary><fieldset><legend>Radios du classement</legend><p class="hint">Aucune case cochée : toutes les radios.</p>{% for station in stations %}<label class="checkbox"><input type="checkbox" data-chart-radio value="{{ station.id }}">{{ station.name }}</label>{% endfor %}<button type="button" data-chart-all class="text-button">Toutes les radios</button></fieldset></details></form>
-        <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués</button><button type="button" data-open-export>Export personnalisable</button></div>
-        </details><p id="chart-status" class="hint" role="status" aria-live="polite">Chargement du classement…</p>
+        <div class="section-heading"><div><h2 id="chart-title">{{ t('ui.ab355f8d8afd') }}</h2><p id="chart-subtitle">{{ t('ui.42d61b1ed6f9') }}</p></div><span class="update-badge"><span class="live-dot"></span> {{ t('ui.ab1d0e30cf2b') }}</span></div>
+        <details id="chart-controls" class="chart-controls" open><summary>{{ t('ui.3b4910be09e6') }}</summary><form id="chart-filters" class="chart-filters"><div class="period-tabs" role="group" aria-label="{{ t("ui.58b883f75316") }}"><button type="button" data-days="1" aria-pressed="false">{{ t('ui.139dc478b59e') }}</button><button type="button" data-days="7" class="active" aria-pressed="true">{{ t('ui.5ce6303bdc6b') }}</button><button type="button" data-days="30" aria-pressed="false">{{ t('ui.4e9241c2a282') }}</button><button type="button" data-days="all" aria-pressed="false">{{ t('ui.0dd29de4afba') }}</button></div><details class="station-selection"><summary>{{ t('ui.207f7a3adb85') }}</summary><fieldset><legend>{{ t('ui.c63c1a6e201e') }}</legend><p class="hint">{{ t('ui.992d52e13224') }}</p>{% for station in stations %}<label class="checkbox"><input type="checkbox" data-chart-radio value="{{ station.id }}">{{ station.name }}</label>{% endfor %}<button type="button" data-chart-all class="text-button">{{ t('ui.3d7e6d53866b') }}</button></fieldset></details></form>
+        <div class="music-tools"><button type="button" data-open-exclusions>{{ t('ui.ddce6f5b8fc3') }}</button><button type="button" data-open-export>{{ t('ui.47fef94d2b0b') }}</button></div>
+        </details><p id="chart-status" class="hint" role="status" aria-live="polite">{{ t('ui.e99216f56f83') }}</p>
         <div id="chart-podium" class="podium"></div>
         <div id="chart-list" class="chart-list" aria-busy="true"></div>
-        <a class="more-link" href="/recherche?view=tracks&sort=frequency">Explorer toute la base musicale <span aria-hidden="true">→</span></a>
+        <a class="more-link" href="/recherche?view=tracks&sort=frequency">{{ t('ui.42baf3800dba') }} <span aria-hidden="true">→</span></a>
       </section>
-      <section id="radios" class="radio-section" aria-labelledby="radios-title"><div class="section-heading"><div><h2 id="radios-title">À chaque radio, son univers.</h2><p>Écoutez le direct ou découvrez son classement.</p></div><span class="station-count">{{ stations|length }} radios</span></div>
+      <section id="radios" class="radio-section" aria-labelledby="radios-title"><div class="section-heading"><div><h2 id="radios-title">{{ t('ui.bdfca49443da') }}</h2><p>{{ t('ui.937d8cdc0614') }}</p></div><span class="station-count">{{ stations|length }} {{ t('ui.74c81f1c313a') }}</span></div>
       {% endif %}
       <div class="stations {{ 'search-stations' if is_search else '' }}">
       {% for station in stations %}
         <article class="station-card {{ 'selected' if station.id == station_id else '' }}">
           <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}"><span aria-hidden="true">▶</span><img class="station-logo" src="/api/stations/{{ station.id }}/artwork" alt="" loading="lazy" referrerpolicy="no-referrer"></button>
-          <div class="station-copy"><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ 'Radio suivie' if station.enabled else 'Écoute seule' }}</small></div>
+          <div class="station-copy"><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ t('ui.35ffed66baff') if station.enabled else t('ui.96d7591a4125') }}</small></div>
           <a class="station-chart" href="/?station_id={{ station.id }}#classement" aria-label="Classement de {{ station.name }}">↗</a>
         </article>
-      {% else %}<p class="empty">Aucune radio configurée pour le moment.</p>{% endfor %}
+      {% else %}<p class="empty">{{ t('ui.08c3aa9a1c12') }}</p>{% endfor %}
       </div>
       {% if not is_search %}</section>{% endif %}
       {% endif %}
-      <footer>Radio Tracker · La musique se découvre aussi à la radio.<br><span>Lecture depuis les flux officiels. Aucun audio enregistré.</span></footer>
+      <footer>{{ t('ui.cd4b9d77b003') }}<br><span>{{ t('ui.304e11b2a001') }}</span></footer>
     </main>
   </div>
   <dialog id="listening-settings" aria-labelledby="listening-settings-title">
-    <button id="listening-settings-close" class="text-button" type="button">Fermer</button>
-    <h2 id="listening-settings-title">Réglages d’écoute</h2>
-    <label class="checkbox"><input id="resume-radio-after-preview" type="checkbox">Reprendre la radio à la fin d’un extrait</label>
-    <p class="hint">La dernière radio choisie reprend après l’extrait. Sans radio sélectionnée, la lecture s’arrête. Vous pouvez désactiver cette option à tout moment.</p>
+    <button id="listening-settings-close" class="text-button" type="button">{{ t('ui.711e5f2e198d') }}</button>
+    <h2 id="listening-settings-title">{{ t('ui.86b17cd1fcce') }}</h2>
+    <label>{{ t('Langue') }}<select id="language-select"><option value="fr">Français</option><option value="en">English</option></select></label>
+    <label class="checkbox"><input id="resume-radio-after-preview" type="checkbox">{{ t('ui.67703534ac95') }}</label>
+    <p class="hint">{{ t('ui.c2ed8dd01beb') }}</p>
     <p id="resume-radio-target" class="hint"></p>
   </dialog>
   <section class="player" aria-label="Lecteur radio" data-station-id="{{ station_id or '' }}">
-    <div class="player-cover" aria-hidden="true">♫</div><button class="player-copy" type="button" disabled aria-label="Aucun morceau disponible"><strong id="track-title">Sélectionnez une radio</strong><small id="track-artist"></small><span id="player-name">{{ selected_station.name if selected_station else 'Le direct vous attend' }}</span></button>
+    <div class="player-cover" aria-hidden="true">♫</div><button class="player-copy" type="button" disabled aria-label="{{ t("ui.5e54e23ea65e") }}"><strong id="track-title">{{ t('ui.25759d7d7728') }}</strong><small id="track-artist"></small><span id="player-name">{{ selected_station.name if selected_station else t('ui.7ccf2e7ef3a0') }}</span></button>
     <audio id="radio-player" preload="none" {% if selected_station %}src="{{ selected_station.stream_url }}"{% endif %}></audio>
     <div class="player-transport">
-      <button id="player-toggle" class="player-toggle" type="button" aria-label="Écouter la radio" disabled><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></button>
-      <span id="playback-label" class="playback-label">Choisissez une radio</span>
+      <button id="player-toggle" class="player-toggle" type="button" aria-label="{{ t("ui.ec0a4373089c") }}" disabled><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></button>
+      <span id="playback-label" class="playback-label">{{ t('ui.2ea6b86de560') }}</span>
     </div>
-    <div class="player-volume"><button id="player-mute" type="button" aria-label="Couper le son" aria-pressed="false"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4 5 9H2v6h3l6 5Z"/><path class="volume-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="mute-slash" d="m16 9 6 6m0-6-6 6"/></svg></button><label><span class="sr-only">Volume</span><input id="player-volume" type="range" min="0" max="1" step="0.01" value="1"></label></div>
-    <button id="player-return-radio" class="text-button" type="button" hidden>Reprendre la radio</button>
-    <div id="player-seek" class="player-seek" hidden><time id="player-elapsed">0:00</time><input id="player-progress" type="range" min="0" max="1000" step="1" value="0" aria-label="Avancement de l’extrait"><time id="player-duration">0:00</time></div>
-    <span class="player-live"><span class="live-dot"></span> EN DIRECT</span>
+    <div class="player-volume"><button id="player-mute" type="button" aria-label="{{ t("ui.4bda29ddf960") }}" aria-pressed="false"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4 5 9H2v6h3l6 5Z"/><path class="volume-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="mute-slash" d="m16 9 6 6m0-6-6 6"/></svg></button><label><span class="sr-only">{{ t('ui.b10fb966d720') }}</span><input id="player-volume" type="range" min="0" max="1" step="0.01" value="1"></label></div>
+    <button id="player-return-radio" class="text-button" type="button" hidden>{{ t('ui.878631682491') }}</button>
+    <div id="player-seek" class="player-seek" hidden><time id="player-elapsed">0:00</time><input id="player-progress" type="range" min="0" max="1000" step="1" value="0" aria-label="{{ t("ui.4da115b44f1f") }}"><time id="player-duration">0:00</time></div>
+    <span class="player-live"><span class="live-dot"></span> {{ t('ui.c089a4499f41') }}</span>
     <span id="player-status" class="sr-only" role="status" aria-live="polite"></span>
   </section>
   {% include 'export.html' %}
@@ -97,6 +101,7 @@
   <script src="/static/export.js?v={{ asset_version }}"></script>
   <script src="/static/metrics.js?v={{ asset_version }}"></script>
   <script src="/static/admin-session.js?v={{ asset_version }}"></script>
+  <script src="/static/youtube-admin.js?v={{ asset_version }}"></script>
   <script src="/static/admin.js?v={{ asset_version }}"></script>
   <script src="/static/platforms.js?v={{ asset_version }}"></script>
   <script src="/static/youtube.js?v={{ asset_version }}"></script>

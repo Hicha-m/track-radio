@@ -95,3 +95,47 @@ def assign_track_identity(mapper, connection, target):
     from app.services.track_identity import identity
 
     target.track_id = identity(target.artist, target.title)
+
+
+class YouTubeMatch(Base):
+    __tablename__ = "youtube_matches"
+    track_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    artist: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    title: Mapped[str] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    candidates: Mapped[list] = mapped_column(JSON, default=list)
+    selected: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    manual: Mapped[bool] = mapped_column(Boolean, default=False)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ServiceQuota(Base):
+    __tablename__ = "service_quotas"
+    name: Mapped[str] = mapped_column(String(40), primary_key=True)
+    day: Mapped[str] = mapped_column(String(10))
+    used: Mapped[int] = mapped_column(Integer, default=0)
+    retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class WorkerState(Base):
+    __tablename__ = "worker_states"
+    name: Mapped[str] = mapped_column(String(40), primary_key=True)
+    state: Mapped[str] = mapped_column(String(20))
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    completed: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    activity: Mapped[str] = mapped_column(String(100), default="")
+
+
+class WorkerEvent(Base):
+    __tablename__ = "worker_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    worker: Mapped[str] = mapped_column(String(40))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    code: Mapped[str] = mapped_column(String(40))

@@ -1,8 +1,25 @@
 import asyncio
 
+import pytest
+from sqlalchemy.orm import sessionmaker
+
 from app.config import settings
 from app.models import Station
 from app.worker import collect_round
+
+
+@pytest.fixture(autouse=True)
+def worker_db(tmp_path, monkeypatch):
+    from app.database import make_engine
+    from app.models import Base
+
+    engine = make_engine(f"sqlite:///{tmp_path / 'worker-round.db'}")
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(
+        "app.worker.SessionLocal", sessionmaker(bind=engine, expire_on_commit=False)
+    )
+    yield
+    engine.dispose()
 
 
 def test_round_bounds_concurrency_and_survives_bad_station(monkeypatch):

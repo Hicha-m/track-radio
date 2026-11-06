@@ -1,34 +1,34 @@
-<div class="page-heading"><span class="eyebrow">LES ONDES EN CHIFFRES</span><h1>Stats</h1><p>Répétitions, diversité et points communs entre radios.</p></div>
+<div class="page-heading"><span class="eyebrow">{{ t('ui.11b4866d5023') }}</span><h1>{{ t('ui.b4a7365740ef') }}</h1><p>{{ t('ui.5a2ae9c472aa') }}</p></div>
 <div id="stats-root">
   <section class="panel metric-panel">
-    <details class="stats-method"><summary>Comment lire ces chiffres</summary><p class="hint">Les heures sont celles des détections, avec une précision limitée par la cadence de collecte. Une absence de données ne signifie pas une absence de diffusion. Les titres masqués pour vous et la blacklist globale sont exclus de tous ces calculs.</p></details>
+    <details class="stats-method"><summary>{{ t('ui.e73e1937fae6') }}</summary><p class="hint">{{ t('ui.e60bbb707b99') }}</p></details>
     <form class="filter-grid metric-filters">
-      <label>Radio des indicateurs<select name="station_id"><option value="">Toutes les radios</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
-      <label>Fenêtre du titre le plus diffusé et des répétitions<select id="repetition-hours"><option value="6">6 heures</option><option value="12" selected>12 heures</option><option value="24">24 heures</option></select></label>
-      <details class="stats-comparison-controls"><summary>Comparer deux radios</summary><div class="filter-grid"><label>Décalages · première radio<select name="station_a"><option value="">Choisir une radio</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
-      <label>Décalages · seconde radio<select name="station_b"><option value="">Choisir une radio</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label></div></details>
+      <label>{{ t('ui.2640b0cc5145') }}<select name="station_id"><option value="">{{ t('ui.3d7e6d53866b') }}</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+      <label>{{ t('ui.422760c90077') }}<select id="repetition-hours"><option value="6">{{ t('ui.2af4b95641e5') }}</option><option value="12" selected>{{ t('ui.a2eae93ab25e') }}</option><option value="24">{{ t('ui.139dc478b59e') }}</option></select></label>
+      <details class="stats-comparison-controls"><summary>{{ t('ui.96c6e58a7946') }}</summary><div class="filter-grid"><label>{{ t('ui.f4f2b9ce177b') }}<select name="station_a"><option value="">{{ t('ui.99dcbfeb9505') }}</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+      <label>{{ t('ui.d00841fdd8e2') }}<select name="station_b"><option value="">{{ t('ui.99dcbfeb9505') }}</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label></div></details>
     </form>
-    <div class="music-tools"><button type="button" data-open-exclusions>Titres masqués</button><button type="button" data-refresh>Actualiser</button></div>
+    <div class="music-tools"><button type="button" data-open-exclusions>{{ t('ui.ddce6f5b8fc3') }}</button><button type="button" data-refresh>{{ t('ui.d7d646faaecb') }}</button></div>
   </section>
   <section class="stats-summary" aria-labelledby="stats-summary-title">
-    <h2 id="stats-summary-title">Votre synthèse</h2>
-    <p id="stats-summary-status" class="hint" role="status">Chargement des indicateurs…</p>
+    <h2 id="stats-summary-title">{{ t('ui.10b7e6a41a2d') }}</h2>
+    <p id="stats-summary-status" class="hint" role="status">{{ t('ui.04e888545fdb') }}</p>
     <div id="stats-summary-cards" class="stats-summary-cards"></div>
     <div id="stats-summary-top" class="stats-summary-top"></div>
   </section>
-  <h2 class="stats-details-heading">Explorer les détails</h2>
+  <h2 class="stats-details-heading">{{ t('ui.d9d70589890a') }}</h2>
   {% for kind, title, description in [
-    ('repetitions', 'Détecteur de répétition', 'Au moins 3 passages du même titre sur une radio. Intervalle moyen entre les détections de la fenêtre choisie.'),
-    ('diversity', 'Diversité sur 24 heures', 'Titres distincts et passages collectés par radio, sur une fenêtre glissante.'),
-    ('overlap', 'Recoupement sur 7 jours', 'Radios configurées : titres communs divisés par l’ensemble des titres des deux radios. Les effectifs communs / ensemble accompagnent chaque pourcentage.'),
-    ('offsets', 'Décalages entre radios sur 24 heures', 'Même artiste et même titre, à 5 minutes d’intervalle maximum. Chaque passage n’est associé qu’une fois ; les plus proches sont prioritaires.'),
-    ('genres', 'Genres sur 24 heures', 'Répartition des passages selon leur genre principal disponible. Les métadonnées absentes restent dans Inconnu.')
+    ('repetitions', t('ui.86c14717d7bc'), t('ui.dca244b70b00')),
+    ('diversity', t('ui.dc33e967afdd'), t('ui.0667753938da')),
+    ('overlap', t('ui.8a31883b1167'), t('ui.e291eff45db8')),
+    ('offsets', t('ui.b5bfc9439a34'), t('ui.08e2daee9ba6')),
+    ('genres', t('ui.f7ca078dc84f'), t('ui.4171fa12f0d7'))
   ] %}
   <details class="panel metric-panel stats-detail" data-metric="{{ kind }}" aria-labelledby="metric-{{ kind }}">
-    <summary><h2 id="metric-{{ kind }}">{{ title }}</h2><span data-metric-window class="hint">{{ "Fenêtre choisie" if kind == "repetitions" else "7 jours" if kind == "overlap" else "24 heures" }}</span></summary><p class="hint">{{ description }}</p>
-    <p class="hint metric-status" role="status">Chargement…</p>
+    <summary><h2 id="metric-{{ kind }}">{{ title }}</h2><span data-metric-window class="hint">{{ "Fenêtre choisie" if kind == "repetitions" else t('ui.5ce6303bdc6b') if kind == "overlap" else t('ui.139dc478b59e') }}</span></summary><p class="hint">{{ t(description) }}</p>
+    <p class="hint metric-status" role="status">{{ t('ui.66474911d953') }}</p>
     <div class="metric-output"></div>
-    <nav class="pagination" aria-label="Pages · {{ title }}"><button type="button" data-previous disabled>← Précédent</button><span data-page>Page 1</span><button type="button" data-next disabled>Suivant →</button></nav>
+    <nav class="pagination" aria-label="Pages · {{ title }}"><button type="button" data-previous disabled>{{ t('ui.9a910fc71e8f') }}</button><span data-page>{{ t('ui.e8b8355262d0') }}</span><button type="button" data-next disabled>{{ t('ui.e284bde10808') }}</button></nav>
   </details>
   {% endfor %}
 </div>

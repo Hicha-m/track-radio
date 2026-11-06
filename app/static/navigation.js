@@ -4,7 +4,7 @@
   let pending;
   let generation = 0;
   const notice = document.querySelector('#navigation-status');
-  const adminPaths = ['/admin', '/admin/dashboard', '/admin/radios', '/admin/diffusions', '/admin/catalogue', '/admin/exclusions'];
+  const adminPaths = ['/admin', '/admin/dashboard', '/admin/radios', '/admin/diffusions', '/admin/catalogue', '/admin/exclusions', '/admin/workers'];
   const paths = ['/', '/recherche', '/stats', ...adminPaths];
   function mount() {
     const pages = {'/': 'charts', '/recherche': 'search', '/stats': 'stats'};
@@ -27,18 +27,20 @@
     notice.hidden = true;
     try {
       const response = await fetch(url.pathname + url.search, {signal: pending.signal});
-      if (!response.ok) throw new Error('Page indisponible. Réessayez dans un instant.');
+      if (!response.ok) throw new Error(window.RadioI18n.t("ui.da8e90692f46"));
       // A protected page can redirect to login, including during client navigation.
       if (response.redirected) { url = new URL(response.url); replace = true; }
       const html = new DOMParser().parseFromString(await response.text(), 'text/html');
       if (current !== generation) return;
+      if (html.documentElement.lang !== document.documentElement.lang) { location.assign(url.href); return; }
       const next = html.querySelector('#page-content');
-      if (!next) throw new Error('Impossible de charger cette page.');
+      if (!next) throw new Error(window.RadioI18n.t("ui.be622eb4e367"));
       if (html.body.dataset.assetVersion !== document.body.dataset.assetVersion) {
-        throw new Error('Une nouvelle version est disponible. Rechargez la page après votre écoute.');
+        throw new Error(window.RadioI18n.t("ui.0d222576ee6d"));
       }
       await window.MusicFilters.refresh();
       if (current !== generation) return;
+      window.dispatchEvent(new Event('radio:beforepagechange'));
       cleanup?.();
       document.querySelectorAll('.catalog-dialog, .admin-edit-dialog').forEach(dialog => { dialog.close(); dialog.remove(); });
       main.replaceWith(document.importNode(next, true));

@@ -32,7 +32,7 @@ Radio Tracker collecte les **métadonnées** des radios et conserve leurs passag
 | **Export** | Choisir périmètre, filtres, nombre de résultats et champs ; télécharger en CSV ou JSON. |
 | **Administration** | Piloter les radios, vérifier le catalogue et prévisualiser les corrections de diffusions dans des pages dédiées. |
 
-L’interface s’adapte au mobile et à l’ordinateur, en **clair ou sombre**. Le même lecteur sert au direct et aux extraits ; la navigation interne conserve la lecture.
+L’interface s’adapte au mobile et à l’ordinateur, en **clair ou sombre**. Le bandeau commun pilote radio, extraits et vidéos YouTube ; la navigation interne conserve la lecture et le mini-lecteur vidéo. La radio reste connectée en sourdine pendant les extraits et vidéos. Les réglages proposent le français et l’anglais ; une page de supervision suit les workers et le quota YouTube.
 
 ### Un catalogue enrichi sans perdre vos choix
 

@@ -55,6 +55,12 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
         wav.setsampwidth(2)
         wav.setframerate(8000)
         wav.writeframes(b"\x00\x00" * 8000 * 4)
+    live_bytes = io.BytesIO()
+    with wave.open(live_bytes, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(8000)
+        wav.writeframes(b"\x00\x00" * 8000 * 60)
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]
@@ -144,11 +150,11 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                     "() => window.RadioPlayer.preview("
                     "{artist:'Artist',title:'Song 2'}, '/fixture.wav')"
                 )
-                page.wait_for_function('() => !document.querySelector("audio").paused')
-                page.get_by_role("button", name="YouTube", exact=True).click()
+                page.wait_for_function('() => !document.querySelector("#excerpt-player").paused')
+                page.locator(".catalog-platforms .youtube-button").click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(1)
                 page.wait_for_function("() => window.__ytPlayed > 0")
-                assert page.locator("audio").evaluate("(a)=>a.paused")
+                assert page.locator("#excerpt-player").evaluate("(a)=>a.paused")
                 assert len(calls) == 1
                 page.evaluate("()=>window.__ytEvents.onAutoplayBlocked()")
                 expect(page.locator('.catalog-youtube [role="status"]')).to_contain_text(
@@ -161,32 +167,36 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                 page.get_by_role("button", name="Fermer la vidéo", exact=True).click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(0)
                 mode[0] = "ambiguous"
-                page.get_by_role("button", name="YouTube", exact=True).click()
+                page.locator(".catalog-platforms .youtube-button").click()
                 expect(page.locator(".youtube-choices button")).to_have_count(2)
                 assert page.locator(".youtube-viewport iframe").count() == 0
                 page.locator(".youtube-choices button").first.click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(1)
-                page.locator("audio").evaluate("(a)=>a.play()")
+                page.evaluate(
+                    "()=>window.RadioPlayer.preview("
+                    "{artist:'Artist',title:'Song 2'},'/fixture.wav')"
+                )
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(0)
                 mode[0] = "not_found"
-                page.get_by_role("button", name="YouTube", exact=True).click()
+                page.locator(".catalog-platforms .youtube-button").click()
                 expect(page.locator('.catalog-youtube [role="status"]')).to_contain_text(
                     "Aucune vidéo"
                 )
                 mode[0] = "error"
-                page.get_by_role("button", name="YouTube", exact=True).click()
+                page.locator(".catalog-platforms .youtube-button").click()
                 expect(page.locator('.catalog-youtube [role="status"]')).to_contain_text(
                     "temporairement indisponible"
                 )
                 mode[0] = "matched"
-                page.get_by_role("button", name="YouTube", exact=True).click()
+                page.locator(".catalog-platforms .youtube-button").click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(1)
                 page.locator(".catalog-close").click()
-                expect(page.locator(".youtube-viewport iframe")).to_have_count(0)
+                expect(page.locator(".youtube-viewport iframe")).to_have_count(1)
+                page.evaluate("()=>window.TrackYouTube.stop()")
                 # Natural excerpt endings: opt-in radio return, persistence and manual pause.
                 context.route(
                     "https://example.test/live",
-                    lambda r: r.fulfill(content_type="audio/wav", body=audio_bytes.getvalue()),
+                    lambda r: r.fulfill(content_type="audio/wav", body=live_bytes.getvalue()),
                 )
                 page.locator("#listening-settings-toggle").click()
                 expect(page.locator("#resume-radio-after-preview")).not_to_be_checked()
@@ -197,19 +207,19 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                     "()=>window.RadioPlayer.preview("
                     "{artist:'Artist',title:'No radio'},'/fixture.wav')"
                 )
-                page.wait_for_function('() => !document.querySelector("audio").paused')
-                page.locator("audio").evaluate("a=>a.currentTime=a.duration-.05")
+                page.wait_for_function('() => !document.querySelector("#excerpt-player").paused')
+                page.locator("#excerpt-player").evaluate("a=>a.currentTime=a.duration-.05")
                 expect(page.locator("#playback-label")).to_have_text("Extrait terminé")
                 page.locator('.station-play[data-id="1"]').click()
-                page.wait_for_function('() => !document.querySelector("audio").paused')
+                page.wait_for_function('() => !document.querySelector("#radio-player").paused')
                 page.evaluate(
                     "()=>window.RadioPlayer.preview("
                     "{artist:'Artist',title:'Return test'},'/fixture.wav')"
                 )
-                page.wait_for_function('() => !document.querySelector("audio").paused')
-                page.locator("audio").evaluate("a=>a.currentTime=a.duration-.05")
+                page.wait_for_function('() => !document.querySelector("#excerpt-player").paused')
+                page.locator("#excerpt-player").evaluate("a=>a.currentTime=a.duration-.05")
                 expect(page.locator(".player")).to_have_attribute("data-mode", "radio")
-                page.wait_for_function('() => !document.querySelector("audio").paused')
+                page.wait_for_function('() => !document.querySelector("#radio-player").paused')
                 page.locator("#listening-settings-toggle").click()
                 expect(page.locator("#resume-radio-target")).to_contain_text("Radio 0")
                 page.locator("#resume-radio-after-preview").uncheck()
@@ -218,12 +228,12 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                     "()=>window.RadioPlayer.preview("
                     "{artist:'Artist',title:'Stop test'},'/fixture.wav')"
                 )
-                page.wait_for_function('() => !document.querySelector("audio").paused')
+                page.wait_for_function('() => !document.querySelector("#excerpt-player").paused')
                 page.locator("#player-toggle").click()
                 expect(page.locator(".player")).to_have_attribute("data-mode", "preview")
                 expect(page.locator("#playback-label")).to_have_text("En pause")
                 page.locator("#player-toggle").click()
-                page.locator("audio").evaluate("a=>a.currentTime=a.duration-.05")
+                page.locator("#excerpt-player").evaluate("a=>a.currentTime=a.duration-.05")
                 expect(page.locator("#playback-label")).to_have_text("Extrait terminé")
                 page.locator("#listening-settings-toggle").click()
                 page.locator("#resume-radio-after-preview").check()

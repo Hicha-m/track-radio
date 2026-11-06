@@ -521,7 +521,12 @@ async def enrichment_round(client, session_factory, priorities=None):
         pending = [
             (e.id, e.revision, deepcopy({f: getattr(e, f) for f in fields})) for e in entries
         ]
-    for key, revision, snapshot in pending:
+    from app.services.supervision import report
+
+    await asyncio.to_thread(
+        report, session_factory, "enrichment", "started", total=len(pending), completed=0, failed=0
+    )
+    for index, (key, revision, snapshot) in enumerate(pending):
         result = await enrich_progress(client, snapshot)
         with session_factory() as db:
             # Atomic compare-and-set also covers a correction committed during provider I/O.
@@ -555,6 +560,10 @@ async def enrichment_round(client, session_factory, priorities=None):
             )
             db.commit()
             db.expire_all()
+        await asyncio.to_thread(
+            report, session_factory, "enrichment", "enrichment", completed=index + 1
+        )
+    await asyncio.to_thread(report, session_factory, "enrichment", "completed")
 
 
 async def enrichment_loop(session_factory):
@@ -570,5 +579,8 @@ async def enrichment_loop(session_factory):
                 cursor = await asyncio.to_thread(backfill_batch, session_factory, cursor)
                 await enrichment_round(client, session_factory, priorities)
             except Exception:
+                from app.services.supervision import report
+
+                await asyncio.to_thread(report, session_factory, "enrichment", "error", failed=1)
                 logger.exception("Cycle d'enrichissement interrompu")
             await asyncio.sleep(20)

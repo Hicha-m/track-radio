@@ -1,6 +1,15 @@
-// One persistent audio element serves both radio streams and catalogue excerpts.
+// Keep the live stream connected while excerpts or YouTube use the shared controls.
 (() => {
-  const audio = document.querySelector('#radio-player');
+  const radioAudio = document.querySelector('#radio-player');
+  const excerptAudio = document.createElement('audio'); excerptAudio.id = 'excerpt-player'; excerptAudio.preload = 'none'; document.body.append(excerptAudio);
+  let audio = radioAudio;
+  let suspended = true;
+  let video = null;
+  let userMuted = false;
+  function quietRadio() { suspended = true; radioAudio.muted = true; }
+  function stopExcerpt() { excerptAudio.pause(); excerptAudio.removeAttribute('src'); excerptAudio.load(); }
+  function announceAudio() { window.dispatchEvent(new Event('radio:audioactive')); }
+
   const panel = document.querySelector('.player');
   const title = document.querySelector('#track-title');
   const artist = document.querySelector('#track-artist');
@@ -43,7 +52,7 @@
   function setCurrentTrack(track) {
     currentTrack = track?.title ? track : null;
     trackButton.disabled = !currentTrack;
-    trackButton.setAttribute('aria-label', currentTrack ? `Ouvrir la fiche de ${currentTrack.title}` : 'Aucun morceau disponible');
+    trackButton.setAttribute('aria-label', currentTrack ? window.RadioI18n.t("ui.b04c6850d768", {p0: (currentTrack.title)}) : window.RadioI18n.t("ui.5e54e23ea65e"));
   }
   trackButton.addEventListener('click', () => { if (currentTrack) window.TrackCatalog.open(currentTrack); });
   let radio = audio.getAttribute('src') ? {url: audio.getAttribute('src'), id: panel.dataset.stationId, name: name.textContent} : null;
@@ -70,54 +79,54 @@
     return Number.isFinite(value) && value >= 0 ? `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}` : '0:00';
   }
   function sync() {
-    document.querySelector('#resume-radio-target').textContent = radio ? `Radio de reprise : ${radio.name}` : 'Choisissez d’abord une radio pour permettre la reprise.';
+    document.querySelector('#resume-radio-target').textContent = radio ? window.RadioI18n.t("ui.fed8ff834c53", {p0: (radio.name)}) : window.RadioI18n.t("ui.00497f225d08");
     document.querySelectorAll('.station-logo').forEach(img => {
       img.onerror = () => img.remove();
       if (img.complete && !img.naturalWidth) img.remove();
     });
-    const playing = !audio.paused && !audio.ended && !audio.error;
-    toggle.disabled = !audio.getAttribute('src');
-    toggle.setAttribute('aria-label', playing ? 'Mettre en pause' : mode === 'preview' ? 'Écouter l’extrait' : 'Écouter la radio');
+    const playing = mode === 'video' ? Boolean(video?.playing()) : !audio.paused && !audio.ended && !audio.error && (mode !== 'radio' || !suspended);
+    toggle.disabled = mode === 'video' ? !video : !audio.getAttribute('src');
+    toggle.setAttribute('aria-label', playing ? window.RadioI18n.t("ui.42dd586c06d6") : mode === 'preview' ? window.RadioI18n.t("ui.ccc216fa2e6b") : window.RadioI18n.t("ui.ec0a4373089c"));
     toggle.setAttribute('aria-pressed', String(playing));
     toggle.querySelector('path').setAttribute('d', playing ? 'M6 5h4v14H6zM14 5h4v14h-4z' : 'M8 5v14l11-7z');
     panel.classList.toggle('is-playing', playing);
     panel.dataset.mode = mode;
     document.documentElement.dataset.playerMode = mode;
-    seek.hidden = mode !== 'preview';
-    document.querySelector('.player-live').hidden = mode === 'preview';
-    back.hidden = mode !== 'preview' || !radio;
+    seek.hidden = mode === 'radio';
+    document.querySelector('.player-live').hidden = mode !== 'radio';
+    back.hidden = mode === 'radio' || !radio;
     document.querySelectorAll('.station-card').forEach(card => {
       const button = card.querySelector('.station-play');
       const selected = mode === 'radio' && button.dataset.id === panel.dataset.stationId;
       card.classList.toggle('selected', selected);
       button.setAttribute('aria-pressed', String(selected && playing));
-      button.setAttribute('aria-label', `${selected && playing ? 'Mettre en pause' : 'Écouter'} ${button.dataset.name}`);
+      button.setAttribute('aria-label', `${selected && playing ? window.RadioI18n.t("ui.42dd586c06d6") : window.RadioI18n.t("ui.b3266f2ad37b")} ${button.dataset.name}`);
       button.firstElementChild.textContent = selected && playing ? 'Ⅱ' : '▶';
     });
     document.querySelectorAll('[data-preview-key]').forEach(button => {
       const active = mode === 'preview' && previewKey === button.dataset.previewKey && playing;
       button.textContent = active ? 'Ⅱ' : '▶';
       button.setAttribute('aria-pressed', String(active));
-      button.setAttribute('aria-label', `${active ? 'Mettre en pause l’extrait de' : 'Écouter un extrait de'} ${button.dataset.previewTitle}`);
+      button.setAttribute('aria-label', `${active ? window.RadioI18n.t("ui.d3d23e41d7b4") : window.RadioI18n.t("ui.d15b0fe2b67c")} ${button.dataset.previewTitle}`);
     });
   }
   function syncProgress() {
-    const total = Number.isFinite(audio.duration) ? audio.duration : 0;
-    const position = audio.currentTime || 0;
-    progress.disabled = mode !== 'preview' || total <= 0;
+    const total = mode === 'video' ? video?.duration() || 0 : Number.isFinite(audio.duration) ? audio.duration : 0;
+    const position = mode === 'video' ? video?.position() || 0 : audio.currentTime || 0;
+    progress.disabled = mode === 'radio' || total <= 0;
     progress.value = total ? Math.min(1000, position / total * 1000) : 0;
     progress.style.setProperty('--progress', `${Number(progress.value) / 10}%`);
     elapsed.textContent = time(position);
     duration.textContent = time(total);
-    progress.setAttribute('aria-valuetext', `${time(position)} sur ${time(total)}`);
+    progress.setAttribute('aria-valuetext', window.RadioI18n.t("ui.c35a60b008ba", {p0: (time(position)), p1: (time(total))}));
   }
   function syncVolume() {
-    volume.value = audio.volume;
-    const silent = audio.muted || audio.volume === 0;
-    mute.setAttribute('aria-label', silent ? 'Rétablir le son' : 'Couper le son');
+    volume.value = mode === 'video' ? video?.volume() ?? Number(volume.value) : audio.volume;
+    const silent = userMuted || Number(volume.value) === 0;
+    mute.setAttribute('aria-label', silent ? window.RadioI18n.t("ui.d52a0aa00ed0") : window.RadioI18n.t("ui.4bda29ddf960"));
     mute.setAttribute('aria-pressed', String(silent));
     mute.dataset.muted = String(silent);
-    try { localStorage.setItem('radio-player-volume', String(audio.volume)); } catch (_) { /* Optional. */ }
+    try { localStorage.setItem('radio-player-volume', String(volume.value)); } catch (_) { /* Optional. */ }
   }
   async function refreshNowPlaying() {
     const current = ++metadataVersion;
@@ -127,90 +136,132 @@
       if (!response.ok) return;
       const [track] = await response.json();
       if (current !== metadataVersion || mode !== 'radio') return;
-      title.textContent = track?.title || 'Titre indisponible';
+      title.textContent = track?.title || window.RadioI18n.t("ui.a031d88118a6");
       setCurrentTrack(track);
       artist.textContent = track?.artist || '';
       showArtwork(track || {}, radio);
     } catch (_) { /* Keep the previous radio information through a temporary failure. */ }
   }
   async function play() {
+    if (mode === 'video') { video?.play(); return; }
+    if (mode === 'radio') { suspended = false; audio.muted = userMuted; label.textContent = audio.readyState >= 3 ? window.RadioI18n.t("ui.235df0b17a9e") : window.RadioI18n.t("ui.910919b77ec7"); }
+    announceAudio();
     const source = audio.src;
     try { await audio.play(); } catch (error) {
       if (error.name !== 'AbortError' && audio.src === source) {
-        label.textContent = 'Lecture indisponible';
-        status.textContent = mode === 'preview' ? 'Extrait indisponible. Essayez un autre titre.' : 'Flux indisponible. Essayez une autre radio.';
+        label.textContent = window.RadioI18n.t("ui.ce6a03b5762e");
+        status.textContent = mode === 'preview' ? window.RadioI18n.t("ui.9f4b7303e42b") : window.RadioI18n.t("ui.080d5f7d0c0b");
       }
     }
     sync();
   }
   function selectRadio(station) {
     metadataVersion++;
-    mode = 'radio'; previewKey = null; radio = station;
+    announceAudio(); video = null; stopExcerpt(); audio = radioAudio;
+    const changed = radio?.url !== station.url;
+    if (changed) { radioAudio.pause(); radioAudio.removeAttribute('src'); radioAudio.load(); }
+    mode = 'radio'; previewKey = null; radio = station; suspended = false; radioAudio.muted = userMuted;
+
     setCurrentTrack(null);
     showArtwork({}, radio);
     panel.dataset.stationId = station.id;
     if (audio.src !== new URL(station.url, location.href).href) audio.src = station.url;
     name.textContent = station.name;
-    title.textContent = 'Chargement du titre…'; artist.textContent = '';
+    title.textContent = window.RadioI18n.t("ui.b81e67f27242"); artist.textContent = '';
     sync(); refreshNowPlaying(); play();
   }
   async function preview(track, url) {
     const next = key(track, url);
     if (mode === 'preview' && previewKey === next) {
-      if (audio.paused || audio.ended) await play(); else audio.pause();
+      if (audio.paused || audio.ended) await play(); else pause();
       return;
     }
     metadataVersion++;
+    announceAudio(); video = null; quietRadio(); audio = excerptAudio;
+    audio.volume = Number(volume.value); audio.muted = userMuted;
     mode = 'preview'; previewKey = next;
     setCurrentTrack(track);
     showArtwork(track);
     audio.src = url;
-    title.textContent = track.title || 'Extrait'; artist.textContent = track.artist || '';
-    name.textContent = `Extrait${track.provider || track.metadata?.provider ? ' · ' + (track.provider || track.metadata.provider) : ''}`;
+    title.textContent = track.title || window.RadioI18n.t("ui.7224fc1ace77"); artist.textContent = track.artist || '';
+    name.textContent = window.RadioI18n.t("ui.0f8745e4abeb", {p0: (track.provider || track.metadata?.provider ? ' · ' + (track.provider || track.metadata.provider) : '')});
     sync(); syncProgress(); await play();
   }
   document.addEventListener('click', event => {
     const button = event.target.closest('.station-play');
     if (!button) return;
-    if (mode === 'radio' && panel.dataset.stationId === button.dataset.id && !audio.paused) { audio.pause(); return; }
+    if (mode === 'radio' && panel.dataset.stationId === button.dataset.id && !audio.paused && !suspended) { pause(); return; }
     selectRadio({id: button.dataset.id, url: button.dataset.url, name: button.dataset.name});
   });
   back.addEventListener('click', () => { if (radio) selectRadio(radio); });
-  toggle.addEventListener('click', () => { if (audio.paused) play(); else audio.pause(); });
+  toggle.addEventListener('click', () => {
+    const playing = mode === 'video' ? video?.playing() : !audio.paused && !audio.ended && (mode !== 'radio' || !suspended);
+    if (playing) pause(); else play();
+  });
   progress.addEventListener('input', () => {
-    if (mode === 'preview' && Number.isFinite(audio.duration)) audio.currentTime = Number(progress.value) / 1000 * audio.duration;
+    if (mode === 'video') video?.seek(Number(progress.value) / 1000 * video.duration());
+    else if (mode === 'preview' && Number.isFinite(audio.duration)) audio.currentTime = Number(progress.value) / 1000 * audio.duration;
     syncProgress();
   });
-  mute.addEventListener('click', () => {
-    const silent = audio.muted || audio.volume === 0;
-    if (silent && audio.volume === 0) audio.volume = 0.5;
-    audio.muted = !silent; syncVolume();
-  });
-  volume.addEventListener('input', () => {
-    audio.volume = Number(volume.value); audio.muted = false;
-    if (Math.abs(audio.volume - Number(volume.value)) > .01) status.textContent = 'Utilisez les boutons de volume de votre appareil.';
+  function applyVolume() {
+    const value = Number(volume.value);
+    excerptAudio.volume = value; excerptAudio.muted = userMuted;
+    radioAudio.volume = value; radioAudio.muted = userMuted || suspended || mode !== 'radio';
+    if (mode === 'video') video?.setVolume(value, userMuted);
     syncVolume();
+  }
+  mute.addEventListener('click', () => {
+    userMuted = !(userMuted || Number(volume.value) === 0);
+    if (!userMuted && Number(volume.value) === 0) volume.value = .5;
+    applyVolume();
   });
-  audio.addEventListener('play', () => { label.textContent = mode === 'radio' ? 'Connexion au direct…' : 'Chargement de l’extrait…'; sync(); });
-  audio.addEventListener('playing', () => { label.textContent = mode === 'radio' ? 'En direct' : 'Extrait'; sync(); });
-  audio.addEventListener('waiting', () => { label.textContent = 'Chargement…'; });
-  audio.addEventListener('pause', () => { label.textContent = 'En pause'; sync(); });
-  audio.addEventListener('ended', () => {
+  volume.addEventListener('input', () => { userMuted = false; applyVolume(); });
+  for (const sourceAudio of [radioAudio, excerptAudio]) {
+    const listen = (event, callback) => sourceAudio.addEventListener(event, () => { if (sourceAudio === audio && mode !== 'video') callback(); });
+  listen('play', () => { label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.910919b77ec7") : window.RadioI18n.t("ui.a90bd5662fcc"); sync(); });
+  listen('playing', () => { label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.235df0b17a9e") : window.RadioI18n.t("ui.7224fc1ace77"); sync(); });
+  listen('waiting', () => { label.textContent = window.RadioI18n.t("ui.66474911d953"); });
+  listen('pause', () => { label.textContent = window.RadioI18n.t("ui.239c064e0d40"); sync(); });
+  listen('ended', () => {
     if (mode === 'preview' && resumeRadio.checked && radio) { selectRadio(radio); return; }
-    label.textContent = mode === 'radio' ? 'Direct interrompu' : 'Extrait terminé'; sync();
+    label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.3a3b98e30872") : window.RadioI18n.t("ui.a4d4a1c61e92"); sync();
   });
-  audio.addEventListener('error', () => { label.textContent = 'Lecture indisponible'; status.textContent = 'Lecture indisponible. Réessayez ou choisissez un autre titre.'; sync(); });
-  ['timeupdate', 'loadedmetadata', 'durationchange', 'emptied', 'seeked'].forEach(event => audio.addEventListener(event, syncProgress));
-  audio.addEventListener('volumechange', syncVolume);
+  listen('error', () => { label.textContent = window.RadioI18n.t("ui.ce6a03b5762e"); status.textContent = window.RadioI18n.t("ui.7b6e9406532f"); sync(); });
+  ['timeupdate', 'loadedmetadata', 'durationchange', 'emptied', 'seeked'].forEach(event => listen(event, syncProgress));
+  }
+
   window.addEventListener('radio:pagechange', sync);
   window.addEventListener('radio:globalfilterschange', () => {
     if (mode === 'radio' && radio) {
-      metadataVersion++; title.textContent = 'Titre indisponible'; artist.textContent = '';
+      metadataVersion++; title.textContent = window.RadioI18n.t("ui.a031d88118a6"); artist.textContent = '';
       setCurrentTrack(null);
       showArtwork({}, radio); refreshNowPlaying();
     }
   });
-  window.RadioPlayer = {preview, key, sync, pause: () => audio.pause()};
+  function pause() {
+    if (mode === 'video') video?.pause();
+    else if (mode === 'radio') { quietRadio(); label.textContent = window.RadioI18n.t("ui.239c064e0d40"); }
+    else audio.pause();
+    sync();
+  }
+  function startVideo(adapter, track) {
+    quietRadio(); excerptAudio.pause(); video = adapter; metadataVersion++;
+    mode = 'video'; previewKey = null; setCurrentTrack(track); showArtwork(track);
+    title.textContent = track.title; artist.textContent = track.artist || ''; name.textContent = window.RadioI18n.t("ui.fb7accfff8c6");
+    video.setVolume(Number(volume.value), userMuted);
+    sync(); syncProgress();
+  }
+  function videoStopped() {
+    if (mode !== 'video') return;
+    video = null; mode = 'preview'; audio = excerptAudio; stopExcerpt();
+    label.textContent = window.RadioI18n.t("ui.adf3f3af5692"); sync(); syncProgress();
+  }
+  window.RadioPlayer = {preview, key, sync, pause, startVideo, videoStopped, videoState() {
+    if (mode === 'video') { userMuted = video?.muted?.() || false; syncVolume(); label.textContent = video?.playing() ? window.RadioI18n.t("ui.fb7accfff8c6") : window.RadioI18n.t("ui.239c064e0d40"); sync(); syncProgress(); }
+  }};
+  window.setInterval(() => { if (mode === 'video') { userMuted = video?.muted?.() || false; syncVolume(); syncProgress(); } }, 500);
+
+  radioAudio.muted = true;
   if (radio) { showArtwork({}, radio); refreshNowPlaying(); }
   window.setInterval(() => { if (!document.hidden && mode === 'radio') refreshNowPlaying(); }, 20000);
   syncVolume(); sync(); syncProgress();

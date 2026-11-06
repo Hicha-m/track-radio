@@ -1,23 +1,23 @@
 {% if page == '/admin' %}
 <div class="admin-login-layout" id="admin-root">
-  <div class="page-heading"><span class="eyebrow">ESPACE ADMINISTRATEUR</span><h1>Connexion</h1><p>Retrouvez vos outils de gestion et le suivi du catalogue.</p></div>
+  <div class="page-heading"><span class="eyebrow">{{ t('ui.46aee41b699e') }}</span><h1>{{ t('ui.61d695041034') }}</h1><p>{{ t('ui.1fc0ac8de9ca') }}</p></div>
   <section class="admin-login-card panel">
-    <h2>Bienvenue dans les coulisses.</h2>
-    <p>Connectez-vous pour accéder au tableau de bord.</p>
+    <h2>{{ t('ui.3053eec82e77') }}</h2>
+    <p>{{ t('ui.88aeb51d7bee') }}</p>
     <form id="admin-login" class="admin-login" autocomplete="off">
-      <label>Clé administrateur<input name="token" type="password" required autocomplete="off" spellcheck="false" maxlength="512"></label>
-      <button class="hero-button" type="submit">Ouvrir l’administration <span aria-hidden="true">→</span></button>
+      <label>{{ t('ui.087f647d75c8') }}<input name="token" type="password" required autocomplete="off" spellcheck="false" maxlength="512"></label>
+      <button class="hero-button" type="submit">{{ t('ui.3b6a77d224e3') }} <span aria-hidden="true">→</span></button>
     </form>
-    <p id="admin-status" class="hint" role="status">La clé n’est pas conservée dans le navigateur.</p>
+    <p id="admin-status" class="hint" role="status">{{ t('ui.ab67761fc36c') }}</p>
   </section>
-  <a class="admin-return" href="/">← Revenir aux classements</a>
+  <a class="admin-return" href="/">{{ t('ui.8f8d2d295038') }}</a>
 </div>
 {% else %}
 <div id="admin-root" data-admin-page="{{ page.split('/')[-1] }}">
-  <div class="page-heading admin-heading"><div><span class="eyebrow">ESPACE ADMINISTRATEUR</span><h1>{{ admin_title }}</h1><p>{{ admin_description }}</p></div><a href="/" class="admin-return">Voir le site <span aria-hidden="true">↗</span></a></div>
-  <nav class="admin-nav" aria-label="Administration">
-    {% for path, label in [('/admin/dashboard', 'Tableau de bord'), ('/admin/radios', 'Radios'), ('/admin/diffusions', 'Diffusions'), ('/admin/catalogue', 'Catalogue'), ('/admin/exclusions', 'Exclusions')] %}
-    <a href="{{ path }}" {% if page == path %}class="active" aria-current="page"{% endif %}>{{ label }}</a>
+  <div class="page-heading admin-heading"><div><span class="eyebrow">{{ t('ui.46aee41b699e') }}</span><h1>{{ t(admin_title) }}</h1><p>{{ t(admin_description) }}</p></div><a href="/" class="admin-return">{{ t('ui.749217c2a9d5') }} <span aria-hidden="true">↗</span></a></div>
+  <nav class="admin-nav" aria-label="{{ t("ui.4b42c6690ebe") }}">
+    {% for path, label in [('/admin/dashboard', t('ui.ac0e5fc936ad')), ('/admin/radios', t('ui.745a8ec30dfa')), ('/admin/diffusions', t('ui.31467004fcea')), ('/admin/catalogue', t('ui.103451395067')), ('/admin/exclusions', t('ui.fcc9f1f92978')), ('/admin/workers', t('ui.70b7011b3ce0'))] %}
+    <a href="{{ path }}" {% if page == path %}class="active" aria-current="page"{% endif %}>{{ t(label) }}</a>
     {% endfor %}
   </nav>
   <p id="admin-status" class="hint admin-notice" role="status"></p>
