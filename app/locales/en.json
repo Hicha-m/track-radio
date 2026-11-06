@@ -698,5 +698,15 @@
   "preview.next": "Loading the next preview…",
   "preview.finished": "End of previews",
   "preview.unavailable": "Unable to check the next previews. Start a preview again to retry.",
-  "preview.stopped": "Preview stopped"
+  "preview.stopped": "Preview stopped",
+  "stations.details": "Track details on {station}",
+  "stations.listen": "Listen to {station}",
+  "stations.chart": "Charts for {station}",
+  "stations.loading": "Loading track…",
+  "stations.current": "Now playing",
+  "stations.last_known": "Last known track · {time}",
+  "stations.unavailable": "Information unavailable",
+  "stations.hidden": "Hidden track",
+  "stations.observed": "Observed on {time}",
+  "stations.last_known_player": "Last known track: {title}"
 }

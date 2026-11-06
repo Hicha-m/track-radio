@@ -161,15 +161,23 @@
     const current = ++metadataVersion;
     if (mode !== 'radio' || !radio?.id) return;
     try {
-      const response = await window.MusicFilters.fetch(`/api/plays?station_id=${encodeURIComponent(radio.id)}&limit=1`, {cache: 'no-store'});
-      if (!response.ok) return;
-      const [track] = await response.json();
+      const params = window.MusicFilters.apply(new URLSearchParams({station_id: radio.id}));
+      const response = await window.MusicFilters.fetch(`/api/stations/now-playing?${params}`, {cache: 'no-store'});
+      if (!response.ok) throw new Error('radio_metadata_unavailable');
+      const data = await response.json();
       if (current !== metadataVersion || mode !== 'radio') return;
-      title.textContent = track?.title || window.RadioI18n.t("ui.a031d88118a6");
-      setCurrentTrack(track);
+      const entry = data.items.find(item => String(item.station_id) === String(radio.id));
+      const track = entry?.track;
+      if (!track) title.textContent = window.RadioI18n.t(entry?.status === 'hidden' ? 'stations.hidden' : 'stations.unavailable');
+      else if (entry.status === 'last_known') title.textContent = window.RadioI18n.t('stations.last_known_player', {title: track.title});
+      else title.textContent = track.title;
+      setCurrentTrack(track ? {...track, station_id: radio.id} : null);
       artist.textContent = track?.artist || '';
       showArtwork(track || {}, radio);
-    } catch (_) { /* Keep the previous radio information through a temporary failure. */ }
+    } catch (_) {
+      if (current !== metadataVersion || mode !== 'radio') return;
+      title.textContent = currentTrack ? window.RadioI18n.t('stations.last_known_player', {title: currentTrack.title}) : window.RadioI18n.t('stations.unavailable');
+    }
   }
   async function play() {
     if (mode === 'video') { video?.play(); return; }
@@ -343,10 +351,7 @@
       title.textContent = window.RadioI18n.t('preview.stopped'); artist.textContent = '';
       label.textContent = window.RadioI18n.t('preview.stopped'); status.textContent = '';
       sync(); syncProgress();
-    }
-  });
-  window.addEventListener('radio:globalfilterschange', () => {
-    if (mode === 'radio' && radio) {
+    } else if (mode === 'radio' && radio) {
       metadataVersion++; title.textContent = window.RadioI18n.t("ui.a031d88118a6"); artist.textContent = '';
       setCurrentTrack(null);
       showArtwork({}, radio); refreshNowPlaying();

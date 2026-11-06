@@ -698,5 +698,15 @@
   "preview.next": "Chargement de l’extrait suivant…",
   "preview.finished": "Fin des préécoutes",
   "preview.unavailable": "Impossible de vérifier les prochains extraits. Relancez la préécoute pour réessayer.",
-  "preview.stopped": "Préécoute arrêtée"
+  "preview.stopped": "Préécoute arrêtée",
+  "stations.details": "Détails du morceau sur {station}",
+  "stations.listen": "Écouter {station}",
+  "stations.chart": "Classement de {station}",
+  "stations.loading": "Chargement du titre…",
+  "stations.current": "En cours",
+  "stations.last_known": "Dernier titre connu · {time}",
+  "stations.unavailable": "Information indisponible",
+  "stations.hidden": "Morceau masqué",
+  "stations.observed": "Observé le {time}",
+  "stations.last_known_player": "Dernier titre connu : {title}"
 }

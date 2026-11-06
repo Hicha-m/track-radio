@@ -61,10 +61,18 @@
       {% endif %}
       <div class="stations {{ 'search-stations' if is_search else '' }}">
       {% for station in stations %}
-        <article class="station-card {{ 'selected' if station.id == station_id else '' }}">
-          <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="Écouter {{ station.name }}"><span aria-hidden="true">▶</span><img class="station-logo" src="/api/stations/{{ station.id }}/artwork" alt="" loading="lazy" referrerpolicy="no-referrer"></button>
-          <div class="station-copy"><strong>{{ station.name }}</strong><small><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ t('ui.35ffed66baff') if station.enabled else t('ui.96d7591a4125') }}</small></div>
-          <a class="station-chart" href="/?station_id={{ station.id }}#classement" aria-label="Classement de {{ station.name }}">↗</a>
+        <article class="station-card {{ 'selected' if station.id == station_id else '' }}" data-station-id="{{ station.id }}">
+          <div class="station-art">
+            <button class="station-track" type="button" disabled aria-label="{{ t('stations.details', station=station.name) }}"><span class="station-cover-placeholder" aria-hidden="true">♫</span></button>
+            <img class="station-logo" src="/api/stations/{{ station.id }}/artwork" alt="" loading="lazy" referrerpolicy="no-referrer">
+            <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="{{ t('stations.listen', station=station.name) }}"><span aria-hidden="true">▶</span></button>
+          </div>
+          <div class="station-copy">
+            <div class="station-heading"><strong>{{ station.name }}</strong><a class="station-chart" href="/?station_id={{ station.id }}#classement" aria-label="{{ t('stations.chart', station=station.name) }}">↗</a></div>
+            <p class="station-title">{{ t('stations.loading') }}</p><p class="station-artist"></p>
+            <small class="station-now-status"></small>
+            <small class="station-collection"><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ t('ui.35ffed66baff') if station.enabled else t('ui.96d7591a4125') }}</small>
+          </div>
         </article>
       {% else %}<p class="empty">{{ t('ui.08c3aa9a1c12') }}</p>{% endfor %}
       </div>
@@ -108,6 +116,7 @@
   <script src="/static/catalog.js?v={{ asset_version }}"></script>
   <script src="/static/search.js?v={{ asset_version }}"></script>
   <script src="/static/player.js?v={{ asset_version }}"></script>
+  <script src="/static/stations.js?v={{ asset_version }}"></script>
   <p id="navigation-status" class="navigation-status" role="status" hidden></p>
   <script src="/static/charts.js?v={{ asset_version }}"></script>
   <script src="/static/dashboard.js?v={{ asset_version }}"></script>

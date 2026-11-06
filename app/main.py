@@ -6,7 +6,7 @@ from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -27,6 +27,7 @@ from app.security import SecurityMiddleware
 from app.services.catalog import attach_metadata
 from app.services.exclusions import canonical_exclusions, exclusion_conditions, global_revision
 from app.services.explorer import ExploreFilters, explore
+from app.services.station_now_playing import StationNowFilters
 from app.services.stats import cached_top
 
 app = FastAPI(title="Radio Tracker", version="0.1.0")
@@ -75,6 +76,18 @@ def explore_database(db: DbSession, filters: Annotated[ExploreFilters, Query()])
 @app.get("/api/stations", response_model=list[StationOut])
 def stations(db: DbSession):
     return list(db.scalars(select(Station).order_by(Station.name)))
+
+
+@app.get("/api/stations/now-playing")
+def station_now_playing(db: DbSession, filters: Annotated[StationNowFilters, Query()]):
+    from fastapi.encoders import jsonable_encoder
+
+    from app.services.station_now_playing import now_playing
+
+    return JSONResponse(
+        jsonable_encoder(now_playing(db, filters.exclusions, station_id=filters.station_id)),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 def play_query(station_id: int | None, since: datetime | None, until: datetime | None):
