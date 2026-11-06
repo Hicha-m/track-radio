@@ -572,3 +572,10 @@ Les réglages proposent Français / English. Le français est la valeur par déf
 Validation reproductible : `python -m pytest`, `ruff check .`, `ruff format --check .`, `node --test tests/*.test.cjs`, contrôle `node --check` des scripts, migrations Alembic et `PYTHONPATH=. python tests/browser_persistent.py`. Cette dernière suite utilise exclusivement des données synthétiques et un lecteur YouTube simulé ; elle vérifie le même iframe après navigation, le contrôle du flux radio en sourdine, le choix vidéo en administration, la supervision, les langues et les largeurs 1280/414/412/320 px. Les captures sont écrites dans `/tmp/radio-final-captures/`.
 
 Les exports de sauvegarde incluent aussi les correspondances YouTube, les choix manuels, le quota partagé et la supervision. Les archives antérieures à ces tables restent importables. La sauvegarde ne remet pas le quota à zéro lors d’une restauration. Le contrôle YouTube du déploiement utilise la session de base de données et respecte une temporisation ou un quota épuisé.
+
+
+### Index des agrégations SQLite
+
+La migration `0013` ajoute trois index couvrants : passages par artiste/titre, passages par date, et métadonnées par identifiant/genre. Les agrégations peuvent ainsi lire les champs nécessaires dans les index sans charger les gros payloads source ni les JSON/paroles. Les requêtes, exclusions personnelles/globales, limites de cache et règles de rediffusion sont conservées ; aucune donnée d’historique n’est modifiée. PostgreSQL n’est pas ciblé par cette optimisation mesurée sur SQLite.
+
+La création des index parcourt les données une fois au déploiement ; elle est suivie d’un `ANALYZE` limité aux nouveaux index. Le retour vers `0012` retire seulement ces index. Le [rapport et les outils de profiling](https://github.com/Hicha-m/track-radio/tree/profiling) restent sur la branche de test, hors du code livré. Les essais synthétiques comparent aussi les résultats avant/après, sans utiliser de données de production.

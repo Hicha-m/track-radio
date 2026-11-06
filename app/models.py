@@ -28,6 +28,9 @@ class AdminSession(Base):
 
 class TrackMetadata(Base):
     __tablename__ = "track_metadata"
+    __table_args__ = (
+        Index("ix_track_metadata_genre_cover", "id", "primary_genre").ddl_if(dialect="sqlite"),
+    )
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     artist: Mapped[str | None] = mapped_column(String(300), nullable=True)
     title: Mapped[str] = mapped_column(String(500))
@@ -76,6 +79,13 @@ class Play(Base):
     __table_args__ = (
         Index("ix_plays_station_detected", "station_id", "detected_at"),
         Index("ix_plays_detected", "detected_at"),
+        # Keep analytics off the much wider source-payload rows on SQLite.
+        Index(
+            "ix_plays_chart_cover", "artist", "title", "detected_at", "station_id", "track_id"
+        ).ddl_if(dialect="sqlite"),
+        Index(
+            "ix_plays_period_cover", "detected_at", "artist", "title", "station_id", "track_id"
+        ).ddl_if(dialect="sqlite"),
         Index("ix_plays_track_station_detected", "track_id", "station_id", "detected_at"),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
