@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from app.config import settings
 from app.models import Play
 from app.services.exclusions import exclusion_conditions, global_revision
+from app.services.track_identity import grouping_columns
 
 _cache = OrderedDict()
 _lock = Lock()
@@ -30,7 +31,9 @@ def cached_top(db, station_id, since, until, limit, exclusions="", station_ids=(
         if key in _cache and _cache[key][0] > now:
             _cache.move_to_end(key)
             return _cache[key][1]
-        query = select(Play.artist, Play.title, func.count(Play.id)).where(
+        artist = func.min(Play.artist).label("artist")
+        title = func.min(Play.title).label("title")
+        query = select(artist, title, func.count(Play.id)).where(
             *exclusion_conditions(exclusions, db.get_bind().dialect.name == "sqlite")
         )
         if station_id:
@@ -43,8 +46,8 @@ def cached_top(db, station_id, since, until, limit, exclusions="", station_ids=(
             query = query.where(Play.detected_at < until)
         result = tuple(
             db.execute(
-                query.group_by(Play.artist, Play.title)
-                .order_by(func.count(Play.id).desc())
+                query.group_by(*grouping_columns())
+                .order_by(func.count(Play.id).desc(), title, artist, Play.track_id)
                 .limit(limit)
             )
         )

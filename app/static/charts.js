@@ -23,6 +23,7 @@ if (!['1', '7', '30', 'all'].includes(days)) days = '7';
 let pending;
 let chartVersion = 0;
 let renderedChart = null;
+let chartScope = {};
 
 function node(tag, text = '', className = '') {
   const result = document.createElement(tag);
@@ -54,7 +55,7 @@ function count(track) {
   return node('span', window.RadioI18n.plural('airplay.one', 'airplay.other', track.plays), 'play-count');
 }
 function renderChart(tracks) {
-  const signature = JSON.stringify([selectedIds(), tracks]);
+  const signature = JSON.stringify([chartScope, tracks]);
   if (signature === renderedChart) return;
   renderedChart = signature;
   const cards = [];
@@ -63,7 +64,7 @@ function renderChart(tracks) {
     const rank = index + 1;
     const link = node('button');
     link.type = 'button';
-    const detailTrack = {...track, station_id: selectedIds().length === 1 ? selectedIds()[0] : null};
+    const detailTrack = {...track, history_scope: {...chartScope}, station_id: selectedIds().length === 1 ? selectedIds()[0] : null};
     link.addEventListener('click', () => window.TrackCatalog.open(detailTrack));
     link.setAttribute('aria-label', window.RadioI18n.t("ui.3de4c767b8b4", {p0: (rank), p1: (track.title), p2: (track.artist || window.RadioI18n.t("ui.133df509234a")), p3: (track.plays)}));
     if (index < 3) {
@@ -94,6 +95,8 @@ async function loadChart(force = false) {
   const params = new URLSearchParams({limit: '20'});
   stationParams(params);
   if (days !== 'all') params.set('since', new Date(Math.floor(Date.now() / 30000) * 30000 - Number(days) * 86400000).toISOString());
+  chartScope = Object.fromEntries(params);
+  delete chartScope.limit;
   window.MusicFilters.apply(params);
   const exportParams = new URLSearchParams(params);
   exportParams.set('view', 'tracks'); exportParams.set('sort', 'frequency');

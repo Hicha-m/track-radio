@@ -515,7 +515,7 @@
   "ui.b29d758e38e4": "View this artist’s tracks",
   "ui.e680a32dbd8e": "View this track’s airplay",
   "ui.596c3cb7cb56": "View saved lyrics suggestions",
-  "ui.21c2eff8341a": "View full history",
+  "ui.21c2eff8341a": "View detections",
   "ui.cf106469776a": "View all results",
   "ui.b10fb966d720": "Volume",
   "ui.00bda5f70827": "Your management tools",
@@ -686,5 +686,9 @@
   "airplay.one": "{count} play",
   "airplay.other": "{count} plays",
   "filters.one": "{count} active filter",
-  "filters.other": "{count} active filters"
+  "filters.other": "{count} active filters",
+  "catalog.selected_stations": " · selected stations",
+  "catalog.history_period": "From {since} to {until}",
+  "catalog.now": "now",
+  "catalog.all_history": "All recorded history"
 }

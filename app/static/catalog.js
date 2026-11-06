@@ -9,10 +9,14 @@ window.TrackCatalog = (() => {
     return result;
   }
   function searchUrl(track) {
-    const params = new URLSearchParams({view: 'plays', title: track.title, exact: 'true', sort: 'newest'});
+    const params = new URLSearchParams({view: 'plays', sort: 'newest', ...(track.history_scope || {})});
+    if (track.metadata?.track_id) params.set('track_id', track.metadata.track_id);
+    else {
+      params.set('title', track.title); params.set('exact', 'true');
+      if (track.artist) params.set('artist', track.artist);
+      else params.set('artist_status', 'missing');
+    }
     if (track.station_id) params.set('station_id', track.station_id);
-    if (track.artist) params.set('artist', track.artist);
-    else params.set('artist_status', 'missing');
     return `/recherche?${params}`;
   }
   function playButton(track, source = null) {
@@ -130,12 +134,16 @@ window.TrackCatalog = (() => {
       essentials.append(genreList(data), message, edit); summary.append(essentials); content.append(summary);
       const radio = el('section', '', 'catalog-radio'); radio.append(el('h3', window.RadioI18n.t("ui.a5ab437b560e")));
       const radioStatus = el('p', window.RadioI18n.t("ui.e539ce5cf335"), 'hint'); radio.append(radioStatus); content.append(radio);
-      const radioParams = window.MusicFilters.apply(new URLSearchParams()); if (track.station_id) radioParams.set('station_id', track.station_id);
+      const radioParams = window.MusicFilters.apply(new URLSearchParams(track.history_scope || {})); if (track.station_id) radioParams.set('station_id', track.station_id);
       window.MusicFilters.fetch(`/api/catalog/${data.track_id}/radio?${radioParams}`).then(async response => {
         if (!response.ok) throw new Error(window.RadioI18n.t("ui.9ae2a14543b2")); return response.json();
       }).then(history => {
         if (!active()) return;
-        radioStatus.textContent = window.RadioI18n.t("ui.799865de7cdd", {p0: (track.station_id ? window.RadioI18n.t("ui.f2d5a938d8da") : window.RadioI18n.t("ui.e1d58522c2fa"))});
+        const stations = track.station_id ? window.RadioI18n.t("ui.f2d5a938d8da") : track.history_scope?.station_ids ? window.RadioI18n.t('catalog.selected_stations') : window.RadioI18n.t("ui.e1d58522c2fa");
+        const period = track.history_scope?.since || track.history_scope?.until
+          ? window.RadioI18n.t('catalog.history_period', {since: date(track.history_scope.since), until: track.history_scope.until ? date(track.history_scope.until) : window.RadioI18n.t('catalog.now')})
+          : window.RadioI18n.t('catalog.all_history');
+        radioStatus.textContent = `${period}${stations}. ${window.RadioI18n.t("ui.799865de7cdd", {p0: ''})}`;
         const counts = el('div', '', 'catalog-counts');
         for (const [label, value] of [[window.RadioI18n.t("ui.0d9b4cc2f95f"), history.detections], [window.RadioI18n.t("ui.745a8ec30dfa"), history.stations], [window.RadioI18n.t("ui.cdefb32a3d84"), date(history.first_at)], [window.RadioI18n.t("ui.fceee0a4da07"), date(history.last_at)]]) {
           const item = el('div'); item.append(el('strong', String(value)), el('span', label)); counts.append(item);
@@ -144,7 +152,7 @@ window.TrackCatalog = (() => {
         const recent = el('ul', '', 'catalog-recent');
         for (const row of history.recent) { const item = el('li'); item.append(el('strong', row.station_name), el('time', date(row.detected_at))); recent.append(item); }
         if (!history.recent.length) recent.append(el('li', window.RadioI18n.t("ui.67a199a6f0d4")));
-        const search = el('a', window.RadioI18n.t("ui.21c2eff8341a"), 'catalog-search-link'); search.href = searchUrl(track);
+        const search = el('a', window.RadioI18n.t("ui.21c2eff8341a"), 'catalog-search-link'); search.href = searchUrl({...track, metadata: data});
         radio.append(recent, search);
       }).catch(error => { if (active()) radioStatus.textContent = error.message; });
       if (options.showHourly && location.pathname === '/stats') {

@@ -24,7 +24,8 @@ from app.services.catalog import (
     search_provider,
 )
 from app.services.catalog_completion import candidate_completions, complete_from_candidate
-from app.services.exclusions import canonical_exclusions, ensure_visible, exclusion_conditions
+from app.services.exclusions import canonical_exclusions, ensure_visible
+from app.services.explorer import ExploreFilters, conditions
 
 router = APIRouter(prefix="/api/catalog")
 Db = Annotated[Session, Depends(get_db)]
@@ -220,6 +221,9 @@ def radio_history(
     db: Db,
     exclusions: str = Query("", max_length=12000),
     station_id: int | None = Query(None, ge=1),
+    station_ids: str = Query("", max_length=2000),
+    since: datetime | None = None,
+    until: datetime | None = None,
 ):
     if len(key) != 64 or any(c not in "0123456789abcdef" for c in key):
         raise HTTPException(422, "Identifiant de titre invalide.")
@@ -228,22 +232,27 @@ def radio_history(
     if recording:
         ensure_visible(request, db, recording.artist, recording.title)
     try:
-        exclusions = canonical_exclusions(exclusions)
+        filters = ExploreFilters(
+            track_id=key,
+            exclusions=exclusions,
+            station_id=station_id,
+            station_ids=station_ids,
+            since=since,
+            until=until,
+        )
     except ValueError as error:
-        raise HTTPException(422, "Liste de titres masqués invalide.") from error
-    where = [
-        Play.track_id == key,
-        *exclusion_conditions(exclusions, db.get_bind().dialect.name == "sqlite"),
-    ]
-    if station_id is not None:
-        where.append(Play.station_id == station_id)
+        raise HTTPException(422, "Filtres d’historique invalides.") from error
+    where = conditions(filters, unicode=db.get_bind().dialect.name == "sqlite")
     total, stations, first, last = db.execute(
         select(
             func.count(),
             func.count(func.distinct(Play.station_id)),
             func.min(Play.detected_at),
             func.max(Play.detected_at),
-        ).where(*where)
+        )
+        .select_from(Play)
+        .join(Station)
+        .where(*where)
     ).one()
     recent = db.execute(
         select(Station.name, Play.detected_at)

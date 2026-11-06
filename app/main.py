@@ -147,12 +147,16 @@ def top_tracks(
         exclusions = canonical_exclusions(exclusions)
     except ValueError as error:
         raise HTTPException(422, "Liste de titres masqués invalide.") from error
+    try:
+        period = ExploreFilters(since=since, until=until)
+    except ValueError as error:
+        raise HTTPException(422, "Période de classement invalide.") from error
     enriched = attach_metadata(
         db,
         [
             {"artist": a, "title": t, "plays": c}
             for a, t, c in cached_top(
-                db, station_id, since, until, limit, exclusions, selected_stations
+                db, station_id, period.since, period.until, limit, exclusions, selected_stations
             )
         ],
     )

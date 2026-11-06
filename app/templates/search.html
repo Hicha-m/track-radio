@@ -8,6 +8,8 @@
         <details class="result-columns"><summary>{{ t('ui.efc23e9e8a30') }}</summary><fieldset id="result-columns"><legend>{{ t('ui.78def24f5bbe') }}</legend></fieldset><button type="button" id="reset-columns" class="text-button">{{ t('ui.58a37d6d2551') }}</button></details>
       </div>
       <form id="explorer-form" autocomplete="off">
+        <input type="hidden" name="track_id">
+        <input type="hidden" name="station_ids">
         <input type="hidden" name="view" value="tracks">
         <div class="search-line"><label>{{ t('ui.733d1c742675') }}<input name="q" type="search" maxlength="200" placeholder="{{ t("ui.b99e685a9f50") }}"></label></div>
         <details class="search-filters"><summary>{{ t('ui.390a67f70687') }}</summary>
@@ -20,10 +22,10 @@
         </div>
         <details class="advanced-filters"><summary>{{ t('ui.f875dd7dac17') }}</summary>
           <div class="filter-grid">
-            <label>{{ t('ui.bc2e12d6abbf') }}<input name="since" type="datetime-local"></label>
-            <label>{{ t('ui.9fc8521f5ab9') }}<input name="until" type="datetime-local"></label>
-            <label>{{ t('ui.b15feece4022') }}<input name="seen_since" type="datetime-local"></label>
-            <label>{{ t('ui.5827153de36d') }}<input name="seen_until" type="datetime-local"></label>
+            <label>{{ t('ui.bc2e12d6abbf') }}<input name="since" type="datetime-local" step="1"></label>
+            <label>{{ t('ui.9fc8521f5ab9') }}<input name="until" type="datetime-local" step="1"></label>
+            <label>{{ t('ui.b15feece4022') }}<input name="seen_since" type="datetime-local" step="1"></label>
+            <label>{{ t('ui.5827153de36d') }}<input name="seen_until" type="datetime-local" step="1"></label>
             <label>{{ t('ui.0e570ca6fabe') }}<select name="source"><option value="">{{ t('ui.a7eb89285dae') }}</option><option value="icy">{{ t('ui.cf5860ec52fc') }}</option><option value="json">{{ t('ui.db1a21a0bc2e') }}</option><option value="html">{{ t('ui.07239dbd2a1a') }}</option></select></label>
             <label>{{ t('ui.d4a8e77f1fd6') }}<select name="artist_status"><option value="any">{{ t('ui.df7dacfd557f') }}</option><option value="known">{{ t('ui.0a90407639c4') }}</option><option value="missing">{{ t('ui.7f62496b0cb8') }}</option></select></label>
             <label>{{ t('ui.8f3c87e80924') }}<select name="enabled"><option value="">{{ t('ui.df7dacfd557f') }}</option><option value="true">{{ t('ui.ad26287ab66b') }}</option><option value="false">{{ t('ui.da60ff35b212') }}</option></select></label>

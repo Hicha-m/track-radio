@@ -13,6 +13,7 @@ from app.models import Play, Station, TrackMetadata
 from app.services.exclusions import ExclusionFilters, exclusion_conditions, global_revision
 from app.services.search_text import normalize_search
 from app.services.station_selection import station_ids
+from app.services.track_identity import grouping_columns
 
 
 class ExploreFilters(ExclusionFilters):
@@ -26,6 +27,7 @@ class ExploreFilters(ExclusionFilters):
     def selected_stations(cls, value):
         return ",".join(map(str, station_ids(value)))
 
+    track_id: str | None = Field(None, pattern=r"^[a-f0-9]{64}$")
     q: str = Field("", max_length=200)
     genre: str = Field("", max_length=100)
     artist: str = Field("", max_length=300)
@@ -89,6 +91,7 @@ def conditions(filters, unicode=True):
     values = exclusion_conditions(filters.exclusions, unicode)
     for column, value, compare in (
         (Play.station_id, filters.station_id, "eq"),
+        (Play.track_id, filters.track_id, "eq"),
         (Play.source, filters.source, "eq"),
         (Station.enabled, filters.enabled, "eq"),
         (Play.detected_at, filters.since, "ge"),
@@ -164,12 +167,13 @@ def result_query(db, filters):
     filters = filters.model_copy(update={"snapshot_id": snapshot})
     where = conditions(filters, unicode=db.get_bind().dialect.name == "sqlite")
     if filters.view == "tracks":
+        artist, title = func.min(Play.artist), func.min(Play.title)
         count = func.count(Play.id)
         latest = func.max(Play.detected_at)
         query = (
             select(
-                Play.artist,
-                Play.title,
+                artist.label("artist"),
+                title.label("title"),
                 count.label("plays"),
                 func.count(func.distinct(Play.station_id)).label("stations"),
                 func.min(Play.detected_at).label("first_at"),
@@ -177,15 +181,15 @@ def result_query(db, filters):
             )
             .join(Station)
             .where(*where)
-            .group_by(Play.artist, Play.title)
+            .group_by(*grouping_columns())
         )
         query = query.having(count >= filters.min_plays)
         order = {
-            "oldest": (func.min(Play.detected_at).asc(), Play.title, Play.artist),
-            "artist": (func.lower(Play.artist), Play.title),
-            "title": (func.lower(Play.title), Play.artist),
-            "frequency": (count.desc(), Play.title, Play.artist),
-        }.get(filters.sort, (latest.desc(), Play.title, Play.artist))
+            "oldest": (func.min(Play.detected_at).asc(), title, artist, Play.track_id),
+            "artist": (func.lower(artist), title, Play.track_id),
+            "title": (func.lower(title), artist, Play.track_id),
+            "frequency": (count.desc(), title, artist, Play.track_id),
+        }.get(filters.sort, (latest.desc(), title, artist, Play.track_id))
     else:
         query = (
             select(

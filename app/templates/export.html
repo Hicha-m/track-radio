@@ -4,6 +4,7 @@
     <h2 id="export-title">{{ t('ui.47fef94d2b0b') }}</h2>
     <p class="hint">{{ t('ui.32d5776420e8') }}</p>
     <form id="export-form">
+      <input type="hidden" name="track_id">
       <div class="filter-grid">
         <label>{{ t('ui.6ef4db3c1dca') }}<select name="view"><option value="tracks">{{ t('ui.76a002ddb1d1') }}</option><option value="plays">{{ t('ui.4413ab069b7c') }}</option></select></label>
         <label>{{ t('ui.2a7dfeb2f2b0') }}<select name="station_id"><option value="">{{ t('ui.3d7e6d53866b') }}</option><option value="custom" disabled>{{ t('ui.41297f811c64') }}</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>

@@ -515,7 +515,7 @@
   "ui.b29d758e38e4": "Voir les musiques de cet artiste",
   "ui.e680a32dbd8e": "Voir les passages de cette musique",
   "ui.596c3cb7cb56": "Voir les propositions de paroles enregistrées",
-  "ui.21c2eff8341a": "Voir l’historique complet",
+  "ui.21c2eff8341a": "Voir les passages",
   "ui.cf106469776a": "Voir tous les résultats",
   "ui.b10fb966d720": "Volume",
   "ui.00bda5f70827": "Vos outils de gestion",
@@ -686,5 +686,9 @@
   "airplay.one": "{count} diffusion",
   "airplay.other": "{count} diffusions",
   "filters.one": "{count} filtre actif",
-  "filters.other": "{count} filtres actifs"
+  "filters.other": "{count} filtres actifs",
+  "catalog.selected_stations": " · radios sélectionnées",
+  "catalog.history_period": "Du {since} au {until}",
+  "catalog.now": "maintenant",
+  "catalog.all_history": "Tout l’historique"
 }

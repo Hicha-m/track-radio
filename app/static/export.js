@@ -16,6 +16,9 @@ window.RadioExport = (() => {
     const submit = form.querySelector('[type=submit]');
     const fields = panel.querySelector('.export-fields');
     const captured = new URLSearchParams(selection);
+    form.addEventListener('input', event => {
+      if (['q', 'artist', 'title'].includes(event.target.name)) form.elements.track_id.value = '';
+    });
     const radioChoices = [...panel.querySelectorAll('[data-export-radio]')];
     const radioIds = (captured.get('station_ids') || captured.get('station_id') || '').split(',');
     radioChoices.forEach(input => { input.checked = radioIds.includes(input.value); });

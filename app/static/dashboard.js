@@ -111,6 +111,7 @@ function setView(view) {
 }
 
 function selectArtist(artist) {
+  form.elements.track_id.value = "";
   form.elements.q.value = '';
   form.elements.artist.value = artist || '';
   form.elements.title.value = '';
@@ -122,6 +123,7 @@ function selectArtist(artist) {
 }
 
 function selectTrack(item) {
+  form.elements.track_id.value = "";
   form.elements.q.value = '';
   form.elements.title.value = item.title;
   form.elements.artist.value = item.artist || '';
@@ -276,7 +278,7 @@ for (const [key, value] of new URLSearchParams(location.search)) {
     const date = dateValue(value);
     if (date && !Number.isNaN(date.getTime())) {
       const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-      input.value = local.toISOString().slice(0, 16);
+      input.value = local.toISOString().slice(0, 19);
     }
   } else input.value = value;
 }
@@ -285,11 +287,15 @@ if (!['25', '50', '100'].includes(form.elements.page_size.value)) form.elements.
 setView(form.elements.view.value);
 form.addEventListener('submit', (event) => { event.preventDefault(); load(true); });
 form.addEventListener('input', (event) => {
+  if (['q', 'artist', 'title'].includes(event.target.name)) form.elements.track_id.value = '';
   lastInput = Date.now();
   window.clearTimeout(debounce);
   if (['text', 'search'].includes(event.target.type)) debounce = window.setTimeout(() => load(true), 350);
 });
-form.addEventListener('change', () => load(true));
+form.addEventListener('change', event => {
+  if (event.target.name === 'station_id') form.elements.station_ids.value = '';
+  load(true);
+});
 form.addEventListener('reset', () => {
   if (!resettingFromStation) window.setTimeout(() => { setView('tracks'); load(true); }, 0);
 });
