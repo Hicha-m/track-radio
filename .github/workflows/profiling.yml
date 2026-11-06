@@ -3,9 +3,7 @@ on:
   push:
     branches: [profiling]
     paths:
-      - 'scripts/profiling/**'
-      - '.github/workflows/profiling.yml'
-      - 'docs/profiling-audit.md'
+      - 'scripts/profiling/request.json'
 permissions:
   contents: read
 concurrency:

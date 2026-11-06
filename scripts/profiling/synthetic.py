@@ -117,6 +117,10 @@ def benchmark(count=48000):
     with tempfile.TemporaryDirectory(prefix="radio-profile-lab-") as directory:
         engine = make_engine(f"sqlite:///{directory}/synthetic.db")
         Base.metadata.create_all(engine)
+        # Permit the same experiment against the proposed model definitions.
+        with engine.begin() as conn:
+            for name in INDEXES:
+                conn.execute(text(f"DROP INDEX IF EXISTS {name}"))
         now = seed(engine, count)
         baseline_results, before = measure(engine, now)
         stages = {"before": before}
