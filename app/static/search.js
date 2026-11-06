@@ -92,8 +92,8 @@
           const text = el('span', '', 'track-copy');
           text.append(el('strong', track.title), el('small', track.artist || window.RadioI18n.t("ui.133df509234a")));
           detail.append(art, text);
-          detail.addEventListener('click', () => { panel.close(); window.TrackCatalog.open(track, {onBack: open}); });
-          row.append(detail, window.TrackCatalog.playButton(track));
+          detail.addEventListener('click', () => { panel.close(); window.TrackCatalog.open(track, {onBack: open, previewQueue: data.items}); });
+          row.append(detail, window.TrackCatalog.playButton(track, null, true, data.items));
           results.append(row);
         }
         more.href = `/recherche?${new URLSearchParams({view: 'tracks', q, sort: 'frequency'})}`;

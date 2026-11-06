@@ -620,12 +620,14 @@ _preview_cache = OrderedDict()
 @router.get("/{key}/preview")
 async def preview(key: str, request: Request, db: Db):
     entry = find(db, key)
-    ensure_visible(request, db, entry.artist, entry.title)
+    video_visible(request, db, entry.artist, entry.title)
     selected = dict(entry.selected or {})
     db.commit()
     if not selected:
         raise HTTPException(404, "Aucune version validée.")
-    return await recording_preview(selected)
+    result = await recording_preview(selected)
+    video_visible(request, db, entry.artist, entry.title)
+    return result
 
 
 @router.get("/{key}/candidates/{candidate_id}/preview", dependencies=[Depends(require_admin)])

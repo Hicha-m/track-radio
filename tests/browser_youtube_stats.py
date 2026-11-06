@@ -193,13 +193,13 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                 page.locator(".catalog-close").click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(1)
                 page.evaluate("()=>window.TrackYouTube.stop()")
-                # Natural excerpt endings: opt-in radio return, persistence and manual pause.
+                # Natural endings: default radio return, explicit refusal and manual pause.
                 context.route(
                     "https://example.test/live",
                     lambda r: r.fulfill(content_type="audio/wav", body=live_bytes.getvalue()),
                 )
                 page.locator("#listening-settings-toggle").click()
-                expect(page.locator("#resume-radio-after-preview")).not_to_be_checked()
+                expect(page.locator("#resume-radio-after-preview")).to_be_checked()
                 page.locator("#resume-radio-after-preview").check()
                 expect(page.locator("#resume-radio-target")).to_contain_text("Choisissez")
                 page.locator("#listening-settings-close").click()

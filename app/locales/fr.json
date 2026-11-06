@@ -103,7 +103,7 @@
   "ui.99dcbfeb9505": "Choisir une radio",
   "ui.964e477cb272": "Choisissez au moins un champ.",
   "ui.4564454fbf9b": "Choisissez deux radios différentes pour comparer leurs détections.",
-  "ui.00497f225d08": "Choisissez d’abord une radio pour permettre la reprise.",
+  "ui.00497f225d08": "Choisissez et lancez une radio avant la préécoute pour permettre sa reprise.",
   "ui.4392a1f66269": "Choisissez la vidéo indépendamment de la pochette et des autres métadonnées.",
   "ui.2ea6b86de560": "Choisissez une radio",
   "ui.32d5776420e8": "Choisissez vos données. Les titres masqués pour vous ou pour tous sont exclus avant le classement. Les filtres de la page sont repris à l’ouverture.",
@@ -257,7 +257,7 @@
   "ui.11b4866d5023": "LES ONDES EN CHIFFRES",
   "ui.f5c5ca86b54d": "LES TITRES DU MOMENT",
   "ui.ab67761fc36c": "La clé n’est pas conservée dans le navigateur.",
-  "ui.c2ed8dd01beb": "La dernière radio choisie reprend après l’extrait. Sans radio sélectionnée, la lecture s’arrête. Vous pouvez désactiver cette option à tout moment.",
+  "ui.c2ed8dd01beb": "La radio doit être en écoute au lancement de l’extrait. Sinon, les extraits disponibles suivent l’ordre de la liste affichée, sans recommencer au début. Si cette option est désactivée, un extrait lancé depuis la radio se termine sans autre lecture.",
   "ui.9e840240650c": "La liste est pleine. Retirez un titre masqué.",
   "ui.39f6017ab767": "La musique, au fil des ondes.",
   "ui.6ed4087506e9": "La suppression est définitive. Un regroupement conserve la date et les données source de la diffusion choisie. Les fiches musicales et exclusions sont conservées.",
@@ -694,5 +694,9 @@
   "youtube.size": "Taille de la vidéo",
   "youtube.pixels": "{width} pixels",
   "youtube.enlarge": "Agrandir le lecteur",
-  "youtube.shrink": "Rétrécir le lecteur"
+  "youtube.shrink": "Rétrécir le lecteur",
+  "preview.next": "Chargement de l’extrait suivant…",
+  "preview.finished": "Fin des préécoutes",
+  "preview.unavailable": "Impossible de vérifier les prochains extraits. Relancez la préécoute pour réessayer.",
+  "preview.stopped": "Préécoute arrêtée"
 }

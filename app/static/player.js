@@ -5,6 +5,33 @@
   let audio = radioAudio;
   let suspended = true;
   let video = null;
+  let sequence = null;
+  let previewVersion = 0;
+  let previewRequest = null;
+  function cancelSequence() {
+    previewVersion++; previewRequest?.abort(); previewRequest = null; sequence = null;
+  }
+  function previewUrl(track) {
+    if (!track.metadata?.preview_url || !track.metadata.track_id) return track.preview_url;
+    const params = window.MusicFilters.apply(new URLSearchParams());
+    return `/api/catalog/${encodeURIComponent(track.metadata.track_id)}/preview${params.size ? '?' + params : ''}`;
+  }
+  function playingRadio() {
+    return mode === 'radio' && radio && !suspended && !radioAudio.paused && !radioAudio.ended && !radioAudio.error ? {...radio} : null;
+  }
+  function makeSequence(track, url, context, returnRadio) {
+    const items = [], seen = new Set();
+    for (const item of context.slice(0, 100)) {
+      const source = previewUrl(item), id = key(item, source);
+      if (seen.has(id)) continue;
+      seen.add(id); items.push({track: {...item}, url: source, key: id});
+    }
+    const id = key(track, url);
+    let cursor = items.findIndex(item => item.key === id);
+    if (cursor < 0) { items.splice(0, items.length, {track, url, key: id}); cursor = 0; }
+    else items[cursor] = {track, url, key: id};
+    return {items, cursor, currentIndex: cursor, returnRadio, attempted: new Set([id]), active: true, pending: false};
+  }
   let userMuted = false;
   function quietRadio() { suspended = true; radioAudio.muted = true; }
   function stopExcerpt() { excerptAudio.pause(); excerptAudio.removeAttribute('src'); excerptAudio.load(); }
@@ -54,12 +81,13 @@
     trackButton.disabled = !currentTrack;
     trackButton.setAttribute('aria-label', currentTrack ? window.RadioI18n.t("ui.b04c6850d768", {p0: (currentTrack.title)}) : window.RadioI18n.t("ui.5e54e23ea65e"));
   }
-  trackButton.addEventListener('click', () => { if (currentTrack) window.TrackCatalog.open(currentTrack); });
+  trackButton.addEventListener('click', () => { if (currentTrack) window.TrackCatalog.open(currentTrack, {previewQueue: sequence?.items.map(item => item.track) || []}); });
   let radio = audio.getAttribute('src') ? {url: audio.getAttribute('src'), id: panel.dataset.stationId, name: name.textContent} : null;
   const listeningSettings = document.querySelector('#listening-settings');
   const resumeRadio = document.querySelector('#resume-radio-after-preview');
   const settingsToggle = document.querySelector('#listening-settings-toggle');
-  try { resumeRadio.checked = localStorage.getItem('radio-resume-after-preview') === 'true'; } catch (_) { /* Optional preference. */ }
+  resumeRadio.checked = true;
+  try { resumeRadio.checked = localStorage.getItem('radio-resume-after-preview') !== 'false'; } catch (_) { /* Optional preference. */ }
   resumeRadio.addEventListener('change', () => {
     try { localStorage.setItem('radio-resume-after-preview', String(resumeRadio.checked)); } catch (_) { /* Keep the choice during this session. */ }
   });
@@ -79,12 +107,13 @@
     return Number.isFinite(value) && value >= 0 ? `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}` : '0:00';
   }
   function sync() {
-    document.querySelector('#resume-radio-target').textContent = radio ? window.RadioI18n.t("ui.fed8ff834c53", {p0: (radio.name)}) : window.RadioI18n.t("ui.00497f225d08");
+    const targetRadio = sequence?.returnRadio || playingRadio();
+    document.querySelector('#resume-radio-target').textContent = targetRadio ? window.RadioI18n.t("ui.fed8ff834c53", {p0: (targetRadio.name)}) : window.RadioI18n.t("ui.00497f225d08");
     document.querySelectorAll('.station-logo').forEach(img => {
       img.onerror = () => img.remove();
       if (img.complete && !img.naturalWidth) img.remove();
     });
-    const playing = mode === 'video' ? Boolean(video?.playing()) : !audio.paused && !audio.ended && !audio.error && (mode !== 'radio' || !suspended);
+    const playing = mode === 'video' ? Boolean(video?.playing()) : (mode === 'preview' && sequence?.pending) || !audio.paused && !audio.ended && !audio.error && (mode !== 'radio' || !suspended);
     toggle.disabled = mode === 'video' ? !video : !audio.getAttribute('src');
     toggle.setAttribute('aria-label', playing ? window.RadioI18n.t("ui.42dd586c06d6") : mode === 'preview' ? window.RadioI18n.t("ui.ccc216fa2e6b") : window.RadioI18n.t("ui.ec0a4373089c"));
     toggle.setAttribute('aria-pressed', String(playing));
@@ -145,18 +174,24 @@
   async function play() {
     if (mode === 'video') { video?.play(); return; }
     if (mode === 'radio') { suspended = false; audio.muted = userMuted; label.textContent = audio.readyState >= 3 ? window.RadioI18n.t("ui.235df0b17a9e") : window.RadioI18n.t("ui.910919b77ec7"); }
+    if (mode === 'preview' && sequence) sequence.active = true;
     announceAudio();
-    const source = audio.src;
+    const source = audio.src, ticket = previewVersion;
     try { await audio.play(); } catch (error) {
-      if (error.name !== 'AbortError' && audio.src === source) {
+      if (error.name !== 'AbortError' && audio.src === source && ticket === previewVersion) {
         label.textContent = window.RadioI18n.t("ui.ce6a03b5762e");
         status.textContent = mode === 'preview' ? window.RadioI18n.t("ui.9f4b7303e42b") : window.RadioI18n.t("ui.080d5f7d0c0b");
+        if (mode === 'preview' && sequence?.active) {
+          if (error.name === 'NotAllowedError') {
+            sequence.active = false; sequence.pending = false;
+          } else advancePreview('error');
+        }
       }
     }
     sync();
   }
   function selectRadio(station) {
-    metadataVersion++;
+    cancelSequence(); metadataVersion++;
     announceAudio(); video = null; stopExcerpt(); audio = radioAudio;
     const changed = radio?.url !== station.url;
     if (changed) { radioAudio.pause(); radioAudio.removeAttribute('src'); radioAudio.load(); }
@@ -170,22 +205,83 @@
     title.textContent = window.RadioI18n.t("ui.b81e67f27242"); artist.textContent = '';
     sync(); refreshNowPlaying(); play();
   }
-  async function preview(track, url) {
+  async function preview(track, url, context = []) {
+    if (!url) return;
     const next = key(track, url);
-    if (mode === 'preview' && previewKey === next) {
-      if (audio.paused || audio.ended) await play(); else pause();
+    if (mode === 'preview' && previewKey === next && audio.getAttribute('src') && (sequence?.pending || (!audio.error && !audio.ended))) {
+      if (sequence?.pending || !audio.paused) pause(); else await play();
       return;
     }
+    const returnRadio = mode === 'preview' && sequence && !audio.ended && !audio.error
+      ? sequence.returnRadio
+      : playingRadio();
+    const run = makeSequence(track, url, context, returnRadio);
+    cancelSequence();
+    await startExcerpt(track, url, run);
+  }
+  async function startExcerpt(track, url, run) {
     metadataVersion++;
     announceAudio(); video = null; quietRadio(); audio = excerptAudio;
+    audio.pause();
+    sequence = run; run.active = true; run.pending = false; previewVersion++;
+    run.currentIndex = run.cursor; run.attempted.add(key(track, url));
     audio.volume = Number(volume.value); audio.muted = userMuted;
-    mode = 'preview'; previewKey = next;
-    setCurrentTrack(track);
-    showArtwork(track);
-    audio.src = url;
+    mode = 'preview'; previewKey = key(track, url);
+    setCurrentTrack(track); showArtwork(track);
+    audio.src = url; status.textContent = '';
     title.textContent = track.title || window.RadioI18n.t("ui.7224fc1ace77"); artist.textContent = track.artist || '';
     name.textContent = window.RadioI18n.t("ui.0f8745e4abeb", {p0: (track.provider || track.metadata?.provider ? ' · ' + (track.provider || track.metadata.provider) : '')});
     sync(); syncProgress(); await play();
+  }
+  function finishSequence(run, reason) {
+    run.active = false; run.pending = false;
+    label.textContent = reason === 'error' ? window.RadioI18n.t("ui.ce6a03b5762e")
+      : window.RadioI18n.t(run.items.length > 1 && !run.returnRadio ? 'preview.finished' : 'ui.a4d4a1c61e92');
+    sync();
+  }
+  async function advancePreview(reason) {
+    const run = sequence;
+    if (!run?.active || run.pending || mode !== 'preview') return;
+    if (reason === 'ended' && !excerptAudio.ended) return;
+    run.pending = true;
+    if (run.returnRadio) {
+      finishSequence(run, reason);
+      if (reason === 'ended' && resumeRadio.checked) selectRadio(run.returnRadio);
+      return;
+    }
+    if (run.cursor >= run.items.length - 1) { finishSequence(run, reason); return; }
+    const ticket = previewVersion, controller = new AbortController(); previewRequest = controller;
+    const current = () => sequence === run && ticket === previewVersion && run.active && !controller.signal.aborted;
+    label.textContent = window.RadioI18n.t('preview.next'); sync();
+    try {
+      // A stored list is only an order: recheck visibility and the current excerpt before playing.
+      await window.MusicFilters.refresh();
+      if (!current()) return;
+      while (++run.cursor < run.items.length) {
+        const item = run.items[run.cursor];
+        if (run.attempted.has(item.key)) continue;
+        const id = item.track.metadata?.track_id;
+        if (!item.url || !/^[a-f0-9]{64}$/.test(id || '')) { run.attempted.add(item.key); continue; }
+        const params = window.MusicFilters.apply(new URLSearchParams({view: 'tracks', track_id: id, page_size: '1'}));
+        const response = await window.MusicFilters.fetch(`/api/explore?${params}`, {signal: controller.signal});
+        if (!current()) return;
+        if (!response.ok) throw new Error('preview_unavailable');
+        const data = await response.json();
+        if (!current()) return;
+        const fresh = data.items?.find(row => row.metadata?.track_id === id);
+        const source = fresh && previewUrl(fresh);
+        if (!source) { run.attempted.add(item.key); continue; }
+        await startExcerpt({...item.track, ...fresh}, source, run);
+        return;
+      }
+      if (current()) finishSequence(run, reason);
+    } catch (error) {
+      if (current() && error.name !== 'AbortError') {
+        finishSequence(run, 'error'); status.textContent = window.RadioI18n.t('preview.unavailable');
+      }
+    } finally {
+      if (previewRequest === controller) previewRequest = null;
+    }
   }
   document.addEventListener('click', event => {
     const button = event.target.closest('.station-play');
@@ -195,10 +291,11 @@
   });
   back.addEventListener('click', () => { if (radio) selectRadio(radio); });
   toggle.addEventListener('click', () => {
-    const playing = mode === 'video' ? video?.playing() : !audio.paused && !audio.ended && (mode !== 'radio' || !suspended);
+    const playing = mode === 'video' ? video?.playing() : (mode === 'preview' && sequence?.pending) || !audio.paused && !audio.ended && (mode !== 'radio' || !suspended);
     if (playing) pause(); else play();
   });
   progress.addEventListener('input', () => {
+    if (mode === 'preview' && sequence?.pending) pause();
     if (mode === 'video') video?.seek(Number(progress.value) / 1000 * video.duration());
     else if (mode === 'preview' && Number.isFinite(audio.duration)) audio.currentTime = Number(progress.value) / 1000 * audio.duration;
     syncProgress();
@@ -221,16 +318,33 @@
   listen('play', () => { label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.910919b77ec7") : window.RadioI18n.t("ui.a90bd5662fcc"); sync(); });
   listen('playing', () => { label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.235df0b17a9e") : window.RadioI18n.t("ui.7224fc1ace77"); sync(); });
   listen('waiting', () => { label.textContent = window.RadioI18n.t("ui.66474911d953"); });
-  listen('pause', () => { label.textContent = window.RadioI18n.t("ui.239c064e0d40"); sync(); });
+  listen('pause', () => {
+    if (audio.getAttribute('src') && !audio.error && !audio.ended && (mode === 'radio' || sequence?.active && !sequence.pending)) label.textContent = window.RadioI18n.t("ui.239c064e0d40");
+    sync();
+  });
   listen('ended', () => {
-    if (mode === 'preview' && resumeRadio.checked && radio) { selectRadio(radio); return; }
+    if (mode === 'preview') { advancePreview('ended'); return; }
     label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.3a3b98e30872") : window.RadioI18n.t("ui.a4d4a1c61e92"); sync();
   });
-  listen('error', () => { label.textContent = window.RadioI18n.t("ui.ce6a03b5762e"); status.textContent = window.RadioI18n.t("ui.7b6e9406532f"); sync(); });
+  listen('error', () => {
+    if (!sourceAudio.error) return;
+    label.textContent = window.RadioI18n.t("ui.ce6a03b5762e"); status.textContent = window.RadioI18n.t("ui.7b6e9406532f"); sync();
+    if (mode === 'preview') advancePreview('error');
+  });
   ['timeupdate', 'loadedmetadata', 'durationchange', 'emptied', 'seeked'].forEach(event => listen(event, syncProgress));
   }
 
   window.addEventListener('radio:pagechange', sync);
+  window.addEventListener('radio:filterschange', () => {
+    const playingExcerpt = mode === 'preview' && sequence;
+    cancelSequence();
+    if (playingExcerpt) {
+      stopExcerpt(); previewKey = null; setCurrentTrack(null); showArtwork();
+      title.textContent = window.RadioI18n.t('preview.stopped'); artist.textContent = '';
+      label.textContent = window.RadioI18n.t('preview.stopped'); status.textContent = '';
+      sync(); syncProgress();
+    }
+  });
   window.addEventListener('radio:globalfilterschange', () => {
     if (mode === 'radio' && radio) {
       metadataVersion++; title.textContent = window.RadioI18n.t("ui.a031d88118a6"); artist.textContent = '';
@@ -241,11 +355,15 @@
   function pause() {
     if (mode === 'video') video?.pause();
     else if (mode === 'radio') { quietRadio(); label.textContent = window.RadioI18n.t("ui.239c064e0d40"); }
-    else audio.pause();
+    else {
+      if (sequence) { sequence.active = false; sequence.pending = false; sequence.cursor = sequence.currentIndex; }
+      previewVersion++; previewRequest?.abort(); previewRequest = null;
+      audio.pause(); label.textContent = window.RadioI18n.t("ui.239c064e0d40");
+    }
     sync();
   }
   function startVideo(adapter, track) {
-    quietRadio(); excerptAudio.pause(); video = adapter; metadataVersion++;
+    cancelSequence(); quietRadio(); excerptAudio.pause(); video = adapter; metadataVersion++;
     mode = 'video'; previewKey = null; setCurrentTrack(track); showArtwork(track);
     title.textContent = track.title; artist.textContent = track.artist || ''; name.textContent = window.RadioI18n.t("ui.fb7accfff8c6");
     video.setVolume(Number(volume.value), userMuted);
@@ -256,7 +374,7 @@
     video = null; mode = 'preview'; audio = excerptAudio; stopExcerpt();
     label.textContent = window.RadioI18n.t("ui.adf3f3af5692"); sync(); syncProgress();
   }
-  window.RadioPlayer = {preview, key, sync, pause, startVideo, videoStopped, videoState() {
+  window.RadioPlayer = {preview, previewUrl, key, sync, pause, startVideo, videoStopped, videoState() {
     if (mode === 'video') { userMuted = video?.muted?.() ?? userMuted; syncVolume(); label.textContent = video?.playing() ? window.RadioI18n.t("ui.fb7accfff8c6") : window.RadioI18n.t("ui.239c064e0d40"); sync(); syncProgress(); }
   }};
   window.setInterval(() => { if (mode === 'video') { userMuted = video?.muted?.() ?? userMuted; syncVolume(); syncProgress(); } }, 500);

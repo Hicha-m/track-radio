@@ -103,7 +103,7 @@
   "ui.99dcbfeb9505": "Choose a station",
   "ui.964e477cb272": "Select at least one field.",
   "ui.4564454fbf9b": "Choose two different stations to compare their detections.",
-  "ui.00497f225d08": "Choose a station first to enable resuming.",
+  "ui.00497f225d08": "Choose and play a station before the preview to allow it to resume.",
   "ui.4392a1f66269": "Choose the video independently of the artwork and other metadata.",
   "ui.2ea6b86de560": "Choose a station",
   "ui.32d5776420e8": "Choose your data. Personally and globally hidden tracks are excluded before ranking. Page filters are copied when opening.",
@@ -257,7 +257,7 @@
   "ui.11b4866d5023": "RADIO IN NUMBERS",
   "ui.f5c5ca86b54d": "CURRENT TRACKS",
   "ui.ab67761fc36c": "The key is not stored in the browser.",
-  "ui.c2ed8dd01beb": "The last selected station resumes after the preview. If no station is selected, playback stops. You can disable this option at any time.",
+  "ui.c2ed8dd01beb": "The station must be playing when the preview starts. Otherwise, available previews follow the displayed list order without looping. If this option is off, a preview started from the radio ends without further playback.",
   "ui.9e840240650c": "The list is full. Remove a hidden track.",
   "ui.39f6017ab767": "Music across the airwaves.",
   "ui.6ed4087506e9": "Deletion is permanent. Merging retains the selected detection’s time and source data. Track details and exclusions are preserved.",
@@ -694,5 +694,9 @@
   "youtube.size": "Video size",
   "youtube.pixels": "{width} pixels",
   "youtube.enlarge": "Enlarge player",
-  "youtube.shrink": "Shrink player"
+  "youtube.shrink": "Shrink player",
+  "preview.next": "Loading the next preview…",
+  "preview.finished": "End of previews",
+  "preview.unavailable": "Unable to check the next previews. Start a preview again to retry.",
+  "preview.stopped": "Preview stopped"
 }

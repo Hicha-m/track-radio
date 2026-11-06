@@ -171,7 +171,7 @@ function render(data, selected = visibleColumns()) {
     const music = element('div', '', 'music-cell');
     const artwork = element('button', '', 'search-artwork'); artwork.type = 'button';
     artwork.setAttribute('aria-label', window.RadioI18n.t("ui.b04c6850d768", {p0: (item.title)}));
-    artwork.onclick = () => window.TrackCatalog.open(item);
+    artwork.onclick = () => window.TrackCatalog.open(item, {previewQueue: data.items});
     artwork.append(element('span', '♫'));
     if (item.metadata?.cover_url) {
       const image = element('img'); image.src = item.metadata.cover_url; image.alt = ''; image.loading = 'lazy'; image.referrerPolicy = 'no-referrer';
@@ -179,7 +179,7 @@ function render(data, selected = visibleColumns()) {
     }
     music.append(artwork);
     music.append(action(item.title, () => selectTrack(item), window.RadioI18n.t("ui.e680a32dbd8e")));
-    music.append(window.TrackCatalog.button(item), window.TrackCatalog.playButton(item));
+    music.append(window.TrackCatalog.button(item, {previewQueue: data.items}), window.TrackCatalog.playButton(item, null, true, data.items));
     if (!selected.has('artist')) music.append(element('small', item.artist || window.RadioI18n.t("ui.133df509234a"), 'music-artist'));
     cell('music', music);
     cell('artist', action(item.artist || window.RadioI18n.t("ui.133df509234a"), () => selectArtist(item.artist), window.RadioI18n.t("ui.b29d758e38e4")));

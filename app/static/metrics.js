@@ -52,9 +52,9 @@ window.RadioPages.stats = () => {
   const period = root.querySelector('#repetition-hours');
   const pages = {};
   const names = new Map([...form.elements.station_id.options].filter(o => o.value).map(o => [Number(o.value), o.textContent]));
-  function trackLink(row) {
+  function trackLink(row, previewQueue = []) {
     const button = el('button', `${row.artist || window.RadioI18n.t("ui.133df509234a")} — ${row.title}`, 'cell-link');
-    button.type = 'button'; button.onclick = () => window.TrackCatalog.open(row, {showHourly: true}); return button;
+    button.type = 'button'; button.onclick = () => window.TrackCatalog.open(row, {showHourly: true, previewQueue}); return button;
   }
   async function summary(current = generation) {
     const status = root.querySelector('#stats-summary-status');
@@ -112,7 +112,7 @@ window.RadioPages.stats = () => {
       if (kind === 'repetitions') node = table([window.RadioI18n.t("ui.78e7920010aa"), window.RadioI18n.t("ui.2a7dfeb2f2b0"), window.RadioI18n.t("ui.4413ab069b7c"), window.RadioI18n.t("ui.e0e5f23e11b7")], data.items.map(row => {
         const music = el('div', '', 'stats-repeat-track');
         if (row.metadata?.cover_url) { const img = el('img'); img.src = row.metadata.cover_url; img.alt = ''; img.loading = 'lazy'; img.onerror = () => img.remove(); music.append(img); }
-        music.append(trackLink(row));
+        music.append(trackLink(row, data.items));
         return [music, row.station_name, row.plays, row.average_seconds == null ? window.RadioI18n.t("ui.65e8907706fa") : `${Math.round(row.average_seconds / 60)} min`];
       }));
       if (kind === 'diversity') node = table([window.RadioI18n.t("ui.2a7dfeb2f2b0"), window.RadioI18n.t("ui.7e391bce2b02"), window.RadioI18n.t("ui.4413ab069b7c")], data.items.map(row => [row.station_name, row.unique_tracks, row.plays]));

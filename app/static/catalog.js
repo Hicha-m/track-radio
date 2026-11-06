@@ -19,8 +19,8 @@ window.TrackCatalog = (() => {
     if (track.station_id) params.set('station_id', track.station_id);
     return `/recherche?${params}`;
   }
-  function playButton(track, source = null, withYouTube = true) {
-    const url = source || (track.metadata?.preview_url ? `/api/catalog/${track.metadata.track_id}/preview` : track.preview_url);
+  function playButton(track, source = null, withYouTube = true, previewQueue = []) {
+    const url = source || window.RadioPlayer.previewUrl(track);
     const result = el('button', '▶', 'preview-button');
     result.type = 'button';
     result.dataset.previewKey = window.RadioPlayer.key(track, url || '');
@@ -29,17 +29,17 @@ window.TrackCatalog = (() => {
     result.setAttribute('aria-pressed', 'false');
     result.disabled = !url;
     result.title = url ? window.RadioI18n.t("ui.9e8d2e8f5781") : window.RadioI18n.t("ui.71b2e2a50b53");
-    result.addEventListener('click', event => { event.stopPropagation(); window.RadioPlayer.preview(track, url); });
+    result.addEventListener('click', event => { event.stopPropagation(); window.RadioPlayer.preview(track, source || window.RadioPlayer.previewUrl(track), previewQueue); });
     queueMicrotask(() => window.RadioPlayer.sync());
     const controls = el('span', '', 'preview-actions'); controls.append(result);
-    if (withYouTube) controls.append(window.TrackYouTube.button(track));
+    if (withYouTube) controls.append(window.TrackYouTube.button(track, () => open(track, {youtube: true, previewQueue})));
     return controls;
   }
-  function button(track) {
+  function button(track, options = {}) {
     const result = el('button', window.RadioI18n.t("ui.17eaee489b09"), 'catalog-button');
     result.type = 'button';
     result.setAttribute('aria-label', window.RadioI18n.t("ui.d523b64d2408", {p0: (track.title)}));
-    result.addEventListener('click', () => open(track));
+    result.addEventListener('click', () => open(track, options));
     return result;
   }
   function duration(seconds) {
@@ -129,7 +129,7 @@ window.TrackCatalog = (() => {
       const essentials = el('div', '', 'catalog-essentials');
       essentials.append(el('span', window.RadioI18n.t("ui.ec34e3485e5e"), 'eyebrow'), heading, artist);
       const controls = el('div', '', 'preview-entry');
-      controls.append(playButton({...track, metadata: data}, null, false), el('span', data.preview_url ? window.RadioI18n.t("ui.ccc216fa2e6b") : window.RadioI18n.t("ui.71b2e2a50b53")));
+      controls.append(playButton({...track, metadata: data}, null, false, options.previewQueue || []), el('span', data.preview_url ? window.RadioI18n.t("ui.ccc216fa2e6b") : window.RadioI18n.t("ui.71b2e2a50b53")));
       essentials.append(controls);
       essentials.append(fields([[window.RadioI18n.t("ui.f05e840e0069"), data.album], [window.RadioI18n.t("ui.71d0bad42af1"), duration(data.duration)], [window.RadioI18n.t("ui.d6c7b22ccab5"), providers[data.provider] || data.provider || window.RadioI18n.t("ui.831460cb0225")]]));
       essentials.append(genreList(data), message, edit); summary.append(essentials); content.append(summary);

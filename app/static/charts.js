@@ -65,7 +65,7 @@ function renderChart(tracks) {
     const link = node('button');
     link.type = 'button';
     const detailTrack = {...track, history_scope: {...chartScope}, station_id: selectedIds().length === 1 ? selectedIds()[0] : null};
-    link.addEventListener('click', () => window.TrackCatalog.open(detailTrack));
+    link.addEventListener('click', () => window.TrackCatalog.open(detailTrack, {previewQueue: tracks}));
     link.setAttribute('aria-label', window.RadioI18n.t("ui.3de4c767b8b4", {p0: (rank), p1: (track.title), p2: (track.artist || window.RadioI18n.t("ui.133df509234a")), p3: (track.plays)}));
     if (index < 3) {
       const card = node('article', '', 'podium-card');
@@ -73,13 +73,13 @@ function renderChart(tracks) {
       const meta = node('div', '', 'podium-meta');
       meta.append(copy(track), count(track));
       link.append(cover(track, rank, true), meta);
-      card.append(link, window.TrackCatalog.playButton(track));
+      card.append(link, window.TrackCatalog.playButton(track, null, true, tracks));
       cards.push(card);
     } else {
       link.className = 'chart-row';
       link.append(node('span', String(rank).padStart(2, '0'), 'rank'), cover(track, rank), copy(track), count(track), node('span', '›', 'row-arrow'));
       const row = node('div', '', 'chart-track');
-      row.append(link, window.TrackCatalog.playButton(track));
+      row.append(link, window.TrackCatalog.playButton(track, null, true, tracks));
       rows.push(row);
     }
   });
