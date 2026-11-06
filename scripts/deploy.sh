@@ -81,13 +81,21 @@ if [[ -s "$release/youtube.key" ]]; then
   compose exec -T api python - <<'PY'
 import asyncio
 import sys
+from fastapi import HTTPException
+from app.database import SessionLocal
 from app.services.youtube import discover
 
 try:
-    result = asyncio.run(discover("Michael Jackson", "Billie Jean"))
+    with SessionLocal() as db:
+        result = asyncio.run(discover("Michael Jackson", "Billie Jean", db))
     if not result["candidates"]:
         raise ValueError("No matching embeddable video")
     print("YouTube production search verified:", result["status"])
+except HTTPException as error:
+    if error.status_code != 429:
+        print("YouTube verification failed: HTTP", error.status_code)
+        sys.exit(1)
+    print("YouTube persistent quota/backoff respected; no extra search performed")
 except Exception as error:
     print("YouTube verification failed:", type(error).__name__)
     sys.exit(1)
