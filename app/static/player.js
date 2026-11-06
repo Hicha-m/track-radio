@@ -257,9 +257,9 @@
     label.textContent = window.RadioI18n.t("ui.adf3f3af5692"); sync(); syncProgress();
   }
   window.RadioPlayer = {preview, key, sync, pause, startVideo, videoStopped, videoState() {
-    if (mode === 'video') { userMuted = video?.muted?.() || false; syncVolume(); label.textContent = video?.playing() ? window.RadioI18n.t("ui.fb7accfff8c6") : window.RadioI18n.t("ui.239c064e0d40"); sync(); syncProgress(); }
+    if (mode === 'video') { userMuted = video?.muted?.() ?? userMuted; syncVolume(); label.textContent = video?.playing() ? window.RadioI18n.t("ui.fb7accfff8c6") : window.RadioI18n.t("ui.239c064e0d40"); sync(); syncProgress(); }
   }};
-  window.setInterval(() => { if (mode === 'video') { userMuted = video?.muted?.() || false; syncVolume(); syncProgress(); } }, 500);
+  window.setInterval(() => { if (mode === 'video') { userMuted = video?.muted?.() ?? userMuted; syncVolume(); syncProgress(); } }, 500);
 
   radioAudio.muted = true;
   if (radio) { showArtwork({}, radio); refreshNowPlaying(); }

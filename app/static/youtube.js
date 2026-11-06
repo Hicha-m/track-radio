@@ -1,6 +1,7 @@
 // One video host survives page and dialog navigation; Google loads only on demand.
 window.TrackYouTube = (() => {
   let api, player, controller, version = 0, activeTrack, currentVideo, available = [], anchor;
+  let ready = false;
   const el = (tag, text = '', className = '') => { const node = document.createElement(tag); node.textContent = text; node.className = className; return node; };
   const dock = el('section', '', 'catalog-youtube youtube-dock'); dock.id = 'youtube-dock'; dock.hidden = true;
   const heading = el('h3', window.RadioI18n.t("ui.46aa38caf70b"));
@@ -26,7 +27,7 @@ window.TrackYouTube = (() => {
   function stop() {
     version++; controller?.abort(); controller = null;
     try { player?.destroy(); } catch (_) { /* A failed embed can already be detached. */ }
-    player = null; activeTrack = null; currentVideo = null;
+    player = null; ready = false; activeTrack = null; currentVideo = null;
     viewport.replaceChildren(); choices.replaceChildren(); dock.hidden = true;
     relocate(document.body); window.RadioPlayer?.videoStopped();
   }
@@ -55,15 +56,15 @@ window.TrackYouTube = (() => {
     playing: () => player?.getPlayerState?.() === 1,
     play: () => player?.playVideo?.(), pause: () => player?.pauseVideo?.(),
     duration: () => player?.getDuration?.() || 0, position: () => player?.getCurrentTime?.() || 0,
-    seek: value => player?.seekTo?.(value, true), volume: () => player?.getVolume ? player.getVolume() / 100 : null,
+    seek: value => player?.seekTo?.(value, true), volume: () => ready && Number.isFinite(player?.getVolume?.()) ? player.getVolume() / 100 : null,
     setVolume: (value, muted = false) => { player?.setVolume?.(value * 100); if (muted || value === 0) player?.mute?.(); else player?.unMute?.(); },
-    muted: () => player?.isMuted?.() || false,
+    muted: () => ready ? player?.isMuted?.() || false : undefined,
   };
   async function show(video) {
     if (!/^[A-Za-z0-9_-]{11}$/.test(video.id)) return;
     const current = ++version; currentVideo = video;
     delete dock.dataset.videoError; delete dock.dataset.videoState;
-    player?.destroy(); player = null; viewport.replaceChildren(); choices.replaceChildren();
+    player?.destroy(); player = null; ready = false; viewport.replaceChildren(); choices.replaceChildren();
     dock.hidden = false; status.textContent = window.RadioI18n.t("ui.f9032b20af36", {p0: (video.title), p1: (video.channel)});
     window.RadioPlayer.startVideo(adapter, activeTrack);
     try {
@@ -78,6 +79,7 @@ window.TrackYouTube = (() => {
       player = new window.YT.Player(iframe, {host: 'https://www.youtube-nocookie.com', events: {
         onReady: event => {
           if (current !== version) return;
+          ready = true;
           window.RadioPlayer.startVideo(adapter, activeTrack); event.target.playVideo();
           status.textContent = window.RadioI18n.t("ui.f5e700fd0436", {p0: (video.title), p1: (video.channel)});
         },

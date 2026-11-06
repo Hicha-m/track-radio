@@ -132,7 +132,7 @@ window.YT={Player:function(frame,options){
  this.seekTo=(value)=>{position=value;};this.getVolume=()=>volume;this.setVolume=(value)=>{volume=value;};
  this.mute=()=>{muted=true;};this.unMute=()=>{muted=false;};this.isMuted=()=>muted;
  this.destroy=()=>{window.__ytDestroys++;frame.remove();};
- window.__yt=this;window.__ytEvents=options.events;setTimeout(()=>options.events.onReady({target:this}),0);
+ window.__yt=this;window.__ytEvents=options.events;setTimeout(()=>options.events.onReady({target:this}),650);
 }};window.onYouTubeIframeAPIReady();""",
                     ),
                 )
@@ -168,8 +168,12 @@ window.YT={Player:function(frame,options){
                 expect(
                     page.locator(".catalog-dialog .preview-entry .youtube-button").last
                 ).to_be_visible()
+                page.locator("#player-volume").evaluate(
+                    "v => {v.value=.35;v.dispatchEvent(new Event('input'))}"
+                )
                 page.locator(".catalog-dialog .preview-entry .youtube-button").last.click()
                 page.wait_for_function("() => window.__yt?.getPlayerState()===1")
+                assert page.evaluate("window.__yt.getVolume()") == 35
                 page.evaluate('window.__frame=document.querySelector(".youtube-viewport iframe")')
                 assert page.locator("#radio-player").evaluate("(a)=>!a.paused && a.muted")
                 page.locator(".catalog-dialog .catalog-close").click()
