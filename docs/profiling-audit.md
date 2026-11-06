@@ -40,3 +40,35 @@ La normalisation Unicode contribue au coût, mais la majorité du temps profilé
 Première expérience : médianes de 253 à 92 ms pour le classement complet, 601 à 154 ms pour la recherche des musiques, 102 à 44 ms pour la synthèse. Une seconde expérience ajoute d’abord `ANALYZE` seul puis les index un par un : le classement complet et la recherche restent lents après `ANALYZE` seul et sont accélérés lors de l’ajout de l’index par artiste/titre. Les chiffres synthétiques ne sont pas présentés comme des gains vérifiés en production.
 
 Proposition à valider dans une PR distincte : index couvrants sur les passages (artiste/titre et période) et sur le couple identifiant/genre des métadonnées, ciblés sur SQLite. Migration réversible, données et filtres conservés. Comparer à nouveau les plans et latences après déploiement ; ne pas augmenter CPU/RAM ni changer les limites de cache sans nouvelles preuves.
+
+
+## Correction fusionnée et mesures après déploiement
+
+La [PR #1](https://github.com/Hicha-m/track-radio/pull/1), issue de `perf/sqlite-covering-indexes`, a été fusionnée dans le commit [8de8c3a](https://github.com/Hicha-m/track-radio/commit/8de8c3a55dab1302ad20eed600b7c139387cd0ea). Elle contient seulement quatre fichiers : modèles/index, migration 0013, tests et documentation. Aucun fichier de cette branche d’audit n’a été fusionné. Les index sont conditionnés à SQLite.
+
+Validation : 298 tests Python et 16 tests Node, Ruff/formatage et syntaxe JavaScript/déploiement réussis. Le test de migration compare avant/après puis après retour à 0012 et réapplication : historique brut conservé, exclusions personnelles/globales appliquées, quatre vraies diffusions toujours comptées comme quatre, agrégations/pagination/sélections inchangées. Le schéma PostgreSQL reste sans ces index spécifiques. Régression navigateur des classements/sélections/exports réussie en ordinateur/mobile sur fixtures synthétiques.
+
+[CI du commit fusionné](https://github.com/Hicha-m/track-radio/actions/runs/42269391813) et [déploiement](https://github.com/Hicha-m/track-radio/actions/runs/42269595583) réussis. La révision réellement servie est vérifiée avant la seconde série de mesures. [Audit après déploiement 42270144724](https://github.com/Hicha-m/track-radio/actions/runs/42270144724), 18:22–18:23 UTC : mêmes endpoints, même serveur, mêmes limites de conteneurs, deux appels par cas, sans concurrence sauf la sonde explicitement indiquée.
+
+| Requête | Avant, appels 1 / 2 | Après, appels 1 / 2 |
+| --- | ---: | ---: |
+| Santé | 27 / 2 ms | 2 / 3 ms |
+| Accueil HTML | 147 / 7 ms | 269 / 7 ms |
+| Passages récents | 243 / 23 ms | 47 / 10 ms |
+| Classement sept jours | 505 / 7 ms | 194 / 7 ms |
+| Classement complet | 5 456 / 77 ms | 1 775 / 11 ms |
+| Recherche des passages | 212 / 48 ms | 32 / 10 ms |
+| Recherche des musiques | 3 055 / 13 ms | 370 / 10 ms |
+| Synthèse Stats | 4 446 / 4 ms | 173 / 3 ms |
+
+La sonde simultanée trouve 243 ms pour le classement et 5 ms pour la santé, contre 3 185 ms et 4 ms avant. Tous les appels mesurés renvoient HTTP 200. Le premier rendu HTML est plus lent dans cette série ; son deuxième appel est stable et l’échantillon ne permet pas d’attribuer une régression au rendu.
+
+Les plans SQL réels confirment `ix_plays_period_cover` pour les périodes et la synthèse, `ix_plays_chart_cover` pour le classement complet et la recherche, et `ix_track_metadata_genre_cover` pour la jointure des genres. Le regroupement temporaire du classement complet et de la recherche disparaît ; leurs tris restent nécessaires. Le SQL des genres passe d’environ 2,01 à 0,13 s dans le profil instrumenté séparé. Les quatre profils aboutissent sans interruption ni erreur.
+
+Les deux conteneurs sont sains, sans OOM ni redémarrage dans les instantanés finaux. API : 53 puis 81 Mio / 160 Mio ; collecteur : 71 puis 68 Mio / 128 Mio. Il ne s’agit donc pas d’une promesse de baisse de RAM. Les limites CPU/RAM, le traitement des exclusions et la collecte restent inchangés.
+
+### Limites et suites
+
+Ces chiffres sont des observations ponctuelles internes, pas des p95 ni des mesures d’expérience utilisateur. Le cache applicatif et le cache système influencent les temps, et la collecte continue entre les deux séries. L’identité des résultats est vérifiée sur données synthétiques fixes, pas par export d’un catalogue réel. La vérification des plans réels renforce l’attribution de la baisse des lectures SQLite aux index, sans transformer deux échantillons en garantie permanente.
+
+Aucune augmentation de CPU/RAM, changement de quota, refonte de cache ou de normalisation n’est justifié par ces seules mesures. Le coût résiduel du classement complet et les tris/distincts restent à surveiller si le volume augmente. Les profils SQL et les essais synthétiques sont reproductibles avec les scripts de cette branche. Pour lancer un nouvel audit serveur, modifier explicitement `scripts/profiling/request.json` avec le SHA déployé attendu : une mise à jour de ce rapport ne relance pas de charge serveur et ne déploie rien.
