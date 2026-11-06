@@ -690,5 +690,9 @@
   "catalog.selected_stations": " · radios sélectionnées",
   "catalog.history_period": "Du {since} au {until}",
   "catalog.now": "maintenant",
-  "catalog.all_history": "Tout l’historique"
+  "catalog.all_history": "Tout l’historique",
+  "youtube.size": "Taille de la vidéo",
+  "youtube.pixels": "{width} pixels",
+  "youtube.enlarge": "Agrandir le lecteur",
+  "youtube.shrink": "Rétrécir le lecteur"
 }

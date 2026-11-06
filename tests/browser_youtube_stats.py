@@ -151,7 +151,7 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                     "{artist:'Artist',title:'Song 2'}, '/fixture.wav')"
                 )
                 page.wait_for_function('() => !document.querySelector("#excerpt-player").paused')
-                page.locator(".catalog-platforms .youtube-button").click()
+                page.locator(".preview-entry .youtube-button").click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(1)
                 page.wait_for_function("() => window.__ytPlayed > 0")
                 assert page.locator("#excerpt-player").evaluate("(a)=>a.paused")
@@ -167,7 +167,7 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                 page.get_by_role("button", name="Fermer la vidéo", exact=True).click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(0)
                 mode[0] = "ambiguous"
-                page.locator(".catalog-platforms .youtube-button").click()
+                page.locator(".preview-entry .youtube-button").click()
                 expect(page.locator(".youtube-choices button")).to_have_count(2)
                 assert page.locator(".youtube-viewport iframe").count() == 0
                 page.locator(".youtube-choices button").first.click()
@@ -178,17 +178,17 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                 )
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(0)
                 mode[0] = "not_found"
-                page.locator(".catalog-platforms .youtube-button").click()
+                page.locator(".preview-entry .youtube-button").click()
                 expect(page.locator('.catalog-youtube [role="status"]')).to_contain_text(
                     "Aucune vidéo"
                 )
                 mode[0] = "error"
-                page.locator(".catalog-platforms .youtube-button").click()
+                page.locator(".preview-entry .youtube-button").click()
                 expect(page.locator('.catalog-youtube [role="status"]')).to_contain_text(
                     "temporairement indisponible"
                 )
                 mode[0] = "matched"
-                page.locator(".catalog-platforms .youtube-button").click()
+                page.locator(".preview-entry .youtube-button").click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(1)
                 page.locator(".catalog-close").click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(1)

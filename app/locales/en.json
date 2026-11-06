@@ -690,5 +690,9 @@
   "catalog.selected_stations": " · selected stations",
   "catalog.history_period": "From {since} to {until}",
   "catalog.now": "now",
-  "catalog.all_history": "All recorded history"
+  "catalog.all_history": "All recorded history",
+  "youtube.size": "Video size",
+  "youtube.pixels": "{width} pixels",
+  "youtube.enlarge": "Enlarge player",
+  "youtube.shrink": "Shrink player"
 }

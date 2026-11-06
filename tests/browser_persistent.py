@@ -115,7 +115,9 @@ uvicorn.run("app.main:app", host="127.0.0.1", port="""
                 context.route(
                     "https://www.youtube-nocookie.com/embed/**",
                     lambda route: route.fulfill(
-                        content_type="text/html", body="<p>Isolated video fixture</p>"
+                        content_type="text/html",
+                        body="<p>Isolated video fixture</p><audio autoplay loop "
+                        'src="https://example.test/video.wav"></audio>',
                     ),
                 )
                 context.route(
@@ -178,9 +180,15 @@ window.YT={Player:function(frame,options){
                 assert page.locator("#radio-player").evaluate("(a)=>!a.paused && a.muted")
                 page.locator(".catalog-dialog .catalog-close").click()
                 expect(page.locator("#youtube-dock.is-floating")).to_be_visible()
-                page.locator("#youtube-dock button").filter(has_text="Plein écran").click()
-                page.wait_for_function("() => Boolean(document.fullscreenElement)")
-                page.evaluate("document.exitFullscreen()")
+                # Native media inside the cross-origin iframe must keep advancing after the move.
+                native_media = page.frame_locator(".youtube-viewport iframe").locator("audio")
+                expect(native_media).to_have_js_property("paused", False)
+                assert native_media.evaluate("""a => new Promise(resolve => {
+                    const before = a.currentTime;
+                    setTimeout(() => resolve(!a.paused && Math.abs(a.currentTime-before)>.05), 250);
+                })""")
+                page.locator(".youtube-size").click()
+                assert not page.evaluate("Boolean(document.fullscreenElement)")
                 page.locator("#player-toggle").click()
                 assert page.evaluate("window.__yt.getPlayerState()") == 2
                 page.locator("#player-toggle").click()
@@ -208,7 +216,7 @@ window.YT={Player:function(frame,options){
                 expect(page.locator(".catalog-dialog .youtube-viewport iframe")).to_have_count(1)
                 assert page.evaluate("window.__ytCreates===1")
                 page.locator(".catalog-dialog .catalog-close").click()
-                page.locator("#youtube-dock button").filter(has_text="Fermer la vidéo").click()
+                page.get_by_role("button", name="Fermer la vidéo", exact=True).click()
                 expect(page.locator(".youtube-viewport iframe")).to_have_count(0)
                 # Changing stations destroys the old source and excerpts.
                 page.evaluate('window.RadioNavigation.go("/")')

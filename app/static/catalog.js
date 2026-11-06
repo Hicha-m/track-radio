@@ -19,7 +19,7 @@ window.TrackCatalog = (() => {
     if (track.station_id) params.set('station_id', track.station_id);
     return `/recherche?${params}`;
   }
-  function playButton(track, source = null) {
+  function playButton(track, source = null, withYouTube = true) {
     const url = source || (track.metadata?.preview_url ? `/api/catalog/${track.metadata.track_id}/preview` : track.preview_url);
     const result = el('button', '▶', 'preview-button');
     result.type = 'button';
@@ -31,7 +31,8 @@ window.TrackCatalog = (() => {
     result.title = url ? window.RadioI18n.t("ui.9e8d2e8f5781") : window.RadioI18n.t("ui.71b2e2a50b53");
     result.addEventListener('click', event => { event.stopPropagation(); window.RadioPlayer.preview(track, url); });
     queueMicrotask(() => window.RadioPlayer.sync());
-    const controls = el('span', '', 'preview-actions'); controls.append(result, window.TrackYouTube.button(track));
+    const controls = el('span', '', 'preview-actions'); controls.append(result);
+    if (withYouTube) controls.append(window.TrackYouTube.button(track));
     return controls;
   }
   function button(track) {
@@ -128,7 +129,7 @@ window.TrackCatalog = (() => {
       const essentials = el('div', '', 'catalog-essentials');
       essentials.append(el('span', window.RadioI18n.t("ui.ec34e3485e5e"), 'eyebrow'), heading, artist);
       const controls = el('div', '', 'preview-entry');
-      controls.append(playButton({...track, metadata: data}), el('span', data.preview_url ? window.RadioI18n.t("ui.ccc216fa2e6b") : window.RadioI18n.t("ui.71b2e2a50b53")));
+      controls.append(playButton({...track, metadata: data}, null, false), el('span', data.preview_url ? window.RadioI18n.t("ui.ccc216fa2e6b") : window.RadioI18n.t("ui.71b2e2a50b53")));
       essentials.append(controls);
       essentials.append(fields([[window.RadioI18n.t("ui.f05e840e0069"), data.album], [window.RadioI18n.t("ui.71d0bad42af1"), duration(data.duration)], [window.RadioI18n.t("ui.d6c7b22ccab5"), providers[data.provider] || data.provider || window.RadioI18n.t("ui.831460cb0225")]]));
       essentials.append(genreList(data), message, edit); summary.append(essentials); content.append(summary);

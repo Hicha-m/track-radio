@@ -380,10 +380,9 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
  .hero-button{gap:8px;white-space:nowrap}
 }
 
-.catalog-youtube{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
-.catalog-youtube h3{margin:0 0 8px}
-.catalog-youtube>p{margin:12px 0}
-.youtube-viewport iframe{display:block;width:100%;aspect-ratio:16/9;min-height:200px;border:0;border-radius:10px}
+.catalog-youtube{margin-top:24px}
+.youtube-viewport:empty{display:none}
+.youtube-viewport iframe{display:block;width:100%;aspect-ratio:16/9;min-height:200px;border:0;border-radius:8px}
 .youtube-choices{display:flex;flex-direction:column;gap:12px;margin-top:12px}
 
 .stats-method{margin-bottom:18px}
@@ -451,11 +450,19 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
 }
 
 /* Persistent YouTube host and operational state. */
-.youtube-dock { min-width: 0; background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 14px; padding: 12px; color: var(--text, #191919); }
-.youtube-dock.is-floating { position: fixed; z-index: 70; right: 18px; bottom: 145px; width: min(360px, calc(100vw - 24px)); max-height: calc(100dvh - 180px); overflow: auto; box-shadow: 0 10px 40px #0004; }
-.youtube-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.youtube-toolbar h3 { flex: 1 1 100%; margin: 0; }
-.youtube-toolbar button { font-size: .8rem; }
+.youtube-dock { position: relative; box-sizing: border-box; width: var(--youtube-width, 640px); max-width: 100%; min-width: 0; margin-inline: auto; padding: 0 8px 24px; background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 12px; color: var(--text, #191919); }
+.youtube-dock.is-floating { position: fixed; z-index: 70; right: 12px; bottom: var(--youtube-bottom, 145px); width: var(--youtube-width, 360px); max-width: calc(100vw - 24px); max-height: calc(100dvh - var(--youtube-bottom, 145px) - 12px); margin: 0; overflow: auto; box-shadow: 0 10px 40px #0004; }
+.youtube-toolbar { display: flex; justify-content: flex-end; align-items: center; height: 44px; gap: 4px; }
+.youtube-toolbar button { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; font-size: 24px; padding: 0; }
+.youtube-toolbar button:hover { background: var(--line); }
+.youtube-resize { position: absolute; bottom: 0; right: 0; width: 44px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: 24px; line-height: 1; cursor: ew-resize; touch-action: none; }
+.youtube-status { margin: 12px 4px; font-size: 12px; overflow-wrap: anywhere; }
+.youtube-status:empty,.youtube-dock>.youtube-choices:empty { display: none; }
+.youtube-dock>.youtube-choices { margin: 12px 4px; overflow-wrap: anywhere; }
+.youtube-dock button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  .youtube-dock.has-video:not(:hover):not(.is-hovered):not(:focus-within):not(.is-resizing) :is(.youtube-toolbar button,.youtube-resize) { opacity: 0; }
+}
 .preview-actions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .preview-actions .youtube-button { padding: 6px 8px; font-size: .75rem; }
 .youtube-admin { margin: 16px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
@@ -463,7 +470,6 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
 .worker-state { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
 .worker-state progress { width: 100%; accent-color: var(--accent); }
 #worker-events { max-height: 400px; overflow: auto; padding-left: 24px; }
-@media (max-width: 600px) { .youtube-dock.is-floating { right: 12px; bottom: 185px; width: min(300px, calc(100vw - 24px)); max-height: calc(100dvh - 210px); } }
 @media (max-width: 760px) {
   .player:is([data-mode=preview], [data-mode=video]) .player-volume label { display: block; position: absolute; top: 2px; right: 16px; width: 96px; }
 }

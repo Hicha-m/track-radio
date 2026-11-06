@@ -4,41 +4,111 @@ window.TrackYouTube = (() => {
   let ready = false;
   const el = (tag, text = '', className = '') => { const node = document.createElement(tag); node.textContent = text; node.className = className; return node; };
   const dock = el('section', '', 'catalog-youtube youtube-dock'); dock.id = 'youtube-dock'; dock.hidden = true;
-  const heading = el('h3', window.RadioI18n.t("ui.46aa38caf70b"));
-  const close = el('button', window.RadioI18n.t("ui.5e02c28191a4"), 'text-button'); close.type = 'button';
-  const floating = el('button', window.RadioI18n.t("ui.d7c6736fa9f6"), 'text-button'); floating.type = 'button';
-  const pip = el('button', window.RadioI18n.t("ui.5b22b5373a8e"), 'text-button'); pip.type = 'button';
-  const status = el('p', '', 'hint'); status.setAttribute('role', 'status');
+  dock.setAttribute('aria-label', window.RadioI18n.t("ui.46aa38caf70b"));
+  const close = el('button', '×', 'youtube-close'); close.type = 'button';
+  close.setAttribute('aria-label', window.RadioI18n.t("ui.5e02c28191a4"));
+  close.title = window.RadioI18n.t("ui.5e02c28191a4");
+  const size = el('button', '↗', 'youtube-size'); size.type = 'button';
+  const grip = el('button', '⋰', 'youtube-resize'); grip.type = 'button';
+  grip.setAttribute('role', 'slider'); grip.setAttribute('aria-label', window.RadioI18n.t('youtube.size'));
+  grip.setAttribute('aria-orientation', 'horizontal');
+  const status = el('p', '', 'youtube-status'); status.setAttribute('role', 'status');
   const choices = el('div', '', 'youtube-choices');
-  const viewport = el('div', '', 'youtube-viewport');
-  const toolbar = el('div', '', 'youtube-toolbar'); toolbar.append(heading, floating, pip, close);
-  dock.append(toolbar, status, choices, viewport); document.body.append(dock);
+  const viewport = el('div', '', 'youtube-viewport'); viewport.id = 'youtube-viewport';
+  size.setAttribute('aria-controls', viewport.id); grip.setAttribute('aria-controls', viewport.id);
+  const toolbar = el('div', '', 'youtube-toolbar'); toolbar.append(size, close);
+  dock.append(toolbar, status, choices, viewport, grip); document.body.append(dock);
+  dock.onpointerenter = () => dock.classList.add('is-hovered');
+  dock.onpointerleave = () => dock.classList.remove('is-hovered');
+  const widths = {floating: 360, inline: 640};
+  let drag = null;
+  const floating = () => dock.parentNode === document.body;
+  function bounds() {
+    let max = Math.min(720, dock.parentElement.clientWidth);
+    if (floating()) {
+      const playerTop = document.querySelector('.player')?.getBoundingClientRect().top ?? innerHeight;
+      let bottom = Math.max(12, innerHeight - playerTop + 12);
+      // On short landscape screens keep the entire dock reachable, with internal scrolling.
+      if (innerHeight - bottom < 280) bottom = 12;
+      dock.style.setProperty('--youtube-bottom', `${bottom}px`);
+      max = Math.min(720, innerWidth - 24, Math.max(200, innerHeight - bottom - 84) * 16 / 9 + 18);
+    }
+    max = Math.floor(Math.max(1, max));
+    return {min: Math.min(224, max), max};
+  }
+  function fit(width) {
+    if (dock.hidden) return;
+    const mode = floating() ? 'floating' : 'inline';
+    const {min, max} = bounds();
+    const value = Math.round(Math.max(min, Math.min(max, width ?? widths[mode])));
+    if (width !== undefined) widths[mode] = value;
+    dock.style.setProperty('--youtube-width', `${value}px`);
+    grip.setAttribute('aria-valuemin', String(min)); grip.setAttribute('aria-valuemax', String(max));
+    grip.setAttribute('aria-valuenow', String(value));
+    grip.setAttribute('aria-valuetext', window.RadioI18n.t('youtube.pixels', {width: value}));
+    const large = value >= max - 1;
+    size.textContent = large ? '↙' : '↗';
+    size.title = window.RadioI18n.t(large ? 'youtube.shrink' : 'youtube.enlarge');
+    size.setAttribute('aria-label', size.title);
+    const hasVideo = viewport.childElementCount > 0;
+    size.hidden = grip.hidden = !hasVideo || max === min;
+  }
+  function endResize() {
+    if (drag && grip.hasPointerCapture(drag.id)) grip.releasePointerCapture(drag.id);
+    drag = null; dock.classList.remove('is-resizing');
+  }
+  size.onclick = () => {
+    const {min, max} = bounds();
+    fit(dock.getBoundingClientRect().width >= max - 1 ? Math.max(min, Math.min(360, max * .6)) : max);
+  };
+  grip.onpointerdown = event => {
+    if (event.button !== 0) return;
+    event.preventDefault(); grip.focus(); grip.setPointerCapture(event.pointerId);
+    drag = {id: event.pointerId, x: event.clientX, width: dock.getBoundingClientRect().width, floating: floating()};
+    dock.classList.add('is-resizing');
+  };
+  grip.onpointermove = event => {
+    if (drag?.id !== event.pointerId) return;
+    fit(drag.width + (event.clientX - drag.x) * (drag.floating ? -1 : 1));
+  };
+  grip.onpointerup = grip.onpointercancel = grip.onlostpointercapture = () => { drag = null; dock.classList.remove('is-resizing'); };
+  grip.onkeydown = event => {
+    const {min, max} = bounds();
+    const value = Number(grip.getAttribute('aria-valuenow'));
+    const next = {ArrowLeft: value - 32, ArrowDown: value - 32, ArrowRight: value + 32, ArrowUp: value + 32, Home: min, End: max}[event.key];
+    if (next !== undefined) { event.preventDefault(); fit(next); }
+  };
   function relocate(parent) {
+    endResize();
     if (dock.parentNode !== parent) {
       if (parent.moveBefore) parent.moveBefore(dock, null);
       else if (!player) parent.append(dock);
       else return false;
     }
     dock.classList.toggle('is-floating', parent === document.body);
-    floating.hidden = parent === document.body;
+    fit();
     return true;
   }
-  function minimize() { relocate(document.body); }
+  function minimize() {
+    if (player && viewport.childElementCount && !dock.dataset.videoError) {
+      relocate(document.body); anchor = null;
+    } else stop();
+  }
   function stop() {
-    version++; controller?.abort(); controller = null;
+    version++; controller?.abort(); controller = null; endResize();
     try { player?.destroy(); } catch (_) { /* A failed embed can already be detached. */ }
-    player = null; ready = false; activeTrack = null; currentVideo = null;
-    viewport.replaceChildren(); choices.replaceChildren(); dock.hidden = true;
+    player = null; ready = false; activeTrack = null; currentVideo = null; anchor = null; available = [];
+    viewport.replaceChildren(); choices.replaceChildren(); status.textContent = ''; dock.hidden = true;
+    dock.classList.remove('has-video', 'is-hovered'); delete dock.dataset.videoError; delete dock.dataset.videoState;
     relocate(document.body); window.RadioPlayer?.videoStopped();
   }
-  close.onclick = stop; floating.onclick = minimize;
-  pip.hidden = typeof document.documentElement.requestFullscreen !== 'function';
-  pip.textContent = window.RadioI18n.t("ui.dee312b0129c");
-  pip.onclick = async () => {
-    // The embedded cross-origin video owns native PiP; only its controls may offer it.
-    try { await viewport.requestFullscreen(); }
-    catch (_) { status.textContent = window.RadioI18n.t("ui.feb8fa426c9b"); }
+  close.onclick = () => {
+    const target = anchor?.querySelector('.preview-entry .youtube-button');
+    stop(); target?.focus();
   };
+  window.addEventListener('resize', () => fit());
+  const layout = new ResizeObserver(() => fit());
+  const sharedPlayer = document.querySelector('.player'); if (sharedPlayer) layout.observe(sharedPlayer);
   function loadApi() {
     if (window.YT?.Player) return Promise.resolve();
     if (api) return api;
@@ -65,27 +135,34 @@ window.TrackYouTube = (() => {
     const current = ++version; currentVideo = video;
     delete dock.dataset.videoError; delete dock.dataset.videoState;
     player?.destroy(); player = null; ready = false; viewport.replaceChildren(); choices.replaceChildren();
-    dock.hidden = false; status.textContent = window.RadioI18n.t("ui.f9032b20af36", {p0: (video.title), p1: (video.channel)});
+    dock.hidden = false; dock.classList.remove('has-video');
+    status.textContent = window.RadioI18n.t("ui.1bc5757c9939"); fit();
     window.RadioPlayer.startVideo(adapter, activeTrack);
     try {
       await loadApi();
       if (current !== version) return;
+      // Without a state-preserving move, float only once a video was actually selected.
+      if (anchor?.open && !dock.parentNode.moveBefore) {
+        const panel = anchor; anchor = null; relocate(document.body); panel.close();
+      }
       const iframe = el('iframe'); iframe.title = video.title;
       iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen'; iframe.allowFullscreen = true;
       iframe.referrerPolicy = 'strict-origin-when-cross-origin';
       const url = new URL(`https://www.youtube-nocookie.com/embed/${video.id}`);
-      url.search = new URLSearchParams({enablejsapi: '1', origin: location.origin, autoplay: '1', playsinline: '1', rel: '0'});
-      iframe.src = url; viewport.append(iframe);
+      url.search = new URLSearchParams({enablejsapi: '1', origin: location.origin, autoplay: '1', playsinline: '1', rel: '0', controls: '0'});
+      iframe.src = url; viewport.append(iframe); dock.classList.add('has-video'); fit();
       player = new window.YT.Player(iframe, {host: 'https://www.youtube-nocookie.com', events: {
         onReady: event => {
           if (current !== version) return;
           ready = true;
           window.RadioPlayer.startVideo(adapter, activeTrack); event.target.playVideo();
-          status.textContent = window.RadioI18n.t("ui.f5e700fd0436", {p0: (video.title), p1: (video.channel)});
+          status.textContent = ''; fit();
         },
         onStateChange: event => {
           if (current !== version) return;
-          dock.dataset.videoState = String(event.data); window.RadioPlayer.videoState();
+          dock.dataset.videoState = String(event.data);
+          if (event.data === 1) status.textContent = '';
+          window.RadioPlayer.videoState();
         },
         onAutoplayBlocked: () => { if (current === version) status.textContent = window.RadioI18n.t("ui.fe115b53936d"); },
         onError: event => {
@@ -104,11 +181,10 @@ window.TrackYouTube = (() => {
   }
   async function start(track, panel, content) {
     stop(); activeTrack = track; anchor = panel;
-    // moveBefore preserves iframe state on supported browsers. Else float from the outset.
-    if (content?.moveBefore) relocate(content);
-    else { relocate(document.body); panel?.close(); }
+    // Empty search/choice panels can move normally; loaded iframes require moveBefore.
+    relocate(content || document.body);
     dock.hidden = false; controller = new AbortController(); const current = version;
-    status.textContent = window.RadioI18n.t("ui.1bc5757c9939");
+    status.textContent = window.RadioI18n.t("ui.1bc5757c9939"); fit();
     try {
       const params = window.MusicFilters.apply(new URLSearchParams());
       const response = await window.MusicFilters.fetch(`/api/catalog/${encodeURIComponent(track.metadata?.track_id || track.track_id)}/youtube?${params}`, {signal: controller.signal});
@@ -133,16 +209,20 @@ window.TrackYouTube = (() => {
   function mount(panel, content, links, trackId, track, controls, autoplay = false) {
     track = {...track, track_id: trackId};
     const play = () => {
-      if (activeTrack?.track_id === trackId && currentVideo) {
-        anchor = panel; if (content.moveBefore) relocate(content); dock.hidden = false; return;
+      if (activeTrack?.track_id === trackId && player && currentVideo && !dock.dataset.videoError) {
+        if (content.moveBefore) { anchor = panel; relocate(content); }
+        else { anchor = null; panel.close(); }
+        dock.hidden = false; fit(); return;
       }
       start(track, panel, content);
     };
-    links.append(button(track, play)); controls?.append(button(track, play));
+    (controls || links).append(button(track, play));
     // Close moves the same iframe out before navigation removes the dialog.
-    panel.addEventListener('cancel', () => { if (anchor === panel) minimize(); });
     const nativeClose = panel.close.bind(panel);
-    panel.close = (...args) => { if (anchor === panel) minimize(); nativeClose(...args); };
+    panel.close = (...args) => {
+      // Move after closing: the body is interactive again when the iframe changes parent.
+      const attached = anchor === panel; nativeClose(...args); if (attached) minimize();
+    };
     panel.addEventListener('close', () => { if (anchor === panel) minimize(); }, {once: true});
     if (activeTrack?.track_id === trackId && player && content.moveBefore) { anchor = panel; relocate(content); }
     if (autoplay) play();
@@ -150,6 +230,6 @@ window.TrackYouTube = (() => {
   window.addEventListener('radio:audioactive', stop);
   window.addEventListener('radio:filterschange', stop);
   window.addEventListener('radio:globalfilterschange', stop);
-  window.addEventListener('radio:beforepagechange', minimize);
+  window.addEventListener('radio:beforepagechange', () => { if (anchor?.open) anchor.close(); else minimize(); });
   return {mount, button, stop, minimize};
 })();
