@@ -9,14 +9,28 @@ from pathlib import Path
 from sqlalchemy import DateTime, MetaData, Table, func, insert, inspect, select
 
 from app.database import engine
-from app.models import GlobalExclusion, Play, Station, TrackMetadata
+from app.models import (
+    GlobalExclusion,
+    Play,
+    ServiceQuota,
+    Station,
+    TrackMetadata,
+    WorkerEvent,
+    WorkerState,
+    YouTubeMatch,
+)
 
 TABLES = {
     "stations": Station.__table__,
     "plays": Play.__table__,
     "track_metadata": TrackMetadata.__table__,
     "global_exclusions": GlobalExclusion.__table__,
+    "youtube_matches": YouTubeMatch.__table__,
+    "service_quotas": ServiceQuota.__table__,
+    "worker_states": WorkerState.__table__,
+    "worker_events": WorkerEvent.__table__,
 }
+OPTIONAL_TABLES = set(TABLES) - {"stations", "plays"}
 
 
 def export_data(path):
@@ -29,7 +43,7 @@ def export_data(path):
         connection = connection.execution_options(yield_per=250)
         for name in TABLES:
             if not inspect(connection).has_table(name):
-                if name in {"track_metadata", "global_exclusions"}:
+                if name in OPTIONAL_TABLES:
                     continue  # Backup an installation from before metadata migration.
                 raise ValueError(f"Table manquante : {name}")
             counts[name] = 0
@@ -80,7 +94,7 @@ def import_data(path):
         # Older archives contain only stations and plays. Missing metadata is allowed
         # only when there were no metadata rows in the archive.
         if manifest is not None:
-            for optional in ("track_metadata", "global_exclusions"):
+            for optional in OPTIONAL_TABLES:
                 manifest.setdefault(optional, 0)
         if manifest != counts:
             raise ValueError("Export incomplet : les comptes ne correspondent pas.")

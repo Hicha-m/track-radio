@@ -98,3 +98,53 @@ def test_old_archive_without_metadata_imports(tmp_path, monkeypatch):
         output.write(json.dumps({"counts": {"stations": 0, "plays": 0}}) + "\n")
     transfer.import_data(path)
     engine.dispose()
+
+
+def test_youtube_manual_choice_shared_quota_and_supervision_survive_backup(tmp_path, monkeypatch):
+    from datetime import UTC, datetime
+
+    from sqlalchemy.orm import Session
+
+    from app.models import ServiceQuota, WorkerEvent, WorkerState, YouTubeMatch
+    from app.services.youtube import queue
+
+    engine = make_engine(f"sqlite:///{tmp_path / 'youtube.db'}")
+    Base.metadata.create_all(engine)
+    monkeypatch.setattr(transfer, "engine", engine)
+    now = datetime.now(UTC)
+    with Session(engine) as db:
+        queue(db, "a" * 64, "Artist", "Song")
+        row = db.get(YouTubeMatch, "a" * 64)
+        row.manual = True
+        row.status = "matched"
+        row.checked_at = now
+        row.selected = {"id": "abcdefghijk", "title": "Fixture", "channel": "Fixture"}
+        db.add(ServiceQuota(name="youtube", day="2026-11-06", used=23))
+        db.add(
+            WorkerState(
+                name="youtube",
+                state="idle",
+                heartbeat_at=now,
+                started_at=now,
+                completed=1,
+                failed=0,
+                total=1,
+                activity="completed",
+            )
+        )
+        db.add(WorkerEvent(worker="youtube", at=now, code="completed"))
+        db.commit()
+    path = tmp_path / "youtube.gz"
+    transfer.export_data(path)
+    with engine.begin() as conn:
+        for model in (WorkerEvent, WorkerState, ServiceQuota, YouTubeMatch):
+            conn.execute(model.__table__.delete())
+    transfer.import_data(path)
+    with Session(engine) as db:
+        restored = db.get(YouTubeMatch, "a" * 64)
+        assert restored.manual and restored.selected["id"] == "abcdefghijk"
+        assert restored.checked_at is not None
+        assert db.get(ServiceQuota, "youtube").used == 23
+        assert db.get(WorkerState, "youtube").completed == 1
+        assert db.scalar(select(func.count()).select_from(WorkerEvent)) == 1
+    engine.dispose()
