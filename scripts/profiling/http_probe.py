@@ -60,5 +60,11 @@ def probe(base, samples=2):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", required=True)
+    parser.add_argument("--expected-revision")
     args = parser.parse_args()
+    if args.expected_revision:
+        with urllib.request.urlopen(args.base.rstrip("/") + "/api/version", timeout=10) as response:
+            deployed = json.load(response)["revision"]
+        if deployed != args.expected_revision:
+            raise SystemExit("Profiling refused: expected application revision is not deployed")
     print(json.dumps({"http": probe(args.base)}, indent=2))

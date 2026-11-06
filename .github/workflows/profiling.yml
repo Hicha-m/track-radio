@@ -47,7 +47,8 @@ jobs:
           SH
       - name: Serial HTTP timings inside the server
         run: |
-          ssh "$VPS" 'api=$(docker ps -q --filter label=com.docker.compose.project=track-radio --filter label=com.docker.compose.service=api); ip=$(docker inspect --format "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}" "$api"); python3 - --base "http://$ip:8000"' < scripts/profiling/http_probe.py
+          expected=$(python3 -c 'import json,re; value=json.load(open("scripts/profiling/request.json"))["revision"]; assert re.fullmatch("[a-f0-9]{40}",value); print(value)')
+          ssh "$VPS" "api=\$(docker ps -q --filter label=com.docker.compose.project=track-radio --filter label=com.docker.compose.service=api); ip=\$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \"\$api\"); python3 - --base \"http://\$ip:8000\" --expected-revision '$expected'" < scripts/profiling/http_probe.py
       - name: Bounded SQL and Python profile in isolated container
         run: |
           ssh "$VPS" 'bash -c '\''set -euo pipefail
