@@ -266,3 +266,34 @@ un heartbeat récent permet de signaler le contrôle comme différé plutôt que
 de provoquer une requête anticipée. Ce résultat ne certifie pas une nouvelle
 tentative de la révision déployée ; il indique que le délai fournisseur est
 respecté. Sans heartbeat récent, le contrôle continue d'attendre puis échoue.
+
+## Validation et observation après publication
+
+La CD exécute maintenant `scripts/observe_collection.py --seconds 360` après les
+contrôles de démarrage : six minutes d'observation, avec une lecture toutes les
+30 secondes dans la base de l'application. Le script ne fait aucun appel au
+fournisseur, ne force aucun réessai et ne demande aucune clé administrateur.
+Il ne sélectionne ni titres, ni artistes, ni métadonnées brutes et ne modifie
+aucune ligne. Les sessions de lecture sont fermées entre les relevés.
+
+Seuls des indicateurs booléens sont publiés dans le journal de validation :
+heartbeat récent, progression des tentatives, progression des autres stations,
+plusieurs changements Skyrock détectés après le premier relevé, renouvellement
+des observations, présence d'erreurs nouvelles et échéance future. Les dates,
+compteurs, données musicales et réponses fournisseur ne sont pas exportés.
+Ces indicateurs sont techniques ; ils ne constituent pas des statistiques
+musicales et ne dévoilent pas les libellés masqués. Deux requêtes bornées sont
+utilisées par relevé, sans lecture de la table des diffusions.
+
+Un heartbeat récent ou une progression des autres radios ne valide pas la
+fraîcheur de Skyrock. Les changements déjà présents au début de la fenêtre ne
+comptent pas comme nouvelles transitions. Si deux changements Skyrock ne sont
+pas effectivement observés, le résultat indique explicitement que les
+transitions et la comparaison du délai d'antenne restent non confirmées.
+Cela ne transforme pas un titre inchangé ou exclu en panne de déploiement.
+Un heartbeat ancien à la fin de la fenêtre fait en revanche échouer ce contrôle.
+Le délai maximal du job de déploiement inclut cette fenêtre d'observation.
+
+Les tests de reprise couvrent également un redémarrage après expiration d'une
+échéance : le nombre d'échecs consécutifs reste conservé pour calculer le
+prochain délai progressif, tout en permettant l'essai devenu éligible.

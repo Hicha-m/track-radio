@@ -33,11 +33,11 @@ def restore_schedule():
                 remaining = (diagnostics.utc(status.next_attempt_at) - now).total_seconds()
                 if remaining > 0:
                     schedule[status.station_id] = monotonic + remaining
-                    if status.consecutive_errors:
-                        retries[status.station_id] = (
-                            status.consecutive_errors,
-                            monotonic + remaining,
-                        )
+                if status.consecutive_errors:
+                    retries[status.station_id] = (
+                        status.consecutive_errors,
+                        monotonic + max(0, remaining),
+                    )
     return retries, schedule
 
 

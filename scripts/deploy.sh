@@ -102,4 +102,5 @@ except Exception as error:
 PY
 fi
 compose exec -T api python scripts/check_collection_diagnostics.py
+compose exec -T api python scripts/observe_collection.py --seconds 360
 echo 'Deployment healthy'

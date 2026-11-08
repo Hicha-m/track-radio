@@ -96,7 +96,8 @@ def test_uid_repeats_rebroadcast_transition_and_ident_filter(db):
     assert db.scalar(select(func.count()).select_from(Play)) == 2
 
 
-def test_fetchers_share_uid_and_recognize_ident():
+@pytest.mark.parametrize("ident", [False, True])
+def test_fetchers_share_uid_and_recognize_ident(ident):
     import asyncio
 
     import httpx
@@ -111,7 +112,11 @@ def test_fetchers_share_uid_and_recognize_ident():
             yield self.data
 
     def respond(request):
-        label = b"StreamTitle='One, Two - Fixture \xc2\xa71';"
+        label = (
+            b"StreamTitle='SKYROCK - Hit Skyrock';"
+            if ident
+            else b"StreamTitle='One, Two - Fixture \xc2\xa71';"
+        )
         block = label.ljust(((len(label) + 15) // 16) * 16, b"\x00")
         return httpx.Response(
             200,
@@ -123,7 +128,8 @@ def test_fetchers_share_uid_and_recognize_ident():
         station = Station(stream_url=NATIONAL_STREAM, source_type="icy")
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
             result = await fetch_metadata(station, 1, client)
-        assert result.source_event_id == "skyrock:1"
-        assert result.title == "Fixture"
+        assert result.source_event_id == (None if ident else "skyrock:1")
+        assert result.title == ("Hit Skyrock" if ident else "Fixture")
+        assert result.is_music is not ident
 
     asyncio.run(run())

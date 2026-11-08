@@ -1,6 +1,7 @@
 """Exercise global and personal hiding in two isolated browser contexts, using temporary data."""
 
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -68,7 +69,7 @@ with tempfile.TemporaryDirectory(prefix="radio-global-browser-") as directory:
                 except OSError:
                     time.sleep(0.1)
             with sync_playwright() as p:
-                browser = p.chromium.launch()
+                browser = p.chromium.launch(executable_path=shutil.which("google-chrome"))
                 admin_context = browser.new_context()
                 visitor_context = browser.new_context()
                 admin = admin_context.new_page()
@@ -162,6 +163,8 @@ with tempfile.TemporaryDirectory(prefix="radio-global-browser-") as directory:
                 admin.get_by_role("button", name="Ouvrir l’administration").click()
                 expect(admin.locator("#admin-workspace")).to_be_visible()
                 admin.locator(".sidebar nav").get_by_role("link", name="Stats", exact=True).click()
+                admin.locator('[data-metric="genres"] > summary').click()
+                admin.locator('[data-metric="repetitions"] > summary').click()
                 genre_status = '[data-metric="genres"] [role="status"]'
                 expect(admin.locator(genre_status)).to_contain_text("5 passages")
                 expect(
@@ -172,6 +175,8 @@ with tempfile.TemporaryDirectory(prefix="radio-global-browser-") as directory:
                 fresh.on("pageerror", lambda error: errors.append(str(error)))
                 fresh.route("https://**", lambda route: route.abort())
                 fresh.goto(base + "/stats")
+                fresh.locator('[data-metric="genres"] > summary').click()
+                fresh.locator('[data-metric="repetitions"] > summary').click()
                 expect(fresh.locator(genre_status)).to_contain_text("9 passages")
                 admin.locator("[data-open-exclusions]").click()
                 panel = admin.locator(".exclusions-dialog")
@@ -199,6 +204,7 @@ with tempfile.TemporaryDirectory(prefix="radio-global-browser-") as directory:
                 expect(admin.locator("#admin-session-controls")).not_to_be_visible()
                 expect(admin.locator(genre_status)).to_contain_text("5 passages")
                 admin.reload()
+                admin.locator('[data-metric="genres"] > summary').click()
                 expect(admin.locator(genre_status)).to_contain_text("5 passages")
                 assert admin.evaluate(
                     "JSON.parse(localStorage.getItem('radio-hidden-tracks-v1'))"
