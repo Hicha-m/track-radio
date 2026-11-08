@@ -1,0 +1,26 @@
+<template id="playlist-template">
+  <dialog class="playlist-dialog export-dialog" aria-labelledby="playlist-title">
+    <button type="button" class="text-button" data-playlist-close>{{ t('ui.711e5f2e198d') }}</button>
+    <h2 id="playlist-title">{{ t('playlist.open') }}</h2>
+    <p class="hint">{{ t('playlist.note') }}</p>
+    <form data-playlist-form>
+      <div class="filter-grid">
+        <label>{{ t('playlist.limit') }}<input name="limit" type="number" min="1" max="50" value="20" required></label>
+        <label>{{ t('playlist.sort') }}<select name="sort"><option value="frequency">{{ t('playlist.frequency') }}</option><option value="newest">{{ t('playlist.newest') }}</option><option value="oldest">{{ t('playlist.oldest') }}</option><option value="artist">{{ t('ui.2966c11adad7') }}</option><option value="title">{{ t('ui.78e7920010aa') }}</option></select></label>
+      </div>
+      <p class="hint" data-playlist-scope></p>
+      <button type="submit">{{ t('playlist.prepare') }}</button>
+    </form>
+    <p class="hint" role="status" aria-live="polite" data-playlist-status></p>
+    <ol class="playlist-items" data-playlist-items></ol>
+    <div class="playlist-actions">
+      <button type="button" data-playlist-resolve disabled>{{ t('playlist.resolve') }}</button>
+      <button type="button" data-playlist-stop hidden>{{ t('playlist.cancel') }}</button>
+      <button type="button" data-playlist-play disabled>{{ t('playlist.play') }}</button>
+      <button type="button" data-playlist-pause disabled>{{ t('playlist.pause') }}</button>
+      <label>{{ t('playlist.destination') }}<select data-playlist-destination><option value="youtube">YouTube</option><option value="spotify">Spotify</option></select></label>
+      <button type="button" data-playlist-export disabled>{{ t('playlist.export') }}</button>
+    </div>
+    <p class="hint">{{ t('playlist.export_note') }}</p>
+  </dialog>
+</template>

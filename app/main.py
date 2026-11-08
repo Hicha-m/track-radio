@@ -22,6 +22,7 @@ from app.export_api import router as export_router
 from app.i18n import CATALOGUES, language, translate
 from app.metrics_api import router as metrics_router
 from app.models import Play, Station, TrackMetadata
+from app.playlist_api import router as playlist_router
 from app.schemas import PlayOut, StationOut, StatsOut
 from app.security import SecurityMiddleware
 from app.services.catalog import attach_metadata
@@ -36,6 +37,7 @@ app.include_router(catalog_router)
 app.include_router(session_router)
 app.include_router(admin_router)
 app.include_router(export_router)
+app.include_router(playlist_router)
 app.include_router(artwork_router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")

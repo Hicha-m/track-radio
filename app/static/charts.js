@@ -101,6 +101,7 @@ async function loadChart(force = false) {
   const exportParams = new URLSearchParams(params);
   exportParams.set('view', 'tracks'); exportParams.set('sort', 'frequency');
   window.MusicFilters.exports(exportParams);
+  window.RadioPlaylists?.configure(chartScope);
   const shared = new URLSearchParams({days});
   stationParams(shared);
   history.replaceState(null, '', `/?${shared}${location.hash}`);

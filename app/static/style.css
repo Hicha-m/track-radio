@@ -505,3 +505,22 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
   .station-title { font-size: 12px; }
   .station-heading strong { font-size: 12px; }
 }
+
+/* The composer uses the chart's period and stations, without starting media. */
+.playlist-dialog { max-width: 820px; }
+.playlist-items { padding-left: 1.7rem; }
+.playlist-items li { padding: .8rem 0; border-bottom: 1px solid var(--border); }
+.playlist-item-head, .playlist-actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
+.playlist-item-head strong { flex: 1 1 160px; overflow-wrap: anywhere; min-width: 0; }
+.playlist-item-head button { min-height: 40px; }
+.playlist-items select { width: 100%; max-width: 100%; margin-top: .5rem; }
+.playlist-items small { display: block; margin-top: .35rem; overflow-wrap: anywhere; }
+.playlist-actions { margin-top: 1rem; }
+.playlist-actions label { display: grid; gap: .3rem; }
+.playlist-dialog .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 16px 0 10px; }
+.playlist-dialog button:not(.text-button) { min-height: 44px; padding: 9px 13px; border-radius: 7px; background: var(--surface-alt); }
+.playlist-dialog button[type=submit], .playlist-dialog [data-playlist-play] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.playlist-dialog [data-playlist-status] { margin: 12px 0; }
+.playlist-dialog .playlist-actions + .hint { margin-top: 14px; }
+.playlist-items li { border-color: var(--line); }
+@media(max-width: 420px) { .playlist-dialog .filter-grid { grid-template-columns: 1fr; } .playlist-actions > button { flex: 1 1 130px; } }

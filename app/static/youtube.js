@@ -2,6 +2,7 @@
 window.TrackYouTube = (() => {
   let api, player, controller, version = 0, activeTrack, currentVideo, available = [], anchor;
   let ready = false;
+  let selectionEnded = null, selectionError = null;
   const el = (tag, text = '', className = '') => { const node = document.createElement(tag); node.textContent = text; node.className = className; return node; };
   const dock = el('section', '', 'catalog-youtube youtube-dock'); dock.id = 'youtube-dock'; dock.hidden = true;
   dock.setAttribute('aria-label', window.RadioI18n.t("ui.46aa38caf70b"));
@@ -95,6 +96,7 @@ window.TrackYouTube = (() => {
     } else stop();
   }
   function stop() {
+    selectionEnded = selectionError = null;
     version++; controller?.abort(); controller = null; endResize();
     try { player?.destroy(); } catch (_) { /* A failed embed can already be detached. */ }
     player = null; ready = false; activeTrack = null; currentVideo = null; anchor = null; available = [];
@@ -163,18 +165,29 @@ window.TrackYouTube = (() => {
           dock.dataset.videoState = String(event.data);
           if (event.data === 1) status.textContent = '';
           window.RadioPlayer.videoState();
+          if (event.data === 0 && selectionEnded) {
+            const done = selectionEnded; selectionEnded = selectionError = null; done();
+          }
         },
         onAutoplayBlocked: () => { if (current === version) status.textContent = window.RadioI18n.t("ui.fe115b53936d"); },
         onError: event => {
           if (current !== version) return;
           dock.dataset.videoError = String(event?.data ?? 'unknown');
+          if (selectionError) {
+            const failed = selectionError; selectionEnded = selectionError = null; failed(); return;
+          }
           status.textContent = window.RadioI18n.t("ui.363fbfbed3b7");
           choices.replaceChildren();
           for (const alternative of available.filter(item => item.id !== video.id)) addChoice(alternative);
           const external = el('a', window.RadioI18n.t("ui.37a3b2361152")); external.href = `https://www.youtube.com/watch?v=${video.id}`; external.target = '_blank'; external.rel = 'noopener noreferrer'; choices.append(external);
         },
       }});
-    } catch (error) { if (current === version) status.textContent = error.message; }
+    } catch (error) {
+      if (current === version) {
+        status.textContent = error.message;
+        if (selectionError) { const failed = selectionError; selectionEnded = selectionError = null; failed(); }
+      }
+    }
   }
   function addChoice(video) {
     const button = el('button', `${video.title} · ${video.channel}`, 'text-button'); button.type = 'button'; button.onclick = () => show(video); choices.append(button);
@@ -231,5 +244,11 @@ window.TrackYouTube = (() => {
   window.addEventListener('radio:filterschange', stop);
   window.addEventListener('radio:globalfilterschange', stop);
   window.addEventListener('radio:beforepagechange', () => { if (anchor?.open) anchor.close(); else minimize(); });
-  return {mount, button, stop, minimize};
+  function playSelected(track, video, ended, failed, container) {
+    stop(); activeTrack = track; available = [video];
+    if (container) relocate(container);
+    selectionEnded = ended; selectionError = failed;
+    return show(video);
+  }
+  return {mount, button, stop, minimize, playSelected, generation: () => version, toggle() { if (adapter.playing()) adapter.pause(); else adapter.play(); window.RadioPlayer.videoState(); }};
 })();
