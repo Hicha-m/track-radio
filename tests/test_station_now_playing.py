@@ -141,7 +141,7 @@ def test_api_combines_exclusions_before_exposing_titles_covers_or_identifiers(db
     assert next(row for row in other if row["station_id"] == personal.id)["track"] is not None
 
 
-def test_hidden_latest_play_never_falls_back_to_an_older_visible_track(db):
+def test_hidden_latest_play_shows_older_visible_track_as_last_known(db):
     radio, first, _ = station(db, "Radio", "Earlier")
     second = Play(
         station_id=radio.id,
@@ -158,11 +158,12 @@ def test_hidden_latest_play_never_falls_back_to_an_older_visible_track(db):
     db.commit()
     hidden = canonical_exclusions(json.dumps([{"artist": "Artist", "title": "Latest secret"}]))
     row = by_station(db, hidden)[radio.id]
-    assert row["status"] == "hidden" and row["track"] is None
+    assert row["status"] == "last_known" and row["track"]["title"] == "Earlier"
+    assert row["fresh_until"] is None
     assert db.get(Play, first.id) is not None and db.query(Play).count() == 2
 
 
-def test_blocked_transition_without_a_play_does_not_resurrect_the_previous_music(db):
+def test_blocked_transition_keeps_previous_visible_music_as_last_known(db):
     radio, historical, _ = station(db, "Blocked", "Previous")
     excluded = hide(db, "Station", "Announcement")
     # Use the actual collector transition. This must not insert the blocked observation.
@@ -172,7 +173,8 @@ def test_blocked_transition_without_a_play_does_not_resurrect_the_previous_music
     )
     assert radio.collection_state["play_id"] is None
     row = by_station(db)[radio.id]
-    assert row["status"] == "hidden" and row["track"] is None
+    assert row["status"] == "last_known" and row["track"]["title"] == "Previous"
+    assert row["fresh_until"] is None
     assert db.get(Play, historical.id) is not None and db.query(Play).count() == 1
     db.delete(excluded)
     db.commit()
@@ -246,3 +248,42 @@ def test_normalized_exclusions_remain_strict_when_sql_only_provides_lowercase(db
     monkeypatch.setattr(db.get_bind().dialect, "name", "other")
     exclusions = canonical_exclusions(json.dumps([{"artist": "etoile", "title": "L'ete"}]))
     assert by_station(db, exclusions)[radio.id]["status"] == "hidden"
+
+
+def test_previous_song_skips_personal_and_global_exclusions_in_admin_mode(db, client):
+    radio, original, _ = station(db, "NRJ", "Allowed previous")
+    for index, title in enumerate(("Global previous", "Personal previous", "Current hidden")):
+        at = NOW + timedelta(seconds=index + 1)
+        play = Play(
+            station_id=radio.id,
+            artist="Artist",
+            title=title,
+            raw_metadata="retained",
+            source="icy",
+            detected_at=at,
+            last_seen_at=at,
+        )
+        db.add(play)
+        db.flush()
+        radio.collection_state = {
+            "play_id": play.id,
+            "artist": "Artist",
+            "title": title,
+            "start": int(at.timestamp() * 1000),
+        }
+    hide(db, "Artist", "Global previous")
+    hide(db, "Artist", "Current hidden")
+    db.commit()
+    excluded = canonical_exclusions('[{"artist":"Artist","title":"Personal previous"}]')
+    result = now_playing(db, excluded, NOW + timedelta(seconds=10))
+    assert result["items"][0]["status"] == "last_known"
+    assert result["items"][0]["track"]["title"] == "Allowed previous"
+    assert result["items"][0]["fresh_until"] is None
+    response = client.get(
+        "/api/stations/now-playing",
+        params={"exclusions": excluded},
+        headers={"Authorization": "Bearer test-admin-token"},
+    )
+    assert response.status_code == 200
+    assert response.json()["items"][0]["track"]["title"] == "Allowed previous"
+    assert db.query(Play).count() == 4 and db.get(Play, original.id) is not None

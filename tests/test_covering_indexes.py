@@ -2,9 +2,10 @@
 
 import json
 from datetime import UTC, datetime, timedelta
+from importlib import import_module
 
-from alembic import command
-from alembic.config import Config
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from sqlalchemy import create_mock_engine, inspect, select, text
 from sqlalchemy.orm import Session
 
@@ -70,9 +71,17 @@ def snapshot(engine, now):
 def test_covering_migration_preserves_exclusions_real_repeats_and_history(tmp_path, monkeypatch):
     path = tmp_path / "analytics.db"
     monkeypatch.setattr(settings, "database_url", f"sqlite:///{path}")
-    config = Config("alembic.ini")
-    command.upgrade(config, "0012")
     engine = make_engine(settings.database_url)
+    # Isolate the index migration from later column migrations used by today's ORM.
+    Base.metadata.create_all(engine)
+    migration = import_module("migrations.versions.0013_stats_covering_indexes")
+
+    def migrate(upgrade):
+        with engine.begin() as connection:
+            with Operations.context(MigrationContext.configure(connection)):
+                (migration.upgrade if upgrade else migration.downgrade)()
+
+    migrate(False)
     now = datetime.now(UTC).replace(second=0, microsecond=0)
     with Session(engine) as db:
         db.add_all(
@@ -123,7 +132,7 @@ def test_covering_migration_preserves_exclusions_real_repeats_and_history(tmp_pa
         )
         db.commit()
     expected = snapshot(engine, now)
-    command.upgrade(config, "head")
+    migrate(True)
     names = {
         index["name"]
         for table in ("plays", "track_metadata")
@@ -133,7 +142,7 @@ def test_covering_migration_preserves_exclusions_real_repeats_and_history(tmp_pa
     with engine.connect() as conn:
         assert INDEX_NAMES <= set(conn.scalars(text("SELECT idx FROM sqlite_stat1")))
     assert snapshot(engine, now) == expected
-    command.downgrade(config, "0012")
+    migrate(False)
     names = {
         index["name"]
         for table in ("plays", "track_metadata")
@@ -141,7 +150,7 @@ def test_covering_migration_preserves_exclusions_real_repeats_and_history(tmp_pa
     }
     assert not INDEX_NAMES & names
     assert snapshot(engine, now) == expected
-    command.upgrade(config, "head")
+    migrate(True)
     assert snapshot(engine, now) == expected
     engine.dispose()
 

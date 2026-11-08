@@ -202,6 +202,7 @@ def public_metadata(entry):
         "lyrics_status": entry.lyrics_status,
         "primary_genre": entry.primary_genre,
         **selected,
+        "cover_url": safe_url(selected.get("cover_url")) or safe_url(entry.temporary_cover_url),
         "recording_id": (
             f"isrc:{selected['isrc']}"
             if selected.get("isrc")

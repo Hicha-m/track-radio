@@ -5,7 +5,7 @@ import math
 from datetime import UTC, datetime, timedelta
 
 from pydantic import Field
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select, true
 
 from app.config import settings
 from app.models import GlobalExclusion, Play, Station, TrackMetadata
@@ -83,13 +83,73 @@ def now_playing(db, exclusions="", now=None, station_id=None):
     hidden.update(
         normalized_pair(t.get("artist"), t["title"]) for t in json.loads(exclusions or "[]")
     )
+    # A hidden observation keeps the last visible song, explicitly marked last-known.
+    fallback_stations = set()
+    for station in stations:
+        state = station.collection_state if isinstance(station.collection_state, dict) else {}
+        row = rows.get(selected[station.id])
+        if (
+            row is not None
+            and row.station_id == station.id
+            and (not row.visible or normalized_pair(row.artist, row.title) in hidden)
+        ):
+            fallback_stations.add(station.id)
+        elif (
+            selected[station.id] is None
+            and state.get("title")
+            and normalized_pair(state.get("artist"), state["title"]) in hidden
+        ):
+            fallback_stations.add(station.id)
+    if fallback_stations:
+        ranked = (
+            select(
+                Play.id,
+                func.row_number()
+                .over(
+                    partition_by=Play.station_id,
+                    order_by=(Play.detected_at.desc(), Play.id.desc()),
+                )
+                .label("position"),
+            )
+            .where(
+                Play.station_id.in_(fallback_stations),
+                *predicates,
+                Play.detected_at <= now,
+                Play.last_seen_at <= now,
+            )
+            .subquery()
+        )
+        previous = db.execute(
+            select(
+                Play.id,
+                Play.station_id,
+                Play.track_id,
+                Play.artist,
+                Play.title,
+                Play.detected_at,
+                Play.last_seen_at,
+                true().label("visible"),
+            )
+            .join(ranked, ranked.c.id == Play.id)
+            .where(ranked.c.position == 1)
+        ).all()
+        for row in previous:
+            rows[row.id] = row
+            selected[row.station_id] = row.id
     keys = {row.track_id or identity(row.artist, row.title) for row in rows.values() if row.visible}
     metadata = (
-        dict(
-            db.execute(
-                select(TrackMetadata.id, TrackMetadata.selected).where(TrackMetadata.id.in_(keys))
-            ).all()
-        )
+        {
+            row.id: {
+                **(row.selected or {}),
+                "cover_url": safe_url((row.selected or {}).get("cover_url"))
+                or safe_url(row.temporary_cover_url),
+            }
+            for row in db.execute(
+                select(
+                    TrackMetadata.id, TrackMetadata.selected, TrackMetadata.temporary_cover_url
+                ).where(TrackMetadata.id.in_(keys))
+            )
+        }
         if keys
         else {}
     )
@@ -132,7 +192,7 @@ def now_playing(db, exclusions="", now=None, station_id=None):
         )
         started = detected
         # Source event time can reveal a stale cached JSON/HTML response despite recent polling.
-        source_start = state.get("start")
+        source_start = state.get("start") if station.id not in fallback_stations else None
         if type(source_start) is int and source_start > 0:
             try:
                 started = datetime.fromtimestamp(source_start / 1000, UTC)
@@ -142,7 +202,12 @@ def now_playing(db, exclusions="", now=None, station_id=None):
             observed + timedelta(seconds=fresh_seconds),
             started + timedelta(seconds=event_window),
         )
-        current = station.enabled and started <= now and now <= expires
+        current = (
+            station.id not in fallback_stations
+            and station.enabled
+            and started <= now
+            and now <= expires
+        )
         item.update(
             status="current" if current else "last_known",
             observed_at=observed,

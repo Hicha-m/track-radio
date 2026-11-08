@@ -36,6 +36,7 @@ class TrackMetadata(Base):
     title: Mapped[str] = mapped_column(String(500))
     status: Mapped[str] = mapped_column(String(20), default="pending")
     provider: Mapped[str] = mapped_column(String(20), default="deezer")
+    temporary_cover_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     selected: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     candidates: Mapped[list] = mapped_column(JSON, default=list)
     lyrics: Mapped[dict | None] = mapped_column(JSON, nullable=True)

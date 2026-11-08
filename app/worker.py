@@ -68,7 +68,11 @@ def save_metadata(station_id, metadata, *, with_decision=False):
         decision = {}
         play, created = record_metadata(db, station, metadata, decision=decision)
         if play is not None:
-            ensure_entry(db, play.artist, play.title)
+            entry = ensure_entry(db, play.artist, play.title)
+            if metadata.cover_url and decision.get("code") in {"new", "unchanged"}:
+                from app.services.catalog import safe_url
+
+                entry.temporary_cover_url = safe_url(metadata.cover_url)
         if created and play is not None and settings.youtube_api_key.get_secret_value():
             from app.services.youtube import queue
 
@@ -90,6 +94,13 @@ async def collect_station(station: Station, client: httpx.AsyncClient):
         if metadata is None:
             outcome = "empty"
             return False
+        from dataclasses import replace
+
+        from app.services.temporary_artwork import cover_for
+
+        cover = await cover_for(station, metadata, client)
+        if cover:
+            metadata = replace(metadata, cover_url=cover)
         decision = await asyncio.to_thread(save_metadata, station.id, metadata, with_decision=True)
         outcome, changed = decision["code"], decision["changed"]
         if metadata.source_started_ms is not None:

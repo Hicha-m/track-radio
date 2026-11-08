@@ -168,7 +168,7 @@
       if (current !== metadataVersion || mode !== 'radio') return;
       const entry = data.items.find(item => String(item.station_id) === String(radio.id));
       const track = entry?.track;
-      if (!track) title.textContent = window.RadioI18n.t(entry?.status === 'hidden' ? 'stations.hidden' : 'stations.unavailable');
+      if (!track) title.textContent = window.RadioI18n.t('stations.unavailable');
       else if (entry.status === 'last_known') title.textContent = window.RadioI18n.t('stations.last_known_player', {title: track.title});
       else title.textContent = track.title;
       setCurrentTrack(track ? {...track, station_id: radio.id} : null);

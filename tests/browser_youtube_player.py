@@ -185,6 +185,31 @@ window.YT={Player:function(frame,options){
                 dock_box = page.locator("#youtube-dock").bounding_box()
                 assert dock_box["x"] >= 0 and dock_box["x"] + dock_box["width"] <= width
                 assert dock_box["y"] >= 0 and dock_box["y"] + dock_box["height"] <= height
+                assert (
+                    page.locator(".youtube-size").bounding_box()["x"]
+                    < page.locator(".youtube-close").bounding_box()["x"]
+                )
+                grip.press("Home")
+                mover = page.locator(".youtube-move")
+                mover.focus()
+                mover.press("Home")
+                left = page.locator("#youtube-dock").bounding_box()["x"]
+                assert left == 12
+                mover.press("End")
+                assert page.locator("#youtube-dock").bounding_box()["x"] > left
+                box = mover.bounding_box()
+                start = page.locator("#youtube-dock").bounding_box()["x"]
+                page.mouse.move(box["x"] + 20, box["y"] + 20)
+                page.mouse.down()
+                page.mouse.move(box["x"] - 20, box["y"] + 20, steps=5)
+                page.mouse.up()
+                assert page.locator("#youtube-dock").bounding_box()["x"] < start
+                dimensions = page.locator("#youtube-dock").evaluate(
+                    "e => [e.scrollHeight, e.clientHeight]"
+                )
+                assert dimensions[0] <= dimensions[1] + 1, dimensions
+                expect(page.locator("#youtube-dock")).to_have_css("overflow-y", "hidden")
+                grip.press("End")
                 frame_box = page.locator(".youtube-viewport iframe").bounding_box()
                 assert frame_box["width"] >= 200 and frame_box["height"] >= 200
                 if width == 1280:

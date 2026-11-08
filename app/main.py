@@ -189,6 +189,7 @@ def parse_station_id(value: str | None) -> int | None:
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/recherche", response_class=HTMLResponse)
+@app.get("/radios", response_class=HTMLResponse)
 @app.get("/stats", response_class=HTMLResponse)
 @app.get("/admin", response_class=HTMLResponse)
 @app.get("/admin/dashboard", response_class=HTMLResponse)
@@ -230,6 +231,7 @@ def dashboard(
             "french_translations": CATALOGUES["fr"],
             "t": lambda key, **params: translate(key, language(request), **params),
             "stations": stations_list,
+            "home_stations": [s for s in stations_list if not s.slug.startswith("skyrock-")],
             "station_id": station_id,
             "selected_station": selected_station,
             "is_search": request.url.path == "/recherche",

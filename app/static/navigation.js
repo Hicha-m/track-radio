@@ -5,9 +5,9 @@
   let generation = 0;
   const notice = document.querySelector('#navigation-status');
   const adminPaths = ['/admin', '/admin/dashboard', '/admin/radios', '/admin/diffusions', '/admin/catalogue', '/admin/exclusions', '/admin/workers'];
-  const paths = ['/', '/recherche', '/stats', ...adminPaths];
+  const paths = ['/', '/recherche', '/radios', '/stats', ...adminPaths];
   function mount() {
-    const pages = {'/': 'charts', '/recherche': 'search', '/stats': 'stats'};
+    const pages = {'/': 'charts', '/recherche': 'search', '/stats': 'stats', '/radios': 'stations'};
     const page = location.pathname === '/admin' ? 'adminLogin' : adminPaths.includes(location.pathname) ? 'admin' : pages[location.pathname] || 'charts';
     cleanup = window.RadioPages[page]();
     window.dispatchEvent(new Event('radio:pagechange'));

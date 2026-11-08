@@ -87,5 +87,77 @@
     "json_artist_path": "result.0.track_artist",
     "json_title_path": "result.0.track_title",
     "json_started_path": "result.0.track_played"
+  },
+  {
+    "name": "Skyrock Paris Île-de-France",
+    "slug": "skyrock-parisidf",
+    "stream_url": "https://icecast.skyrock.net/s/parisidf_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock Lille",
+    "slug": "skyrock-lille",
+    "stream_url": "https://icecast.skyrock.net/s/lille_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock Béthune",
+    "slug": "skyrock-bethune",
+    "stream_url": "https://icecast.skyrock.net/s/bethune_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock Marseille",
+    "slug": "skyrock-marseille",
+    "stream_url": "https://icecast.skyrock.net/s/marseille_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock 100 % Français",
+    "slug": "skyrock-francais",
+    "stream_url": "https://icecast.skyrock.net/s/francais_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock Klassiks",
+    "slug": "skyrock-klassiks",
+    "stream_url": "https://icecast.skyrock.net/s/klassiks_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock Abidjan",
+    "slug": "skyrock-abidjan",
+    "stream_url": "https://icecast.skyrock.net/s/abidjan_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock Alger",
+    "slug": "skyrock-alger",
+    "stream_url": "https://icecast.skyrock.net/s/alger_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock PLM",
+    "slug": "skyrock-plm",
+    "stream_url": "https://icecast.skyrock.net/s/plm_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock Casablanca",
+    "slug": "skyrock-casa",
+    "stream_url": "https://icecast.skyrock.net/s/casa_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock Tunis",
+    "slug": "skyrock-tunis",
+    "stream_url": "https://icecast.skyrock.net/s/tunis_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
+  },
+  {
+    "name": "Skyrock La Nocturne",
+    "slug": "skyrock-nocturne",
+    "stream_url": "https://icecast.skyrock.net/s/nocturne_aac_128k",
+    "website_url": "https://skyrock.fm/radios"
   }
 ]

@@ -17,19 +17,22 @@ window.TrackYouTube = (() => {
   const choices = el('div', '', 'youtube-choices');
   const viewport = el('div', '', 'youtube-viewport'); viewport.id = 'youtube-viewport';
   size.setAttribute('aria-controls', viewport.id); grip.setAttribute('aria-controls', viewport.id);
-  const toolbar = el('div', '', 'youtube-toolbar'); toolbar.append(size, close);
+  const move = el('button', '↔', 'youtube-move'); move.type = 'button';
+  move.setAttribute('aria-label', window.RadioI18n.t('youtube.move'));
+  move.title = window.RadioI18n.t('youtube.move');
+  const toolbar = el('div', '', 'youtube-toolbar'); toolbar.append(size, move, close);
   dock.append(toolbar, status, choices, viewport, grip); document.body.append(dock);
   dock.onpointerenter = () => dock.classList.add('is-hovered');
   dock.onpointerleave = () => dock.classList.remove('is-hovered');
   const widths = {floating: 360, inline: 640};
-  let drag = null;
+  let drag = null, movement = null, horizontal = null;
   const floating = () => dock.parentNode === document.body;
   function bounds() {
     let max = Math.min(720, dock.parentElement.clientWidth);
     if (floating()) {
       const playerTop = document.querySelector('.player')?.getBoundingClientRect().top ?? innerHeight;
       let bottom = Math.max(12, innerHeight - playerTop + 12);
-      // On short landscape screens keep the entire dock reachable, with internal scrolling.
+      // On short landscape screens keep the entire dock above the viewport edge.
       if (innerHeight - bottom < 280) bottom = 12;
       dock.style.setProperty('--youtube-bottom', `${bottom}px`);
       max = Math.min(720, innerWidth - 24, Math.max(200, innerHeight - bottom - 84) * 16 / 9 + 18);
@@ -51,12 +54,37 @@ window.TrackYouTube = (() => {
     size.textContent = large ? '↙' : '↗';
     size.title = window.RadioI18n.t(large ? 'youtube.shrink' : 'youtube.enlarge');
     size.setAttribute('aria-label', size.title);
+    if (floating() && horizontal !== null) position(horizontal);
+    move.hidden = !floating();
     const hasVideo = viewport.childElementCount > 0;
     size.hidden = grip.hidden = !hasVideo || max === min;
   }
+  function position(left) {
+    horizontal = Math.max(12, Math.min(Math.max(12, innerWidth - dock.getBoundingClientRect().width - 12), left));
+    dock.style.setProperty('--youtube-left', `${horizontal}px`);
+  }
+  move.onpointerdown = event => {
+    if (event.button !== 0 || !floating()) return;
+    event.preventDefault(); move.focus(); move.setPointerCapture(event.pointerId);
+    movement = {id: event.pointerId, x: event.clientX, left: dock.getBoundingClientRect().left};
+    dock.classList.add('is-moving');
+  };
+  move.onpointermove = event => {
+    if (movement?.id === event.pointerId) position(movement.left + event.clientX - movement.x);
+  };
+  move.onpointerup = move.onpointercancel = move.onlostpointercapture = () => {
+    movement = null; dock.classList.remove('is-moving');
+  };
+  move.onkeydown = event => {
+    const left = dock.getBoundingClientRect().left;
+    const next = {ArrowLeft: left - 32, ArrowRight: left + 32, Home: 12, End: innerWidth}[event.key];
+    if (next !== undefined) { event.preventDefault(); position(next); }
+  };
   function endResize() {
     if (drag && grip.hasPointerCapture(drag.id)) grip.releasePointerCapture(drag.id);
     drag = null; dock.classList.remove('is-resizing');
+    if (movement && move.hasPointerCapture(movement.id)) move.releasePointerCapture(movement.id);
+    movement = null; dock.classList.remove('is-moving');
   }
   size.onclick = () => {
     const {min, max} = bounds();

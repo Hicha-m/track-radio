@@ -33,7 +33,7 @@
     button.onclick = track ? () => window.TrackCatalog.open({...track, station_id: Number(card.dataset.stationId)}) : null;
     button.setAttribute('aria-label', window.RadioI18n.t('stations.details', {station: card.querySelector('.station-heading strong').textContent}));
     cover(button, track?.metadata?.cover_url);
-    card.querySelector('.station-title').textContent = track?.title || window.RadioI18n.t(loading ? 'stations.loading' : state === 'hidden' ? 'stations.hidden' : 'stations.unavailable');
+    card.querySelector('.station-title').textContent = track?.title || window.RadioI18n.t(loading ? 'stations.loading' : 'stations.unavailable');
     card.querySelector('.station-artist').textContent = track?.artist || '';
     const status = card.querySelector('.station-now-status');
     status.textContent = track ? window.RadioI18n.t(state === 'current' ? 'stations.current' : 'stations.last_known', {time: entry.observed_at ? date(entry.observed_at) : '—'}) : '';
@@ -88,3 +88,22 @@
   setInterval(age, 1000);
   setInterval(() => load(), 30000);
 })();
+
+window.RadioPages = window.RadioPages || {};
+window.RadioPages.stations = () => {
+  const input = document.querySelector('#station-search');
+  const status = document.querySelector('#station-search-status');
+  const cards = [...document.querySelectorAll('.station-card')];
+  const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase().trim();
+  const search = () => {
+    const query = normalize(input.value);
+    let count = 0;
+    cards.forEach(card => {
+      card.hidden = !normalize(card.querySelector('.station-heading strong').textContent).includes(query);
+      if (!card.hidden) count++;
+    });
+    status.textContent = window.RadioI18n.t('stations.results', {count});
+  };
+  input.addEventListener('input', search); search();
+  return () => input.removeEventListener('input', search);
+};

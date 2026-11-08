@@ -176,3 +176,40 @@ def test_retry_after_isolates_station_and_survives_restart(worker_db, tmp_path, 
     retries, schedule = restore_schedule()
     assert retries[1][0] == 1 and schedule[1] - __import__("time").monotonic() > 590
     engine.dispose()
+
+
+def test_temporary_artwork_is_saved_only_for_accepted_observation():
+    from app.models import GlobalExclusion
+    from app.models import TrackMetadata as Catalogue
+    from app.services.exclusions import exclusion_id, normalized_pair
+    from app.services.metadata import TrackMetadata
+    from app.services.track_identity import identity
+    from app.worker import SessionLocal, save_metadata
+
+    with SessionLocal() as db:
+        station = Station(name="Artwork", slug="artwork", stream_url="https://example.test/live")
+        db.add(station)
+        db.commit()
+        station_id = station.id
+    cover = "https://media.skyrock.fm/covers/test.jpg"
+    song = TrackMetadata("Artist", "Song", "fixture", "icy", cover_url=cover)
+    assert save_metadata(station_id, song)
+    with SessionLocal() as db:
+        entry = db.get(Catalogue, identity("Artist", "Song"))
+        assert entry.temporary_cover_url == cover and entry.selected is None
+        artist, title = normalized_pair("Other", "Blocked")
+        db.add(
+            GlobalExclusion(
+                id=exclusion_id("Other", "Blocked"),
+                artist="Other",
+                title="Blocked",
+                artist_normalized=artist,
+                title_normalized=title,
+            )
+        )
+        db.commit()
+    assert not save_metadata(
+        station_id, TrackMetadata("Other", "Blocked", "fixture", "icy", cover_url=cover)
+    )
+    with SessionLocal() as db:
+        assert db.get(Catalogue, identity("Other", "Blocked")) is None

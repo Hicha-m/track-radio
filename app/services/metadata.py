@@ -25,6 +25,7 @@ class TrackMetadata:
     source_started_ms: int | None = None
     source_event_id: str | None = None
     is_music: bool = True
+    cover_url: str | None = None
 
 
 def split_title(raw: str) -> tuple[str | None, str]:
@@ -71,9 +72,9 @@ async def fetch_icy(station: Station, client: httpx.AsyncClient) -> TrackMetadat
                     if not raw:
                         return None
                     artist, title = split_title(raw)
-                    from app.services.skyrock import NATIONAL_STREAM
+                    from app.services.skyrock import stream_key
 
-                    if station.stream_url == NATIONAL_STREAM:
+                    if stream_key(station.stream_url):
                         uid = re.search(r"§(\d+)\s*$", raw)
                         event_id = f"skyrock:{int(uid.group(1))}" if uid else None
                         music = not (

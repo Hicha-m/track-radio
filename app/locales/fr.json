@@ -1,4 +1,7 @@
 {
+  "stations.directory": "Toutes les radios, réunies dans un catalogue consultable.",
+  "stations.search": "Rechercher une radio",
+  "stations.results": "{count} radio(s) trouvée(s)",
   "ui.a2eae93ab25e": "12 heures",
   "ui.68294a9a19aa": "24 dernières heures",
   "ui.8c9982dbf2c8": "24 dernières heures · toutes radios sélectionnées réunies",
@@ -691,6 +694,7 @@
   "catalog.history_period": "Du {since} au {until}",
   "catalog.now": "maintenant",
   "catalog.all_history": "Tout l’historique",
+  "youtube.move": "Déplacer le lecteur (flèches gauche et droite)",
   "youtube.size": "Taille de la vidéo",
   "youtube.pixels": "{width} pixels",
   "youtube.enlarge": "Agrandir le lecteur",

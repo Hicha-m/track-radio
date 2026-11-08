@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#fa243c">
-  <title>{{ t('ui.b4a7365740ef') if page == '/stats' else t(admin_title) if page.startswith('/admin') else t('ui.a12b73cf58da') if is_search else t('ui.417b18ec649c') }} {{ t('ui.db1c12425501') }}</title>
+  <title>{{ t('ui.745a8ec30dfa') if page == '/radios' else t('ui.b4a7365740ef') if page == '/stats' else t(admin_title) if page.startswith('/admin') else t('ui.a12b73cf58da') if is_search else t('ui.417b18ec649c') }} {{ t('ui.db1c12425501') }}</title>
   <meta name="application-name" content="Radio Tracker">
   <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ asset_version }}">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png?v={{ asset_version }}">
@@ -24,7 +24,7 @@
     <p class="nav-label">{{ t('ui.3e7ee5c3288c') }}</p>
     <nav aria-label="{{ t("ui.4ea15f9a0d37") }}">
       <a href="/" class="nav-item {{ 'active' if page == '/' else '' }}" {% if page == '/' %}aria-current="page"{% endif %}><span aria-hidden="true">▥</span> {{ t('ui.417b18ec649c') }}</a>
-      <a href="/#radios" class="nav-item"><span aria-hidden="true">◉</span> {{ t('ui.745a8ec30dfa') }}</a>
+      <a href="/radios" class="nav-item {{ 'active' if page == '/radios' else '' }}" {% if page == '/radios' %}aria-current="page"{% endif %}><span aria-hidden="true">◉</span> {{ t('ui.745a8ec30dfa') }}</a>
       <a href="/recherche" class="nav-item {{ 'active' if is_search else '' }}" {% if is_search %}aria-current="page"{% endif %}><span aria-hidden="true">⌕</span> {{ t('ui.1d3312d846c8') }}</a>
       <a href="/stats" class="nav-item {{ 'active' if page == '/stats' else '' }}" {% if page == '/stats' %}aria-current="page"{% endif %}><span aria-hidden="true">▤</span> {{ t('ui.b4a7365740ef') }}</a>
       {% if page.startswith('/admin') %}<a href="/admin/dashboard" class="nav-item active" aria-current="page"><span aria-hidden="true">⚙</span> {{ t('ui.4b42c6690ebe') }}</a>{% endif %}
@@ -39,7 +39,12 @@
       {% elif page.startswith('/admin') %}
       {% include 'admin.html' %}
       {% else %}
-      {% if is_search %}
+      {% if page == '/radios' %}
+      <div class="page-heading"><h1>{{ t('ui.745a8ec30dfa') }}</h1><p>{{ t('stations.directory') }}</p></div>
+      <section class="radio-section" aria-labelledby="radios-title"><h2 id="radios-title">{{ t('ui.bdfca49443da') }}</h2>
+      <label class="station-search-label" for="station-search">{{ t('stations.search') }}</label><input id="station-search" type="search" autocomplete="off" aria-controls="station-directory">
+      <p id="station-search-status" role="status" aria-live="polite"></p>
+      {% elif is_search %}
       <div class="page-heading"><span class="eyebrow">{{ t('ui.7378ec610dcc') }}</span><h1>{{ t('ui.1d3312d846c8') }}</h1><p>{{ t('ui.3207294e6d3b') }}</p></div>
       {% include 'search.html' %}
       {% else %}
@@ -57,10 +62,11 @@
         <div id="chart-list" class="chart-list" aria-busy="true"></div>
         <a class="more-link" href="/recherche?view=tracks&sort=frequency">{{ t('ui.42baf3800dba') }} <span aria-hidden="true">→</span></a>
       </section>
-      <section id="radios" class="radio-section" aria-labelledby="radios-title"><div class="section-heading"><div><h2 id="radios-title">{{ t('ui.bdfca49443da') }}</h2><p>{{ t('ui.937d8cdc0614') }}</p></div><span class="station-count">{{ stations|length }} {{ t('ui.74c81f1c313a') }}</span></div>
+      {% set display_stations = home_stations if page == '/' else stations %}
+      <section id="radios" class="radio-section" aria-labelledby="radios-title"><div class="section-heading"><div><h2 id="radios-title">{{ t('ui.bdfca49443da') }}</h2><p>{{ t('ui.937d8cdc0614') }}</p></div><span class="station-count">{{ display_stations|length }} {{ t('ui.74c81f1c313a') }}</span></div>
       {% endif %}
-      <div class="stations {{ 'search-stations' if is_search else '' }}">
-      {% for station in stations %}
+      <div id="station-directory" class="stations {{ 'search-stations' if is_search else '' }}">
+      {% for station in display_stations|default(stations) %}
         <article class="station-card {{ 'selected' if station.id == station_id else '' }}" data-station-id="{{ station.id }}">
           <div class="station-art">
             <button class="station-track" type="button" disabled aria-label="{{ t('stations.details', station=station.name) }}"><span class="station-cover-placeholder" aria-hidden="true">♫</span></button>

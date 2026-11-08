@@ -119,6 +119,7 @@ def test_new_enrichment_progress_and_overrides_survive_backup(tmp_path, monkeypa
                 lyrics_status="not_found",
                 attempts={"deezer": {"status": "not_found"}},
                 revision=7,
+                temporary_cover_url="https://example.test/temporary.jpg",
             )
         )
         db.commit()
@@ -132,6 +133,9 @@ def test_new_enrichment_progress_and_overrides_survive_backup(tmp_path, monkeypa
         assert conn.scalar(select(Station.enabled_override)) is False
         assert conn.scalar(select(TrackMetadata.automatic_done))
         assert conn.scalar(select(TrackMetadata.revision)) == 7
+        assert conn.scalar(select(TrackMetadata.temporary_cover_url)) == (
+            "https://example.test/temporary.jpg"
+        )
         assert conn.scalar(select(TrackMetadata.attempts)) == {"deezer": {"status": "not_found"}}
     with gzip.open(backup, "rt") as source:
         assert all(json.loads(line) for line in source)
@@ -147,26 +151,31 @@ def test_secondary_enrichment_migration_queues_only_automatic_matches_without_ge
     cfg = Config("alembic.ini")
     command.upgrade(cfg, "0007")
     engine = create_engine(settings.database_url)
-    with Session(engine) as db:
+    catalogue = Table("track_metadata", MetaData(), autoload_with=engine)
+    # Seed the historical schema without asking today's ORM for future columns.
+    with engine.begin() as connection:
         for title, status, manual, genre in [
             ("Queue", "matched", False, None),
             ("Manual", "matched", True, None),
             ("Missing", "not_found", False, None),
             ("Known", "matched", False, "Rap"),
         ]:
-            db.add(
-                TrackMetadata(
-                    id=identity("Artist", title),
-                    artist="Artist",
-                    title=title,
-                    status=status,
-                    manual=manual,
-                    primary_genre=genre,
-                    automatic_done=True,
-                    revision=4,
-                )
+            connection.execute(
+                insert(catalogue),
+                {
+                    "id": identity("Artist", title),
+                    "artist": "Artist",
+                    "title": title,
+                    "status": status,
+                    "provider": "deezer",
+                    "candidates": [],
+                    "lyrics_candidates": [],
+                    "manual": manual,
+                    "primary_genre": genre,
+                    "automatic_done": True,
+                    "revision": 4,
+                },
             )
-        db.commit()
     command.upgrade(cfg, "head")
     with Session(engine) as db:
         entries = {entry.title: entry for entry in db.scalars(select(TrackMetadata))}

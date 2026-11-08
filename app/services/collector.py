@@ -53,10 +53,10 @@ def record_metadata(
         try:
             previous_event = json.loads(last.raw_metadata).get("event_id")
         except (ValueError, TypeError, AttributeError):
-            from app.services.skyrock import NATIONAL_STREAM
+            from app.services.skyrock import stream_key
 
             match = re.search(r"§(\d+)\s*$", last.raw_metadata or "")
-            if station.stream_url == NATIONAL_STREAM and match:
+            if stream_key(station.stream_url) and match:
                 previous_event = f"skyrock:{int(match.group(1))}"
     seen = list((state or {}).get("seen_event_ids", []))
     if previous_event and previous_event not in seen:

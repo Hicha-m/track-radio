@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                 "Broken cover",
                 "Old song",
                 None,
-                "Earlier secret",
+                "Previous visible",
                 "Personal secret",
                 "Stopped",
             )
@@ -175,7 +175,25 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                         else None
                     ),
                 )
-                page.goto(base)
+                page.goto(base + "/radios")
+                expect(page.locator("#station-search")).to_be_visible()
+                expect(page.locator(".station-card:visible")).to_have_count(8)
+                page.locator("#station-search").fill("radio 2")
+                expect(page.locator(".station-card:visible")).to_have_count(1)
+                page.locator("#station-search").fill("absent")
+                expect(page.locator(".station-card:visible")).to_have_count(0)
+                expect(page.locator("#station-search-status")).to_contain_text("0")
+                page.locator("#station-search").fill("")
+                expect(page.locator(".station-card:visible")).to_have_count(8)
+                Path("/tmp/radio-station-directory").mkdir(exist_ok=True)
+                page.screenshot(path=f"/tmp/radio-station-directory/{width}.png")
+                assert not media_requests
+                expect(page.locator('.station-card[data-station-id="1"]')).to_have_attribute(
+                    "data-now-status", "current"
+                )
+                calls.clear()
+                page.evaluate("window.RadioNavigation.go('/')")
+                expect(page.locator("#chart-list")).to_be_visible()
 
                 def card(index, page=page):
                     return page.locator(f'.station-card[data-station-id="{index + 1}"]')
@@ -190,13 +208,20 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                     "Dernier titre connu"
                 )
                 expect(card(4).locator(".station-title")).to_have_text("Information indisponible")
-                for index in (5, 6):
+                expect(card(5)).to_have_attribute("data-now-status", "last_known")
+                expect(card(5).locator(".station-title")).to_have_text("Previous visible")
+                expect(card(5).locator(".station-now-status")).to_contain_text(
+                    "Dernier titre connu"
+                )
+                for index in (6,):
                     expect(card(index)).to_have_attribute("data-now-status", "hidden")
-                    expect(card(index).locator(".station-title")).to_have_text("Morceau masqué")
+                    expect(card(index).locator(".station-title")).to_have_text(
+                        "Information indisponible"
+                    )
                     expect(card(index).locator(".station-artist")).to_be_empty()
                     expect(card(index).locator(".station-cover-image")).to_have_count(0)
                     expect(card(index).locator(".station-track")).to_be_disabled()
-                assert "Earlier secret" not in card(5).inner_text()
+                assert "Morceau masqué" not in page.locator("main").inner_text()
                 expect(card(7)).to_have_attribute("data-now-status", "last_known")
                 assert len(calls) == 1 and not media_requests, (calls, media_requests)
                 assert page.locator("#radio-player").get_attribute("src") is None
@@ -280,7 +305,7 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                 page.evaluate(
                     "window.__pending[0](window.__snapshot);window.MusicFilters.fetch=window.__fetch"
                 )
-                expect(card(0).locator(".station-title")).to_have_text("Morceau masqué")
+                expect(card(0).locator(".station-title")).to_have_text("Information indisponible")
                 assert not media_requests
                 # Global masking also applies to the actual latest song in admin mode.
                 response = context.request.post(
@@ -298,7 +323,7 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                 page.locator("#admin-login button").click()
                 expect(page).to_have_url(base + "/admin/dashboard")
                 page.evaluate("window.RadioNavigation.go('/')")
-                expect(card(0)).to_have_attribute("data-now-status", "hidden")
+                expect(card(0)).to_have_attribute("data-now-status", "last_known")
                 expect(card(1)).to_have_attribute("data-now-status", "hidden")
                 expect(card(6)).to_have_attribute("data-now-status", "hidden")
 
@@ -343,10 +368,10 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                     "return !a.paused&&a.readyState>=3;}"
                 )
                 assert len(media_requests) == 1
-                expect(page.locator("#track-title")).to_have_text("Morceau masqué")
+                expect(page.locator("#track-title")).to_have_text("Dernier titre connu : Current")
                 source = page.locator("#radio-player").get_attribute("src")
                 page.evaluate("window.dispatchEvent(new Event('radio:catalogchange'))")
-                expect(card(0)).to_have_attribute("data-now-status", "hidden")
+                expect(card(0)).to_have_attribute("data-now-status", "last_known")
                 assert page.locator("#radio-player").get_attribute("src") == source
                 assert len(media_requests) == 1
                 Path("/tmp/radio-station-cards").mkdir(exist_ok=True)

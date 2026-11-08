@@ -2,6 +2,7 @@
 
 import json
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 ENDPOINTS = {
     "https://skyrock.fm/api/v3/player/onair/super",
@@ -70,3 +71,16 @@ def parse_schedule(payload, *, super_endpoint=True, now=None):
     if len(current) > 1:
         raise ValueError("Ambiguous current event")
     return next(iter(current.values()), None)
+
+
+def stream_key(stream):
+    if not isinstance(stream, str):
+        return None
+    url = urlsplit(stream)
+    if url.hostname != "icecast.skyrock.net" or not url.path.startswith("/s/"):
+        return None
+    name = url.path.rsplit("/", 1)[-1]
+    for suffix in ("_aac_128k", "_mp3_128k"):
+        if name.endswith(suffix):
+            return name.removesuffix(suffix)
+    return None

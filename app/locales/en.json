@@ -1,4 +1,7 @@
 {
+  "stations.directory": "Browse and search all radio stations.",
+  "stations.search": "Search stations",
+  "stations.results": "{count} station(s) found",
   "ui.a2eae93ab25e": "12 hours",
   "ui.68294a9a19aa": "Last 24 hours",
   "ui.8c9982dbf2c8": "Last 24 hours · all selected stations combined",
@@ -691,6 +694,7 @@
   "catalog.history_period": "From {since} to {until}",
   "catalog.now": "now",
   "catalog.all_history": "All recorded history",
+  "youtube.move": "Move player (left and right arrows)",
   "youtube.size": "Video size",
   "youtube.pixels": "{width} pixels",
   "youtube.enlarge": "Enlarge player",
