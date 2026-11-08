@@ -181,3 +181,40 @@ La blacklist bloque les nouvelles insertions et conserve l'historique.
 Un bilan doit séparer faits, hypothèses et inconnues. Si les logs historiques ou
 l'accès au worker manquent, le dire explicitement : une reprise observée ne
 permet pas d'attribuer la cause de l'incident passé.
+
+## Identification Skyrock et choix de source
+
+ICY reste la source nationale active. Les lectures comparatives depuis le poste
+de diagnostic confirment l'accès aux deux JSON et un coût inférieur à ICY, mais
+ne prouvent pas leur disponibilité depuis le worker ni une meilleure couverture
+musicale : un JSON récent peut conserver le dernier morceau terminé. Aucun repli
+automatique et aucun rattrapage ne sont activés. La cadence reste inchangée.
+
+L'adaptateur JSON national est disponible pour une configuration explicitement
+choisie : `source_type=json`, `metadata_url` égal à l'un des deux endpoints
+Skyrock documentés, flux national exact et `json_title_path=radios.natio.schedule`
+(champ exigé par la configuration, l'adaptateur réalise la sélection temporelle).
+Pour `/super`, seule `radios.natio` est inspectée. Il exige une horloge fournisseur
+âgée d'au plus 60 s, avec une avance tolérée de 5 s, des dates ISO zonées cohérentes
+avec leurs epochs, une durée positive d'au plus deux heures, un UID valide et
+un unique événement `record` couvrant à la fois l'heure fournisseur et l'heure
+locale. L'ordre du tableau ne décide jamais du morceau. Un programme, un trou
+de programme ou un événement terminé ne déclenchent aucune reconstruction.
+Les artistes multiples sont conservés dans l'ordre fourni. Seuls début et UID
+sont retenus dans les métadonnées brutes JSON, sans payload ni données personnelles.
+
+Les UID nationaux ICY (`§…`) et JSON partagent une identité de passage. Un même
+UID ne crée pas une seconde diffusion lors d'un réessai, changement de libellé
+ou transition de source. Un nouvel UID permet une vraie rediffusion, même avec
+un libellé identique. Les 32 dernières identités sont mémorisées dans l'état de
+collecte, y compris lorsqu'elles sont exclues, et survivent au redémarrage.
+Ce registre borné ne garantit pas la reconnaissance d'un très ancien UID ICY
+rejoué au-delà de cette fenêtre ; JSON bénéficie aussi de la validation horaire.
+
+Le couple exact `SKYROCK` / `Hit Skyrock`, identifié comme libellé d'émission dans
+les éléments fournis, est observé comme contenu non musical : résultat technique
+`non_music`, sans nouveau passage ni retour au précédent morceau sur les cartes.
+Aucune règle générale ne classe tous les titres de Skyrock comme émissions.
+L'historique existant est conservé, dont les anciens passages de cet habillage.
+Les exclusions continuent à bloquer les nouvelles insertions ; aucun masquage
+ne provoque une suppression ou une fusion automatique.

@@ -23,6 +23,8 @@ class TrackMetadata:
     raw: str
     source: str
     source_started_ms: int | None = None
+    source_event_id: str | None = None
+    is_music: bool = True
 
 
 def split_title(raw: str) -> tuple[str | None, str]:
@@ -69,6 +71,18 @@ async def fetch_icy(station: Station, client: httpx.AsyncClient) -> TrackMetadat
                     if not raw:
                         return None
                     artist, title = split_title(raw)
+                    from app.services.skyrock import NATIONAL_STREAM
+
+                    if station.stream_url == NATIONAL_STREAM:
+                        uid = re.search(r"§(\d+)\s*$", raw)
+                        event_id = f"skyrock:{int(uid.group(1))}" if uid else None
+                        music = not (
+                            artist
+                            and artist.casefold() == "skyrock"
+                            and title.casefold() == "hit skyrock"
+                        )
+                        checked_metadata(artist, title, raw, "icy")
+                        return TrackMetadata(artist, title, raw, "icy", None, event_id, music)
                     return checked_metadata(artist, title, raw, "icy")
     return None
 
@@ -83,6 +97,19 @@ def _json_path(payload: Any, path: str | None) -> Any:
 
 
 async def fetch_json(station: Station, client: httpx.AsyncClient) -> TrackMetadata | None:
+    from app.services.skyrock import ENDPOINTS, NATIONAL_STREAM, parse_schedule
+
+    if station.metadata_url in ENDPOINTS:
+        if station.stream_url != NATIONAL_STREAM:
+            raise ValueError("Skyrock JSON requires the national stream")
+        content = await read_bounded(client, station.metadata_url)
+        return (
+            parse_schedule(
+                json.loads(content), super_endpoint=station.metadata_url.endswith("/super")
+            )
+            if content.strip()
+            else None
+        )
     if not station.metadata_url or not station.json_title_path:
         return None
     url = station.metadata_url.replace("{now_ms}", str(int(datetime.now(UTC).timestamp() * 1000)))

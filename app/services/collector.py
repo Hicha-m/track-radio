@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -47,6 +48,41 @@ def record_metadata(
     ).first()
     latest_play_start = stored_start(last)
     state = station.collection_state
+    previous_event = (state or {}).get("event_id")
+    if previous_event is None and last is not None:
+        try:
+            previous_event = json.loads(last.raw_metadata).get("event_id")
+        except (ValueError, TypeError, AttributeError):
+            from app.services.skyrock import NATIONAL_STREAM
+
+            match = re.search(r"§(\d+)\s*$", last.raw_metadata or "")
+            if station.stream_url == NATIONAL_STREAM and match:
+                previous_event = f"skyrock:{int(match.group(1))}"
+    seen = list((state or {}).get("seen_event_ids", []))
+    if previous_event and previous_event not in seen:
+        seen.append(previous_event)
+    event_id = metadata.source_event_id
+    if event_id and event_id in seen and event_id != previous_event:
+        observed("stale")
+        return last, False
+    identity_fields = {
+        "event_id": event_id,
+        "seen_event_ids": (seen + ([event_id] if event_id and event_id not in seen else []))[-32:],
+    }
+    if not event_id and not previous_event and not seen:
+        identity_fields = {}
+    if not metadata.is_music:
+        station.collection_state = {
+            "artist": None,
+            "title": None,
+            "play_id": None,
+            "start": None,
+            "latest_start": (state or {}).get("latest_start", latest_play_start),
+            **identity_fields,
+        }
+        db.commit()
+        observed("non_music")
+        return None, False
     if state:
         last = db.get(Play, state["play_id"]) if state.get("play_id") else None
     previous_start = state.get("start") if state else latest_play_start
@@ -80,7 +116,11 @@ def record_metadata(
             or metadata.source_started_ms is None
             or metadata.source_started_ms == previous_start
         )
+        and (not event_id or not previous_event or event_id == previous_event)
     )
+    if event_id and event_id == previous_event and not same:
+        observed("stale")
+        return last, False
     if previous_start == metadata.source_started_ms and previous_start is not None and not same:
         observed("stale")
         return last, False  # One source event cannot become two plays after a label change.
@@ -88,6 +128,7 @@ def record_metadata(
     if blocked:
         observed("excluded", changed=not same)
         observation = {
+            **identity_fields,
             "artist": metadata.artist,
             "title": metadata.title,
             "start": metadata.source_started_ms
@@ -108,15 +149,23 @@ def record_metadata(
         if previous.tzinfo is None:
             previous = previous.replace(tzinfo=UTC)
         remember_source = metadata.source_started_ms is not None and previous_start is None
+        remember_identity = bool(event_id and (state or {}).get("event_id") != event_id)
+        if remember_identity and state:
+            station.collection_state = {**state, **identity_fields}
         if remember_source:
             last.raw_metadata = metadata.raw
             if state:
                 station.collection_state = {
                     **state,
+                    **identity_fields,
                     "start": metadata.source_started_ms,
                     "latest_start": latest_start,
                 }
-        if remember_source or (now - previous).total_seconds() >= settings.last_seen_write_seconds:
+        if (
+            remember_source
+            or remember_identity
+            or (now - previous).total_seconds() >= settings.last_seen_write_seconds
+        ):
             last.last_seen_at = now
             db.commit()
         return last, False
@@ -132,6 +181,7 @@ def record_metadata(
     db.add(play)
     db.flush()
     station.collection_state = {
+        **identity_fields,
         "artist": metadata.artist,
         "title": metadata.title,
         "start": metadata.source_started_ms,

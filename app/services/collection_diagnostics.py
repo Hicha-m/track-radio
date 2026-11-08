@@ -22,7 +22,7 @@ logger = logging.getLogger("collector")
 round_context = ContextVar("collection_round", default=None)
 retry_context = ContextVar("collection_failures", default=0)
 trace_context = ContextVar("collection_trace", default=None)
-SUCCESS = {"new", "unchanged", "excluded", "stale", "disabled"}
+SUCCESS = {"new", "unchanged", "excluded", "stale", "disabled", "non_music"}
 OUTCOMES = SUCCESS | {
     "queued",
     "running",

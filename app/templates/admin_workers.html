@@ -7,7 +7,7 @@
     <form id="collection-filters" class="filter-grid">
       <label>{{ t('monitor.station') }}<select name="station_id"><option value="">{{ t('monitor.all') }}</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
       <label>{{ t('monitor.period') }}<select name="hours">{% for hours in [1, 6, 24, 48] %}<option value="{{ hours }}">{{ hours }} h</option>{% endfor %}</select></label>
-      <label>{{ t('monitor.outcome') }}<select name="outcome"><option value="">{{ t('monitor.all') }}</option>{% for code in ['running', 'new', 'unchanged', 'excluded', 'stale', 'http_error', 'timeout', 'network_error', 'format_error', 'empty', 'internal_error', 'interrupted', 'queued', 'probe_ok', 'disabled'] %}<option value="{{ code }}">{{ t('monitor.result.' + code) }}</option>{% endfor %}</select></label>
+      <label>{{ t('monitor.outcome') }}<select name="outcome"><option value="">{{ t('monitor.all') }}</option>{% for code in ['running', 'new', 'non_music', 'unchanged', 'excluded', 'stale', 'http_error', 'timeout', 'network_error', 'format_error', 'empty', 'internal_error', 'interrupted', 'queued', 'probe_ok', 'disabled'] %}<option value="{{ code }}">{{ t('monitor.result.' + code) }}</option>{% endfor %}</select></label>
       <label>{{ t('monitor.kind') }}<select name="kind"><option value="all">{{ t('monitor.all') }}</option><option value="collection">{{ t('monitor.collection') }}</option><option value="probe">{{ t('monitor.probe') }}</option></select></label>
       <button type="submit">{{ t('monitor.refresh') }}</button>
     </form>

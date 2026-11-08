@@ -832,5 +832,6 @@
   "monitor.max_stations": "Maximum stations per round",
   "monitor.last_seen_write_seconds": "Repeated observation write interval (s)",
   "monitor.details": "Worker details and settings",
-  "monitor.worker_revision": "Worker revision"
+  "monitor.worker_revision": "Worker revision",
+  "monitor.result.non_music": "Program or station ident, no musical play"
 }

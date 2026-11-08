@@ -832,5 +832,6 @@
   "monitor.max_stations": "Maximum de radios par tour",
   "monitor.last_seen_write_seconds": "Écriture des observations répétées (s)",
   "monitor.details": "Détails et paramètres du worker",
-  "monitor.worker_revision": "Révision du worker"
+  "monitor.worker_revision": "Révision du worker",
+  "monitor.result.non_music": "Émission ou habillage, sans diffusion musicale"
 }
