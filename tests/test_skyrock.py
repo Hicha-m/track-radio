@@ -97,7 +97,10 @@ def test_uid_repeats_rebroadcast_transition_and_ident_filter(db):
 
 
 @pytest.mark.parametrize("ident", [False, True])
-def test_fetchers_share_uid_and_recognize_ident(ident):
+@pytest.mark.parametrize(
+    "stream", [NATIONAL_STREAM, "https://icecast.skyrock.net/s/francais_aac_128k"]
+)
+def test_fetchers_share_uid_and_recognize_ident(ident, stream):
     import asyncio
 
     import httpx
@@ -125,7 +128,7 @@ def test_fetchers_share_uid_and_recognize_ident(ident):
         )
 
     async def run():
-        station = Station(stream_url=NATIONAL_STREAM, source_type="icy")
+        station = Station(stream_url=stream, source_type="icy")
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
             result = await fetch_metadata(station, 1, client)
         assert result.source_event_id == (None if ident else "skyrock:1")
