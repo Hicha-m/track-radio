@@ -1,0 +1,106 @@
+# Diagnostiquer un retard de collecte
+
+Cette procédure décrit les moyens existants, leurs limites et les éléments à
+recueillir avant de changer une source. Les observations d'incident, journaux et
+réponses de production restent dans le dossier local ignoré `.plan/`.
+
+## Vérifier la version et le périmètre
+
+Comparer `/api/version` au SHA dont la CI et la CD ont réussi. `/health` vérifie
+l'accès de l'API à la base ; il ne vérifie ni le collecteur ni une radio.
+`/api/stations` expose notamment la source, le flux et l'activation réellement
+enregistrés. Il ne donne pas tous les paramètres d'extraction ou les variables
+effectives du conteneur.
+
+Depuis une connexion d'exploitation autorisée, relever en lecture seule :
+
+- l'heure UTC du serveur et la synchronisation de son horloge ;
+- la révision et l'état des conteneurs, leurs redémarrages et contrôles de santé ;
+- les paramètres effectifs de collecte, limités à l'intervalle, au timeout, à la
+  concurrence, au nombre maximal de stations et à l'intervalle d'écriture des
+  observations ; ne jamais afficher l'environnement complet ;
+- la configuration de la station et les événements du collecteur sur la fenêtre
+  concernée, sans exporter de métadonnées masquées ou de données d'utilisateurs.
+
+## Interpréter les horodatages
+
+| Horodatage | Signification et limite |
+| --- | --- |
+| Début/fin fournisseur | Horaire annoncé du passage, avec fuseau explicite ; pas nécessairement l'heure de mise à disposition de la réponse. |
+| `ts`, `Date`, `Last-Modified`, `Age` | Indices de génération, d'horloge et de cache ; aucun ne garantit à lui seul que le morceau est courant. |
+| Réception de la sonde | Heure du client de diagnostic ; ce n'est celle du worker que si la mesure vient de son environnement. |
+| `detected_at` | Création du passage en base, pas début réel d'antenne. |
+| `last_seen_at` | Dernière observation **persistée** ; les répétitions sont écrites au plus une fois par `LAST_SEEN_WRITE_SECONDS` (120 s par défaut). |
+| `checked_at` | Heure de calcul de l'état exposé par `/api/stations/now-playing`. |
+| Affichage | Dépend du parcours et de la visibilité de l'onglet ; les cartes radio interrogent l'API toutes les 30 s. |
+
+Convertir les instants en UTC avant de soustraire des dates. Mesurer le décalage
+des horloges et conserver la durée de chaque requête. Une comparaison entre
+début fournisseur et détection donne un écart apparent, sans décomposer le délai
+de publication du fournisseur, celui du flux ICY et celui de la collecte.
+
+L'intervalle de collecte est une pause **après** un tour, pas une échéance fixe
+par radio. La durée du tour et les réessais s'y ajoutent. Après un échec, le
+collecteur temporise jusqu'à 300 s selon les échecs consécutifs. Un titre inchangé
+ou exclu peut constituer une collecte réussie sans nouvelle diffusion.
+
+## Supervision disponible
+
+`/admin/workers` et `/api/admin/workers` nécessitent l'administration. Ils
+présentent les états persistants du collecteur, de l'enrichissement et de
+YouTube, avec heartbeat, début du tour, activité et compteurs. Les événements
+`started`, `completed` et `error` sont conservés dans un journal global plafonné
+à 200 entrées ; l'API en restitue les 100 dernières. Une fenêtre ancienne peut
+donc déjà avoir disparu.
+
+Les logs du collecteur indiquent les nouveaux passages, les métadonnées absentes
+ou la classe d'exception, ainsi que le délai de réessai. Ils ne conservent pas le
+statut HTTP, la durée et le résultat de chaque tentative par station. L'état
+`completed` du worker décrit la fin d'un tour, pas le succès de toutes les radios.
+Le heartbeat du fichier de santé est mis à jour après un tour ; il n'est pas une
+preuve de fraîcheur de Skyrock. Le seuil d'ancienneté affiché par l'administration
+diffère du délai du contrôle de santé Docker.
+
+## Comparer les sources Skyrock
+
+Observer le flux ICY configuré et les deux endpoints publics
+`https://skyrock.fm/api/v3/player/onair/super` et
+`https://skyrock.fm/api/v3/player/onair`, depuis l'environnement du collecteur.
+Utiliser le transport et les bornes du collecteur, limiter la lecture ICY au
+premier bloc de métadonnées et fermer le flux. Ne pas enregistrer l'audio.
+
+Pour chaque sonde, conserver uniquement les heures, la durée, le statut HTTP,
+les erreurs et les en-têtes de cache disponibles. Pour JSON, extraire seulement
+les champs techniques nécessaires : `ts`, région, type, UID, début et fin.
+Écarter les informations personnelles des réponses. Pour `/super`, examiner
+`radios.natio`, sans confondre les autres radios avec la station suivie.
+
+Un tableau `schedule` peut mêler historique et passage courant ; vérifier les
+bornes temporelles de chaque événement. Le libellé d'une émission ne suffit pas
+à classifier une entrée comme morceau. Une réponse récente peut contenir un
+événement terminé. Un ETag différent ne prouve pas un changement musical.
+
+Ne pas transformer ces observations en changement automatique de source, en
+rattrapage ou en suppression d'historique. Un succès depuis le poste de
+diagnostic ne démontre pas l'accès depuis le worker. Un refus HTTP isolé ne
+prouve pas un bannissement d'IP ; conserver le contexte sans contourner le refus.
+
+## Distinguer les causes
+
+| Observation | Ce qu'elle permet de vérifier |
+| --- | --- |
+| Heartbeat ancien et aucun tour récent | Collecteur interrompu ou tour en retard ; vérifier le processus et les logs. |
+| Worker actif, réponses ICY répétées, JSON évolutif | Possible stagnation ICY ; comparer depuis le même environnement avant de conclure. |
+| Erreurs réseau/HTTP ou extraction vide | Échec d'une tentative ; relever statut, durée et réessai effectifs. |
+| Métadonnées identiques et observations persistées renouvelées | Morceau inchangé ou source répétitive ; le worker continue à observer. |
+| État `hidden` | Exclusion appliquée ; ce n'est pas une preuve de panne. |
+| Base/API récente, affichage ancien | Examiner le polling du parcours, la visibilité de l'onglet, les erreurs navigateur et les filtres. |
+
+Appliquer les exclusions personnelles et globales avant les résultats musicaux
+et les comparaisons concernés, y compris en administration. En cas d'exclusion,
+conserver uniquement le diagnostic technique sans révéler les libellés masqués.
+La blacklist bloque les nouvelles insertions et conserve l'historique.
+
+Un bilan doit séparer faits, hypothèses et inconnues. Si les logs historiques ou
+l'accès au worker manquent, le dire explicitement : une reprise observée ne
+permet pas d'attribuer la cause de l'incident passé.

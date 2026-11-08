@@ -162,6 +162,10 @@ Les résultats sont paginés (25, 50 ou 100 lignes), sans transférer la base co
 
 ## Gérer les radios manuellement
 
+Pour analyser un retard avant de modifier une source, consulter la
+[procédure de diagnostic de collecte](diagnostic-collecte.md). Elle distingue
+les horaires fournisseur, les observations persistées et la santé des workers.
+
 Modifier **`config/stations.json`**, puis appliquer le fichier sans reconstruire l’image :
 
 ```bash
