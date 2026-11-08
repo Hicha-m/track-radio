@@ -11,6 +11,7 @@ import httpx
 
 from app.config import settings
 from app.models import Station
+from app.services.collection_diagnostics import observe_http
 from app.services.html_sources import HTML_ADAPTERS, HtmlConfig, parse_funradio, parse_html
 from app.services.network import metadata_client
 
@@ -45,6 +46,7 @@ def parse_icy_block(block: bytes) -> str | None:
 async def fetch_icy(station: Station, client: httpx.AsyncClient) -> TrackMetadata | None:
     headers = {"Icy-MetaData": "1", "User-Agent": "RadioTracker/0.1"}
     async with client.stream("GET", station.stream_url, headers=headers) as response:
+        observe_http(response)
         response.raise_for_status()
         check_encoding(response)
         metaint_value = response.headers.get("icy-metaint")
@@ -85,6 +87,8 @@ async def fetch_json(station: Station, client: httpx.AsyncClient) -> TrackMetada
         return None
     url = station.metadata_url.replace("{now_ms}", str(int(datetime.now(UTC).timestamp() * 1000)))
     content = await read_bounded(client, url)
+    if not content.strip():
+        return None
     try:
         payload = json.loads(content)
     except UnicodeDecodeError:
@@ -148,6 +152,8 @@ async def fetch_html(station: Station, client: httpx.AsyncClient) -> TrackMetada
     now = datetime.now(ZoneInfo("Europe/Paris"))
     url = adapter.url(station.metadata_url, now)
     content = await read_bounded(client, url)
+    if not content.strip():
+        return None
     if options.adapter == "funradio":
         info = await asyncio.to_thread(parse_funradio, content, now)
         if info is None:
@@ -177,6 +183,7 @@ def check_encoding(response: httpx.Response):
 
 async def read_bounded(client: httpx.AsyncClient, url: str) -> bytes:
     async with client.stream("GET", url) as response:
+        observe_http(response)
         response.raise_for_status()
         check_encoding(response)
         length = response.headers.get("content-length")

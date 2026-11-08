@@ -25,8 +25,12 @@ def stored_start(play: Play | None) -> int | None:
 
 
 def record_metadata(
-    db: Session, station: Station, metadata: TrackMetadata
+    db: Session, station: Station, metadata: TrackMetadata, *, decision: dict | None = None
 ) -> tuple[Play | None, bool]:
+    def observed(code, changed=False):
+        if decision is not None:
+            decision.update(code=code, changed=changed)
+
     # Serialize collectors for this station on databases supporting row locks.
     station = db.scalars(
         select(Station)
@@ -60,6 +64,7 @@ def record_metadata(
             or (metadata.source_started_ms == latest_start and previous_start != latest_start)
         )
     ):
+        observed("stale")
         return last, False  # A stale source response is not another broadcast.
     latest_start = (
         metadata.source_started_ms if metadata.source_started_ms is not None else latest_start
@@ -77,9 +82,11 @@ def record_metadata(
         )
     )
     if previous_start == metadata.source_started_ms and previous_start is not None and not same:
+        observed("stale")
         return last, False  # One source event cannot become two plays after a label change.
     blocked = db.get(GlobalExclusion, exclusion_id(metadata.artist, metadata.title)) is not None
     if blocked:
+        observed("excluded", changed=not same)
         observation = {
             "artist": metadata.artist,
             "title": metadata.title,
@@ -96,6 +103,7 @@ def record_metadata(
             db.commit()
         return None, False
     if same and last:
+        observed("unchanged")
         previous = last.last_seen_at
         if previous.tzinfo is None:
             previous = previous.replace(tzinfo=UTC)
@@ -132,4 +140,5 @@ def record_metadata(
     }
     db.commit()
     db.refresh(play)
+    observed("new", changed=True)
     return play, True

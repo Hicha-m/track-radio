@@ -101,4 +101,5 @@ except Exception as error:
     sys.exit(1)
 PY
 fi
+compose exec -T api python scripts/check_collection_diagnostics.py
 echo 'Deployment healthy'

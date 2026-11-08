@@ -470,6 +470,26 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
 .worker-state { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
 .worker-state progress { width: 100%; accent-color: var(--accent); }
 #worker-events { max-height: 400px; overflow: auto; padding-left: 24px; }
+.collection-stations { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+.collection-station, .collection-event { border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.collection-station h3 { margin-top: 0; }
+.collection-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 8px 12px; font-size: .9rem; }
+.collection-facts dt, .collection-facts dd { margin: 0; overflow-wrap: anywhere; }
+.collection-facts dt { color: var(--muted); }
+.collection-health { font-weight: 600; }
+.collection-station[data-health="error"], .collection-station[data-health="overdue"] { border-width: 2px; }
+.collection-event { margin-bottom: 10px; }
+.collection-event summary { cursor: pointer; overflow-wrap: anywhere; line-height: 1.6; }
+.collection-pagination { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+#collection-monitor { margin-top: 28px; }
+#collection-filters { margin: 18px 0; }
+#collection-status { margin: 14px 0 8px; }
+#collection-thresholds { margin-bottom: 16px; }
+#collection-monitor button { min-height: 40px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+#collection-monitor button:disabled { opacity: .55; cursor: default; }
+#collection-monitor button:focus-visible, #collection-monitor summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+#collection-monitor .collection-station > button { margin-top: 16px; color: var(--accent); text-decoration: none; }
+.collection-station-details > summary { cursor: pointer; color: var(--accent); padding: 8px 0; }
 @media (max-width: 760px) {
   .player:is([data-mode=preview], [data-mode=video]) .player-volume label { display: block; position: absolute; top: 2px; right: 16px; width: 96px; }
 }

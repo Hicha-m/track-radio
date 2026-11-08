@@ -149,3 +149,49 @@ class WorkerEvent(Base):
     worker: Mapped[str] = mapped_column(String(40))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     code: Mapped[str] = mapped_column(String(40))
+
+
+class CollectionStatus(Base):
+    """Technical counters only: never store track identities or upstream payloads."""
+
+    __tablename__ = "collection_status"
+    station_id: Mapped[int] = mapped_column(
+        ForeignKey("stations.id", ondelete="CASCADE"), primary_key=True
+    )
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_observation_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_change_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    probe_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str] = mapped_column(String(32), default="unknown")
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    successes: Mapped[int] = mapped_column(Integer, default=0)
+    errors: Mapped[int] = mapped_column(Integer, default=0)
+    consecutive_errors: Mapped[int] = mapped_column(Integer, default=0)
+    runtime: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class CollectionEvent(Base):
+    __tablename__ = "collection_events"
+    __table_args__ = (
+        Index("ix_collection_station_id", "station_id", "id"),
+        Index("ix_collection_started", "started_at"),
+        Index("ix_collection_pending", "kind", "outcome", "id"),
+        {"sqlite_autoincrement": True},
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    attempt_id: Mapped[str] = mapped_column(String(32), unique=True)
+    round_id: Mapped[str | None] = mapped_column(String(32))
+    station_id: Mapped[int] = mapped_column(ForeignKey("stations.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16), default="collection")
+    source: Mapped[str] = mapped_column(String(24))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    outcome: Mapped[str] = mapped_column(String(32))
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

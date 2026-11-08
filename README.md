@@ -99,6 +99,11 @@ Le fichier [.env.example](.env.example) décrit les variables disponibles. Conse
 
 Les radios sont décrites dans [config/stations.json](config/stations.json). Les sources **ICY, JSON et HTML** sont prises en charge ; les préférences de collecte se pilotent depuis l’administration. Les fournisseurs à identifiants ne sont interrogés automatiquement que lorsqu’ils sont configurés.
 
+Dans **Administration → Supervision**, consultez l'état de chaque radio et le
+journal des tentatives (HTTP, durée, erreurs, réessais), puis demandez des sondes
+Skyrock exécutées par le worker. La [procédure de diagnostic](docs/diagnostic-collecte.md)
+explique les seuils, la conservation bornée et les limites des horodatages.
+
 ## Architecture
 
 ```mermaid

@@ -239,7 +239,7 @@ window.RadioPages = window.RadioPages || {};
     function destination() {
       try {
         const next = new URL(new URLSearchParams(location.search).get('next') || '/admin/dashboard', location.origin);
-        if (next.origin === location.origin && ['/admin/dashboard', '/admin/radios', '/admin/diffusions', '/admin/catalogue', '/admin/exclusions'].includes(next.pathname)) return next.pathname + next.search;
+        if (next.origin === location.origin && ['/admin/dashboard', '/admin/radios', '/admin/diffusions', '/admin/catalogue', '/admin/exclusions', '/admin/workers'].includes(next.pathname)) return next.pathname + next.search;
       } catch (_) { /* An invalid return URL falls back to the dashboard. */ }
       return '/admin/dashboard';
     }
@@ -267,6 +267,8 @@ window.RadioPages = window.RadioPages || {};
     const controller = new AbortController();
     let page = 1; let version = 0; let timer;
     const request = (url, payload, method) => window.RadioAdmin.request(url, payload, method, controller.signal);
+    const collectionMonitor = view === 'workers' ? window.RadioCollectionMonitor.mount(root, request) : null;
+    let workersLoading = false;
     function displaySession() {
       if (controller.signal.aborted || !root.isConnected) return;
       if (!window.RadioAdmin.authenticated()) {
@@ -527,6 +529,9 @@ window.RadioPages = window.RadioPages || {};
       } catch (error) { if (error.name !== 'AbortError') playsStatus.textContent = error.message; }
     });
     async function workers() {
+      if (workersLoading || document.hidden || !window.RadioAdmin.authenticated()) return;
+      workersLoading = true;
+      try {
       const data = await request(`/api/admin/workers?${window.MusicFilters.apply(new URLSearchParams())}`);
       if (controller.signal.aborted) return;
       const container = root.querySelector('#worker-states'); container.replaceChildren();
@@ -544,6 +549,8 @@ window.RadioPages = window.RadioPages || {};
       const codes = {started: window.RadioI18n.t("ui.e316a0a4628c"), completed: window.RadioI18n.t("ui.1ca783ebdf5c"), error: window.RadioI18n.t("ui.e2fd6cfcd307")};
       for (const item of data.events) events.append(el('li', `${new Date(item.at).toLocaleString(window.RadioI18n.locale)} · ${labels[item.worker]} · ${codes[item.code] || item.code}`));
       if (!data.events.length) events.append(el('li', window.RadioI18n.t("ui.2781a89dfbbb")));
+      await collectionMonitor.refresh();
+      } finally { workersLoading = false; }
     }
     const workerTimer = view === 'workers' ? setInterval(() => workers().catch(error => { if (error.name !== 'AbortError') status.textContent = error.message; }), 10000) : null;
     async function load() {
@@ -573,6 +580,6 @@ window.RadioPages = window.RadioPages || {};
     window.addEventListener('radio:globalfilterschange', refreshExclusions);
     window.addEventListener('radio:adminchange', displaySession);
     window.RadioAdmin.refresh().then(load);
-    return () => { clearInterval(workerTimer); controller.abort(); clearTimeout(timer); window.removeEventListener('radio:filterschange', refreshOverview); window.removeEventListener('radio:adminchange', displaySession); window.removeEventListener('radio:globalfilterschange', refreshExclusions); window.removeEventListener('radio:filterschange', refreshAudit); window.removeEventListener('radio:globalfilterschange', refreshAudit); };
+    return () => { clearInterval(workerTimer); collectionMonitor?.destroy(); controller.abort(); clearTimeout(timer); window.removeEventListener('radio:filterschange', refreshOverview); window.removeEventListener('radio:adminchange', displaySession); window.removeEventListener('radio:globalfilterschange', refreshExclusions); window.removeEventListener('radio:filterschange', refreshAudit); window.removeEventListener('radio:globalfilterschange', refreshAudit); };
   };
 })();

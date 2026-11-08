@@ -1,6 +1,24 @@
 <section id="admin-workers" class="panel">
   <h2>{{ t('ui.304091132993') }}</h2><p class="hint">{{ t('ui.7a3a90d1adc3') }}</p>
   <div id="worker-states" class="worker-states" aria-live="polite"></div>
+  <section id="collection-monitor" aria-labelledby="collection-title">
+    <h2 id="collection-title">{{ t('monitor.title') }}</h2>
+    <p class="hint">{{ t('monitor.intro') }}</p>
+    <form id="collection-filters" class="filter-grid">
+      <label>{{ t('monitor.station') }}<select name="station_id"><option value="">{{ t('monitor.all') }}</option>{% for station in stations %}<option value="{{ station.id }}">{{ station.name }}</option>{% endfor %}</select></label>
+      <label>{{ t('monitor.period') }}<select name="hours">{% for hours in [1, 6, 24, 48] %}<option value="{{ hours }}">{{ hours }} h</option>{% endfor %}</select></label>
+      <label>{{ t('monitor.outcome') }}<select name="outcome"><option value="">{{ t('monitor.all') }}</option>{% for code in ['running', 'new', 'unchanged', 'excluded', 'stale', 'http_error', 'timeout', 'network_error', 'format_error', 'empty', 'internal_error', 'interrupted', 'queued', 'probe_ok', 'disabled'] %}<option value="{{ code }}">{{ t('monitor.result.' + code) }}</option>{% endfor %}</select></label>
+      <label>{{ t('monitor.kind') }}<select name="kind"><option value="all">{{ t('monitor.all') }}</option><option value="collection">{{ t('monitor.collection') }}</option><option value="probe">{{ t('monitor.probe') }}</option></select></label>
+      <button type="submit">{{ t('monitor.refresh') }}</button>
+    </form>
+    <p id="collection-status" role="status"></p>
+    <p id="collection-thresholds" class="hint"></p>
+    <div id="collection-stations" class="collection-stations"></div>
+    <h3>{{ t('monitor.events') }}</h3>
+    <p class="hint">{{ t('monitor.event_help') }}</p>
+    <div id="collection-events"></div>
+    <div class="collection-pagination"><button type="button" data-collection-latest>{{ t('monitor.latest') }}</button><button type="button" data-collection-older disabled>{{ t('monitor.older') }}</button></div>
+  </section>
   <h2>{{ t('ui.fb7accfff8c6') }}</h2><p id="worker-quota" class="hint"></p>
   <h2>{{ t('ui.7bce72ac92ba') }}</h2><p class="hint">{{ t('ui.2cb6607a4ed3') }}</p><ol id="worker-events"></ol>
 </section>

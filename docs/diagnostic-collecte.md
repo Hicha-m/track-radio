@@ -53,13 +53,71 @@ YouTube, avec heartbeat, début du tour, activité et compteurs. Les événement
 à 200 entrées ; l'API en restitue les 100 dernières. Une fenêtre ancienne peut
 donc déjà avoir disparu.
 
-Les logs du collecteur indiquent les nouveaux passages, les métadonnées absentes
-ou la classe d'exception, ainsi que le délai de réessai. Ils ne conservent pas le
-statut HTTP, la durée et le résultat de chaque tentative par station. L'état
-`completed` du worker décrit la fin d'un tour, pas le succès de toutes les radios.
+La même page présente désormais un résumé par radio et un journal de tentatives,
+via `GET /api/admin/collection`. Chaque collecte conserve son identifiant de
+tentative et de tour, source, début/fin UTC, durée totale (réseau et traitement),
+statut HTTP final lorsqu'il existe et résultat. Les logs structurés
+`collection_diagnostic` utilisent les mêmes identifiants. Une tentative est
+persistée avant l'accès réseau : un arrêt du processus peut donc laisser une
+tentative en cours, reconnue comme interrompue au prochain essai de cette radio.
+Les échecs de stockage du diagnostic sont signalés séparément sans empêcher une
+collecte valide ni remplacer son erreur initiale.
+
+Le journal distingue refus/erreur HTTP (dont 403, 429 et 5xx), timeout, erreur
+réseau, format inattendu, extraction/réponse vide, événement ancien ignoré,
+contenu inchangé, nouveau passage et exclusion. Il conserve les dates HTTP,
+`Last-Modified`, `Age` et directives de cache reconnues lorsqu'ils sont présents.
+Aucun message d'exception, URL, en-tête arbitraire, titre, artiste, identifiant
+musical ou payload fournisseur n'est stocké dans ce diagnostic.
+
+Le résumé indique dernier essai, succès, observation utile, changement détecté,
+compteurs cumulés depuis le début de la supervision, échecs consécutifs, durée,
+HTTP et prochaine tentative **au plus tôt**. Cette date est une estimation :
+la fin du tour et l'attente des autres radios peuvent la repousser. Les valeurs
+de pause, timeout, concurrence, nombre maximal de radios et intervalle d'écriture
+affichées sont relevées par le worker lui-même à chaque tentative.
+
+Une observation utile vient d'une extraction traitée, même si elle est inchangée
+ou exclue, contrairement à `Play.last_seen_at`, dont les écritures sont espacées.
+Un changement détecté peut être un habillage ou une émission : il n'atteste pas
+à lui seul d'un changement musical. Un événement ancien ignoré confirme un accès
+réussi mais ne renouvelle pas l'observation utile. Les sondes n'actualisent aucun
+compteur ni aucune date de santé de la collecte normale.
+
+L'état `completed` du worker décrit la fin d'un tour, pas le succès de toutes les radios.
 Le heartbeat du fichier de santé est mis à jour après un tour ; il n'est pas une
 preuve de fraîcheur de Skyrock. Le seuil d'ancienneté affiché par l'administration
 diffère du délai du contrôle de santé Docker.
+
+### Seuils et coût de lecture
+
+- Observation ancienne après `max(180, 3 × pause + timeout)` secondes, selon la
+  configuration de l'API ; contenu inchangé signalé après 900 secondes. Ce sont
+  des invitations à vérifier, pas des preuves de panne ou de morceau bloqué.
+- Tentative anormalement longue après `timeout + 30` secondes ; cet indicateur
+  ne remplace pas le heartbeat du worker. Un échec reste distinct d'une source
+  observée mais inchangée ; un succès remet les échecs consécutifs à zéro.
+- Journal limité à 500 tentatives par radio, 5 000 au total et 48 h au maximum.
+  Nettoyage après chaque tour : si le worker s'arrête, le nettoyage reprend à
+  son redémarrage. Les plafonds peuvent raccourcir fortement la fenêtre réelle.
+  Seuls les diagnostics sont purgés, jamais les diffusions.
+- Résumés limités à 100 radios ; filtrer par identifiant pour inspecter une
+  radio hors de ce lot. Les événements se filtrent par radio, période de
+  1/6/24/48 h, résultat et type (collecte/sonde), avec pagination par identifiant
+  (50 entrées par défaut, 100 maximum). Deux lectures SQL, sans lecture musicale.
+- Rafraîchissement toutes les dix secondes sur la page visible et authentifiée,
+  sans chevauchement automatique de requêtes. Les lectures sont `no-store`.
+  Les filtres musicaux personnels/globaux ne retirent pas les preuves techniques,
+  qui ne contiennent aucune donnée musicale ; aucun résultat musical n'est exposé.
+
+La migration `0014` crée `collection_status` et `collection_events`, sans
+modifier les anciennes diffusions. Les sauvegardes incluent ces tables ; les
+archives antérieures restent importables. Le retour à `0013` retire uniquement
+les nouveaux diagnostics. Les anciennes pannes ne sont pas reconstruites.
+Le contrôle de déploiement vérifie en lecture seule que le worker de la révision
+attendue a persisté une tentative terminée et récente pour la première radio
+active. Il valide la remontée du diagnostic, y compris en cas d'erreur amont,
+sans publier de données de production ni imposer le succès de chaque fournisseur.
 
 ## Comparer les sources Skyrock
 
@@ -68,6 +126,25 @@ Observer le flux ICY configuré et les deux endpoints publics
 `https://skyrock.fm/api/v3/player/onair`, depuis l'environnement du collecteur.
 Utiliser le transport et les bornes du collecteur, limiter la lecture ICY au
 premier bloc de métadonnées et fermer le flux. Ne pas enregistrer l'audio.
+
+Le bouton **Sonder ICY et JSON depuis le worker**, sur la carte Skyrock,
+demande trois sondes via `POST /api/admin/collection/probes`, avec la session
+admin et sa protection CSRF habituelles. Les destinations sont fixes, limitées
+au flux national configuré et aux deux endpoints ci-dessus ; aucune URL ne
+peut être fournie par le client. Un seul lot par station est accepté toutes les
+cinq minutes, et aucun nouveau lot tant qu'une sonde précédente reste en attente
+ou en cours. Le worker exécute une sonde à la fin de chaque tour, avec son propre
+transport, son réseau et son timeout. Si le worker est arrêté, les sondes restent
+en attente : leur demande ne déclenche aucun accès réseau dans l'API.
+
+Une sonde ajoute au plus une requête bornée au tour, donc peut augmenter sa durée
+jusqu'au timeout configuré. Elle ne modifie ni la source, ni l'historique, ni les
+choix musicaux ; aucun rattrapage n'est effectué. Une sonde interrompue depuis
+plus de deux minutes est reconnue au passage suivant du worker. Les heures,
+statuts et identifiants de tour permettent la corrélation avec les collectes.
+La comparaison JSON conserve seulement l'heure `ts`, le nombre d'entrées, le
+nombre d'intervalles couvrant cette heure et la dernière fin déjà passée : elle
+ne sélectionne ni ne recommande automatiquement un morceau ou une source.
 
 Pour chaque sonde, conserver uniquement les heures, la durée, le statut HTTP,
 les erreurs et les en-têtes de cache disponibles. Pour JSON, extraire seulement

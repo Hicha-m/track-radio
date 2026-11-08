@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 from sqlalchemy import select
@@ -9,6 +10,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import SessionLocal
 from app.models import Station
+from app.services import collection_diagnostics as diagnostics
 from app.services.catalog import enrichment_loop, ensure_entry
 from app.services.collector import record_metadata
 from app.services.maintenance import archive_old_plays
@@ -35,12 +37,13 @@ def load_stations():
         return stations
 
 
-def save_metadata(station_id, metadata):
+def save_metadata(station_id, metadata, *, with_decision=False):
     with SessionLocal() as db:
         station = db.get(Station, station_id)
         if not station or not station.enabled:
-            return False
-        play, created = record_metadata(db, station, metadata)
+            return {"code": "disabled", "changed": False} if with_decision else False
+        decision = {}
+        play, created = record_metadata(db, station, metadata, decision=decision)
         if play is not None:
             ensure_entry(db, play.artist, play.title)
         if created and play is not None and settings.youtube_api_key.get_secret_value():
@@ -48,21 +51,51 @@ def save_metadata(station_id, metadata):
 
             queue(db, play.track_id, play.artist, play.title)
         db.commit()
-        return created
+        return decision if with_decision else created
 
 
 async def collect_station(station: Station, client: httpx.AsyncClient):
     # Detached snapshot: no database connection is held during network I/O.
-    metadata = await fetch_metadata(station, settings.request_timeout_seconds, client)
-    if metadata is None:
-        return False
-    created = await asyncio.to_thread(save_metadata, station.id, metadata)
-    if created:
-        logger.info("Radio %s : nouveau passage", station.id)
-    return True
+    event_id = await asyncio.to_thread(
+        diagnostics.safe_persist, diagnostics.begin, SessionLocal, station.id, station.source_type
+    )
+    trace = diagnostics.Trace(event_id=event_id)
+    token = diagnostics.trace_context.set(trace)
+    outcome, changed = "internal_error", False
+    try:
+        metadata = await fetch_metadata(station, settings.request_timeout_seconds, client)
+        if metadata is None:
+            outcome = "empty"
+            return False
+        decision = await asyncio.to_thread(save_metadata, station.id, metadata, with_decision=True)
+        outcome, changed = decision["code"], decision["changed"]
+        if metadata.source_started_ms is not None:
+            from datetime import UTC, datetime
+
+            try:
+                trace.summary["source_started_at"] = datetime.fromtimestamp(
+                    metadata.source_started_ms / 1000, UTC
+                ).isoformat()
+            except (ValueError, TypeError, OverflowError, OSError):
+                pass  # An unrepresentable diagnostic date must not change collection behavior.
+        return True
+    except Exception as error:
+        outcome = diagnostics.error_outcome(error)
+        raise
+    finally:
+        await asyncio.to_thread(
+            diagnostics.safe_persist,
+            diagnostics.finish,
+            SessionLocal,
+            trace,
+            outcome,
+            changed=changed,
+        )
+        diagnostics.trace_context.reset(token)
 
 
 async def collect_round(client, retry_state):
+    round_id = uuid4().hex
     stations = await asyncio.to_thread(load_stations)
     active = {station.id for station in stations}
     for station_id in set(retry_state) - active:
@@ -82,6 +115,8 @@ async def collect_round(client, retry_state):
         nonlocal completed, failed
         while not queue.empty():
             station = queue.get_nowait()
+            round_token = diagnostics.round_context.set(round_id)
+            retry_token = diagnostics.retry_context.set(retry_state.get(station.id, (0, 0))[0])
             try:
                 ok = await collect_station(station, client)
                 if ok:
@@ -94,6 +129,9 @@ async def collect_round(client, retry_state):
                 reason = "aucune métadonnée"
             except Exception as error:
                 reason = type(error).__name__
+            finally:
+                diagnostics.round_context.reset(round_token)
+                diagnostics.retry_context.reset(retry_token)
             failed += 1
             await asyncio.to_thread(report, SessionLocal, "collector", "metadata", failed=failed)
             failures = retry_state.get(station.id, (0, 0))[0] + 1
@@ -105,6 +143,8 @@ async def collect_round(client, retry_state):
     await asyncio.to_thread(
         report, SessionLocal, "collector", "completed", completed=completed, failed=failed
     )
+    await asyncio.to_thread(diagnostics.safe_persist, diagnostics.prune, SessionLocal)
+    return round_id
 
 
 async def main():
@@ -121,7 +161,8 @@ async def main():
         retry_state = {}
         while True:
             try:
-                await collect_round(client, retry_state)
+                round_id = await collect_round(client, retry_state)
+                await diagnostics.process_probe(SessionLocal, client, round_id)
                 if time.monotonic() >= next_maintenance:
                     await asyncio.to_thread(archive_old_plays)
                     next_maintenance = time.monotonic() + 86400

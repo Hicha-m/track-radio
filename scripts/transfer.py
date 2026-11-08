@@ -10,6 +10,8 @@ from sqlalchemy import DateTime, MetaData, Table, func, insert, inspect, select
 
 from app.database import engine
 from app.models import (
+    CollectionEvent,
+    CollectionStatus,
     GlobalExclusion,
     Play,
     ServiceQuota,
@@ -29,6 +31,8 @@ TABLES = {
     "service_quotas": ServiceQuota.__table__,
     "worker_states": WorkerState.__table__,
     "worker_events": WorkerEvent.__table__,
+    "collection_status": CollectionStatus.__table__,
+    "collection_events": CollectionEvent.__table__,
 }
 OPTIONAL_TABLES = set(TABLES) - {"stations", "plays"}
 

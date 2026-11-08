@@ -24,6 +24,7 @@ from app.security import require_admin
 from app.services.broadcast_audit import AuditFilters, audit
 from app.services.catalog import public_metadata
 from app.services.catalog_completion import candidate_completions
+from app.services.collection_overview import CollectionFilters
 from app.services.data_admin import Correction, apply, play_data, preview
 from app.services.exclusions import ExclusionFilters, canonical_exclusions, exclusion_conditions
 from app.services.explorer import text_match
@@ -31,6 +32,28 @@ from app.services.explorer import text_match
 router = APIRouter(prefix="/api/admin", dependencies=[Depends(require_admin)])
 Db = Annotated[Session, Depends(get_db)]
 session_router = APIRouter(prefix="/api/admin")
+
+
+@router.get("/collection")
+def collection(db: Db, filters: Annotated[CollectionFilters, Query()]):
+    from app.services.collection_overview import overview
+
+    return overview(db, filters)
+
+
+class ProbeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    station_id: int = Field(ge=1, le=2**63 - 1)
+
+
+@router.post("/collection/probes", status_code=202)
+def collection_probes(payload: ProbeRequest, db: Db):
+    from app.services.collection_diagnostics import enqueue_probes
+
+    station = db.get(Station, payload.station_id)
+    if station is None:
+        raise HTTPException(404, "Radio introuvable.")
+    return enqueue_probes(db, station)
 
 
 class Login(BaseModel):
@@ -446,8 +469,8 @@ def workers(db: Db, filters: Annotated[ExclusionFilters, Query()]):
                 else "stale"
                 if (now - row.heartbeat_at.replace(tzinfo=UTC)).total_seconds() > stale_after
                 else row.state,
-                "heartbeat_at": row.heartbeat_at if row else None,
-                "started_at": row.started_at if row else None,
+                "heartbeat_at": row.heartbeat_at.replace(tzinfo=UTC) if row else None,
+                "started_at": row.started_at.replace(tzinfo=UTC) if row else None,
                 "completed": row.completed if row else 0,
                 "failed": row.failed if row else 0,
                 "total": row.total if row else 0,
@@ -479,7 +502,7 @@ def workers(db: Db, filters: Annotated[ExclusionFilters, Query()]):
             "reset": "America/Los_Angeles",
         },
         "events": [
-            {"worker": e.worker, "at": e.at, "code": e.code}
+            {"worker": e.worker, "at": e.at.replace(tzinfo=UTC), "code": e.code}
             for e in db.scalars(select(WorkerEvent).order_by(WorkerEvent.id.desc()).limit(100))
         ],
     }
