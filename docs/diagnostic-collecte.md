@@ -260,3 +260,9 @@ revalidation conditionnelle ni réutilisation d'anciennes métadonnées n'est
 introduite. L'adaptateur JSON inactif ne reçoit pas de cache musical automatique.
 Un 304 futur ne serait pas assimilé à une nouvelle observation de morceau sans
 règles de fraîcheur supplémentaires.
+
+Lors d'un déploiement, si l'échéance persistée dépasse la fenêtre du contrôle,
+un heartbeat récent permet de signaler le contrôle comme différé plutôt que
+de provoquer une requête anticipée. Ce résultat ne certifie pas une nouvelle
+tentative de la révision déployée ; il indique que le délai fournisseur est
+respecté. Sans heartbeat récent, le contrôle continue d'attendre puis échoue.

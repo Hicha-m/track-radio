@@ -581,3 +581,20 @@ def test_probe_retry_after_defers_normal_collection_and_remaining_probes(db, cli
     assert schedule[station.id] - time.monotonic() > 590
     db.expire_all()
     assert db.get(CollectionStatus, station.id).errors == 0
+
+
+def test_deploy_accepts_worker_waiting_for_provider_without_claiming_new_attempt(db, setup_worker):
+    from app.services.supervision import report
+    from scripts.check_collection_diagnostics import state
+
+    station, factory = setup_worker
+    db.add(
+        CollectionStatus(
+            station_id=station.id, next_attempt_at=datetime.now(UTC) + timedelta(seconds=600)
+        )
+    )
+    db.commit()
+    assert state(db, "new-revision") == "waiting"
+    report(factory, "collector", "completed", total=0, completed=0, failed=0)
+    db.expire_all()
+    assert state(db, "new-revision") == "deferred"

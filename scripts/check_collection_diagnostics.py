@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import CollectionEvent, CollectionStatus, Station
+from app.models import CollectionEvent, CollectionStatus, Station, WorkerState
 
 
 def state(db, revision):
@@ -19,6 +19,17 @@ def state(db, revision):
     if station_id is None:
         return "disabled"
     status = db.get(CollectionStatus, station_id)
+    if status and status.next_attempt_at:
+        now = datetime.now(UTC)
+        remaining = (status.next_attempt_at.replace(tzinfo=UTC) - now).total_seconds()
+        worker = db.get(WorkerState, "collector")
+        if (
+            remaining > settings.request_timeout_seconds + 30
+            and worker
+            and (now - worker.heartbeat_at.replace(tzinfo=UTC)).total_seconds()
+            < max(120, settings.poll_interval_seconds * 3)
+        ):
+            return "deferred"
     if (
         not status
         or not status.last_attempt_at
@@ -49,6 +60,11 @@ def main():
             return
         if result == "disabled":
             print("Collection diagnostics check skipped: no enabled stations")
+            return
+        if result == "deferred":
+            print(
+                "Collection diagnostics deferred: active worker respects persisted retry deadline"
+            )
             return
         if time.monotonic() >= deadline:
             raise SystemExit("Collection diagnostics missing for current worker revision")
