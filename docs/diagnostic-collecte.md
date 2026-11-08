@@ -39,8 +39,9 @@ des horloges et conserver la durée de chaque requête. Une comparaison entre
 début fournisseur et détection donne un écart apparent, sans décomposer le délai
 de publication du fournisseur, celui du flux ICY et celui de la collecte.
 
-L'intervalle de collecte est une pause **après** un tour, pas une échéance fixe
-par radio. La durée du tour et les réessais s'y ajoutent. Après un échec, le
+L'intervalle de collecte est désormais une cible entre les débuts de tentatives
+par radio. Une tentative longue, une file occupée ou une sonde peuvent repousser
+ce départ ; aucune échéance temps réel n'est garantie. Après un échec, le
 collecteur temporise jusqu'à 300 s selon les échecs consécutifs. Un titre inchangé
 ou exclu peut constituer une collecte réussie sans nouvelle diffusion.
 
@@ -218,3 +219,44 @@ Aucune règle générale ne classe tous les titres de Skyrock comme émissions.
 L'historique existant est conservé, dont les anciens passages de cet habillage.
 Les exclusions continuent à bloquer les nouvelles insertions ; aucun masquage
 ne provoque une suppression ou une fusion automatique.
+
+## Transport et cadence
+
+L'observation réseau du site fournisseur a montré des requêtes périodiques
+`/onair` et `/onair/super` espacées d'environ 15 secondes sur une fenêtre de
+45 secondes, sans connexion SSE ou WebSocket observée. Cette fenêtre ne prouve
+pas l'absence générale de notifications. Aucun abonnement serveur documenté et
+exploitable n'a été établi ; les [CGU du fournisseur](https://skyrock.fm/cgu)
+ne constituent pas un contrat d'API de notifications. Aucun transport poussé
+n'est donc activé ou promis.
+
+Le collecteur reste en polling avec ICY actif. La valeur configurée reste 20 s
+par défaut (bornes de configuration 5–3600 s). Chaque radio possède une échéance
+monotone calculée depuis le début de sa tentative, plutôt qu'une pause complète
+ajoutée après le dernier résultat du tour. La concurrence et le timeout restent
+bornés ; une radio en échec est retirée des tours jusqu'à son échéance. La boucle
+attend au moins une seconde, et vérifie configuration/heartbeat au plus tard à
+l'intervalle de base, même lorsqu'une radio est en longue temporisation.
+
+Avec une tentative synthétique de 2 s et un intervalle de 20 s, deux départs
+mesurés sont distants de 20 s contre 22 s pour l'ancien ordonnancement. Le délai
+moyen théorique d'échantillonnage passe de 11 à 10 s dans ce cas régulier, avec
+un budget passant d'environ 164 à 180 requêtes/h par radio. Ce résultat contrôlé
+n'est pas une mesure de latence d'antenne ou de charge CPU en production. Une
+source retardée peut continuer à transmettre un événement ancien malgré cette
+réduction de l'attente du collecteur. La valeur de 10 s n'est pas imposée.
+
+Après un échec, la temporisation exponentielle reste plafonnée à 300 s ; un
+`Retry-After` valide sur HTTP 429/503 impose une attente au moins aussi longue.
+Les secondes et dates HTTP zonées sont acceptées, les valeurs invalides ignorées
+et les durées numériques représentables limitées à 2^31−1 s. Le prochain départ
+persisté est restauré après redémarrage. Les sondes admin respectent aussi ces
+temporisations ; une sonde refusée peut repousser la collecte normale sans
+modifier ses compteurs de réussite. Cette précaution s'applique à toute la radio,
+même lorsque les deux endpoints utilisent des hôtes différents.
+
+Le flux ICY observé ne fournit ni ETag ni Last-Modified, avec `no-cache` : aucune
+revalidation conditionnelle ni réutilisation d'anciennes métadonnées n'est
+introduite. L'adaptateur JSON inactif ne reçoit pas de cache musical automatique.
+Un 304 futur ne serait pas assimilé à une nouvelle observation de morceau sans
+règles de fraîcheur supplémentaires.

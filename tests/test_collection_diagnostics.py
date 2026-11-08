@@ -547,3 +547,37 @@ def test_deployment_requires_current_worker_evidence_but_not_upstream_success(db
     station.enabled = False
     db.commit()
     assert state(db, "development") == "disabled"
+
+
+def test_probe_retry_after_defers_normal_collection_and_remaining_probes(db, client, setup_worker):
+    from app.worker import restore_schedule
+
+    station, factory = setup_worker
+    station.slug = "skyrock"
+    station.stream_url = "https://icecast.skyrock.net/s/natio_mp3_128k"
+    db.commit()
+    assert (
+        client.post(
+            "/api/admin/collection/probes", headers=AUTH, json={"station_id": station.id}
+        ).status_code
+        == 202
+    )
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.host)
+        return stream_response(503, headers={"Retry-After": "600"})
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+            await diag.process_probe(factory, http, "a" * 32)
+            await diag.process_probe(factory, http, "b" * 32)
+
+    asyncio.run(run())
+    assert len(calls) == 1
+    _, schedule = restore_schedule()
+    import time
+
+    assert schedule[station.id] - time.monotonic() > 590
+    db.expire_all()
+    assert db.get(CollectionStatus, station.id).errors == 0

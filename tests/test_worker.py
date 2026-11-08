@@ -92,3 +92,87 @@ def test_network_call_does_not_hold_database_connection(tmp_path, monkeypatch):
     station = load_stations()[0]
     asyncio.run(collect_station(station, None))
     engine.dispose()
+
+
+def test_schedule_removes_round_duration_without_reducing_interval(monkeypatch):
+    station = Station(id=1, name="Fixture")
+    clock = [100.0]
+    starts = []
+    monkeypatch.setattr("app.worker.load_stations", lambda: [station])
+    monkeypatch.setattr("app.worker.time.monotonic", lambda: clock[0])
+
+    async def collect(station, client):
+        starts.append(clock[0])
+        clock[0] += 2
+        return True
+
+    monkeypatch.setattr("app.worker.collect_station", collect)
+
+    async def run():
+        retries, schedule = {}, {}
+        await collect_round(None, retries, schedule)
+        assert schedule[1] == 120
+        clock[0] = 119
+        await collect_round(None, retries, schedule)
+        assert len(starts) == 1
+        clock[0] = 120
+        await collect_round(None, retries, schedule)
+
+    asyncio.run(run())
+    assert starts == [100, 120]  # Old schedule: 100,122 for this two-second attempt.
+
+
+def test_retry_after_isolates_station_and_survives_restart(worker_db, tmp_path, monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    import httpx
+
+    from app.database import make_engine
+    from app.models import Base, CollectionStatus
+    from app.worker import restore_schedule
+
+    engine = make_engine(f"sqlite:///{tmp_path / 'retry.db'}")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    monkeypatch.setattr("app.worker.SessionLocal", factory)
+    with factory() as db:
+        db.add(Station(id=1, name="Bad", slug="bad", stream_url="https://example.test"))
+        db.add(Station(id=2, name="Good", slug="good", stream_url="https://example.test"))
+        db.commit()
+    calls = []
+
+    async def collect(station, client):
+        calls.append(station.id)
+        if station.id == 1:
+            response = httpx.Response(
+                429,
+                headers={"Retry-After": "600"},
+                request=httpx.Request("GET", "https://example.test"),
+            )
+            response.raise_for_status()
+        return True
+
+    monkeypatch.setattr("app.worker.collect_station", collect)
+
+    async def run():
+        retries, schedule = {}, {}
+        await collect_round(None, retries, schedule)
+        assert retries[1][1] - __import__("time").monotonic() > 590
+        assert 2 not in retries
+        await collect_round(None, retries, schedule)
+        assert calls == [1, 2]
+
+    asyncio.run(run())
+    with factory() as db:
+        db.add(
+            CollectionStatus(
+                station_id=1,
+                outcome="http_error",
+                consecutive_errors=1,
+                next_attempt_at=datetime.now(UTC) + timedelta(seconds=600),
+            )
+        )
+        db.commit()
+    retries, schedule = restore_schedule()
+    assert retries[1][0] == 1 and schedule[1] - __import__("time").monotonic() > 590
+    engine.dispose()

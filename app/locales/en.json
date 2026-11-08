@@ -826,7 +826,7 @@
   "monitor.result.queued": "Probe queued",
   "monitor.result.probe_ok": "Probe successful",
   "monitor.result.unknown": "Not yet known",
-  "monitor.poll_interval_seconds": "Pause between rounds (s)",
+  "monitor.poll_interval_seconds": "Target station interval (s)",
   "monitor.request_timeout_seconds": "Worker timeout (s)",
   "monitor.collector_concurrency": "Concurrent collections",
   "monitor.max_stations": "Maximum stations per round",

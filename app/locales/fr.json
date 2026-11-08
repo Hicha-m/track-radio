@@ -826,7 +826,7 @@
   "monitor.result.queued": "Sonde en attente",
   "monitor.result.probe_ok": "Sonde réussie",
   "monitor.result.unknown": "Pas encore connu",
-  "monitor.poll_interval_seconds": "Pause entre les tours (s)",
+  "monitor.poll_interval_seconds": "Intervalle cible par radio (s)",
   "monitor.request_timeout_seconds": "Timeout du worker (s)",
   "monitor.collector_concurrency": "Collectes simultanées",
   "monitor.max_stations": "Maximum de radios par tour",

@@ -9,14 +9,37 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import Station
+from app.models import CollectionStatus, Station
 from app.services import collection_diagnostics as diagnostics
 from app.services.catalog import enrichment_loop, ensure_entry
+from app.services.collection_schedule import failure_delay, next_delay, retry_after
 from app.services.collector import record_metadata
 from app.services.maintenance import archive_old_plays
 from app.services.metadata import fetch_metadata
 from app.services.network import metadata_client
 from app.services.supervision import report
+
+
+def restore_schedule():
+    from datetime import UTC, datetime
+
+    now, monotonic = datetime.now(UTC), time.monotonic()
+    retries, schedule = {}, {}
+    with SessionLocal() as db:
+        for status in db.scalars(
+            select(CollectionStatus).join(Station).where(Station.enabled.is_(True))
+        ):
+            if status.next_attempt_at:
+                remaining = (diagnostics.utc(status.next_attempt_at) - now).total_seconds()
+                if remaining > 0:
+                    schedule[status.station_id] = monotonic + remaining
+                    if status.consecutive_errors:
+                        retries[status.station_id] = (
+                            status.consecutive_errors,
+                            monotonic + remaining,
+                        )
+    return retries, schedule
+
 
 logging.basicConfig(level=settings.log_level)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -94,15 +117,24 @@ async def collect_station(station: Station, client: httpx.AsyncClient):
         diagnostics.trace_context.reset(token)
 
 
-async def collect_round(client, retry_state):
+async def collect_round(client, retry_state, schedule=None):
     round_id = uuid4().hex
+    if schedule is not None:
+        _, persisted = await asyncio.to_thread(restore_schedule)
+        for station_id, due in persisted.items():
+            schedule[station_id] = max(schedule.get(station_id, 0), due)
     stations = await asyncio.to_thread(load_stations)
     active = {station.id for station in stations}
+    if schedule is not None:
+        for station_id in set(schedule) - active:
+            schedule.pop(station_id)
     for station_id in set(retry_state) - active:
         retry_state.pop(station_id)
     queue = asyncio.Queue()
     for station in stations:
-        if retry_state.get(station.id, (0, 0))[1] <= time.monotonic():
+        if retry_state.get(station.id, (0, 0))[1] <= time.monotonic() and (
+            schedule is None or schedule.get(station.id, 0) <= time.monotonic()
+        ):
             queue.put_nowait(station)
 
     total = queue.qsize()
@@ -115,11 +147,15 @@ async def collect_round(client, retry_state):
         nonlocal completed, failed
         while not queue.empty():
             station = queue.get_nowait()
+            started = time.monotonic()
+            provider_delay = None
             round_token = diagnostics.round_context.set(round_id)
             retry_token = diagnostics.retry_context.set(retry_state.get(station.id, (0, 0))[0])
             try:
                 ok = await collect_station(station, client)
                 if ok:
+                    if schedule is not None:
+                        schedule[station.id] = started + settings.poll_interval_seconds
                     retry_state.pop(station.id, None)
                     completed += 1
                     await asyncio.to_thread(
@@ -129,14 +165,21 @@ async def collect_round(client, retry_state):
                 reason = "aucune métadonnée"
             except Exception as error:
                 reason = type(error).__name__
+                if isinstance(error, httpx.HTTPStatusError) and error.response.status_code in {
+                    429,
+                    503,
+                }:
+                    provider_delay = retry_after(error.response.headers.get("retry-after"))
             finally:
                 diagnostics.round_context.reset(round_token)
                 diagnostics.retry_context.reset(retry_token)
             failed += 1
             await asyncio.to_thread(report, SessionLocal, "collector", "metadata", failed=failed)
             failures = retry_state.get(station.id, (0, 0))[0] + 1
-            delay = min(300, settings.poll_interval_seconds * 2 ** min(failures, 4))
+            delay = failure_delay(failures, provider_delay)
             retry_state[station.id] = (failures, time.monotonic() + delay)
+            if schedule is not None:
+                schedule[station.id] = retry_state[station.id][1]
             logger.warning("Radio %s : %s, nouvel essai dans %ss", station.id, reason, delay)
 
     await asyncio.gather(*(consume() for _ in range(settings.collector_concurrency)))
@@ -158,10 +201,10 @@ async def main():
     heartbeat.parent.mkdir(parents=True, exist_ok=True)
     heartbeat.touch()
     async with metadata_client() as client:
-        retry_state = {}
+        retry_state, schedule = await asyncio.to_thread(restore_schedule)
         while True:
             try:
-                round_id = await collect_round(client, retry_state)
+                round_id = await collect_round(client, retry_state, schedule)
                 await diagnostics.process_probe(SessionLocal, client, round_id)
                 if time.monotonic() >= next_maintenance:
                     await asyncio.to_thread(archive_old_plays)
@@ -170,7 +213,7 @@ async def main():
             except Exception:
                 await asyncio.to_thread(report, SessionLocal, "collector", "error")
                 logger.exception("Cycle de collecte interrompu, nouvel essai au prochain cycle")
-            await asyncio.sleep(settings.poll_interval_seconds)
+            await asyncio.sleep(next_delay(schedule, time.monotonic()))
 
 
 async def youtube_loop():

@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
 from app.models import CollectionEvent, CollectionStatus, Station
+from app.services.collection_schedule import failure_delay, retry_after
 
 logger = logging.getLogger("collector")
 round_context = ContextVar("collection_round", default=None)
@@ -60,6 +61,10 @@ def observe_http(response):
     if trace is None or len(trace.responses) >= 6:
         return
     item = {"status": response.status_code}
+    if response.status_code in {429, 503}:
+        delay = retry_after(response.headers.get("retry-after"))
+        if delay is not None:
+            trace.summary["retry_after_seconds"] = delay
     for header in ("date", "last-modified"):
         try:
             value = parsedate_to_datetime(response.headers.get(header, "")[:128])
@@ -187,6 +192,13 @@ def finish(factory, trace, outcome, *, changed=False):
         event.duration_ms = max(0, round((time.monotonic() - trace.started) * 1000))
         event.http_status = trace.responses[-1]["status"] if trace.responses else None
         event.details = {"http": trace.responses, **trace.summary}
+        if event.kind == "probe" and trace.summary.get("retry_after_seconds") is not None:
+            event.next_attempt_at = now + timedelta(seconds=trace.summary["retry_after_seconds"])
+            status = db.get(CollectionStatus, event.station_id)
+            if status and (
+                not status.next_attempt_at or utc(status.next_attempt_at) < event.next_attempt_at
+            ):
+                status.next_attempt_at = event.next_attempt_at
         if event.kind == "collection":
             status = db.get(CollectionStatus, event.station_id)
             status.outcome = outcome
@@ -200,12 +212,12 @@ def finish(factory, trace, outcome, *, changed=False):
                     status.last_observation_at = now
                 if changed:
                     status.last_change_at = now
-                delay = settings.poll_interval_seconds
+                delay = max(0, settings.poll_interval_seconds - (time.monotonic() - trace.started))
             else:
                 status.errors += 1
                 status.consecutive_errors += 1
-                delay = min(
-                    300, settings.poll_interval_seconds * 2 ** min(retry_context.get() + 1, 4)
+                delay = failure_delay(
+                    retry_context.get() + 1, trace.summary.get("retry_after_seconds")
                 )
             event.next_attempt_at = status.next_attempt_at = now + timedelta(seconds=delay)
         db.commit()
@@ -348,6 +360,18 @@ def claim_probe(factory, round_id):
             db.commit()
             return None
         station = db.get(Station, event.station_id)
+        cooldown = db.scalar(
+            select(CollectionEvent.id)
+            .where(
+                CollectionEvent.station_id == event.station_id,
+                CollectionEvent.http_status.in_([429, 503]),
+                CollectionEvent.next_attempt_at > now,
+            )
+            .limit(1)
+        )
+        if cooldown:
+            db.commit()
+            return None
         if (
             not station
             or not station.enabled
