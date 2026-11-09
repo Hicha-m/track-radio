@@ -30,6 +30,9 @@ class TrackMetadata(Base):
     __tablename__ = "track_metadata"
     __table_args__ = (
         Index("ix_track_metadata_genre_cover", "id", "primary_genre").ddl_if(dialect="sqlite"),
+        Index(
+            "ix_track_metadata_review_cover", "artist", "title", "status", "lyrics_status", "id"
+        ).ddl_if(dialect="sqlite"),
     )
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     artist: Mapped[str | None] = mapped_column(String(300), nullable=True)

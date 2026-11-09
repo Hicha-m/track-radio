@@ -91,3 +91,26 @@ admin et 1 s pour classement/titres côté serveur, sans nouveau cache par défa
 Ce sont des propositions, pas des objectifs approuvés ni des gains annoncés.
 Le choix, les mesures avant/après, les essais avec exclusions personnelles et
 l’analyse du parcours navigateur restent à compléter avant de cocher le point 2.
+
+## Arbitrage confirmé et correction retenue
+
+Le product owner a confirmé l’objectif admin inférieur à 2 s, sans nouveau cache.
+Le [profilage détaillé](https://github.com/Hicha-m/track-radio/actions/runs/42653679601)
+compare les calculs dans un même instantané en lecture seule : les compteurs
+sont identiques. Les deux comptages séparés du catalogue prennent environ
+3 s et 11–12 s. L’agrégation unique seule reste à 12–13 s : elle ne suffit pas.
+
+La correction préparée associe l’agrégation unique à un index couvrant SQLite
+sur artiste, titre, statut de fiche, statut des paroles et identité. Le filtre
+d’exclusion utilise toujours les mêmes colonnes et la même normalisation.
+L’index évite de parcourir les lignes complètes contenant les payloads fournisseurs.
+Il ajoute du stockage et un coût d’entretien lors des écritures ; sa création
+nécessite une migration, couverte par la sauvegarde du déploiement. Aucun cache
+admin ou changement de moteur n’est introduit. Le gain réel reste à vérifier
+après installation de l’index ; aucun succès sur l’objectif de 2 s n’est encore annoncé.
+
+Validation locale : 406 tests Python, 16 tests JavaScript, Ruff et configuration
+validés. Migration aller/retour et utilisation de l’index couvrant vérifiées ;
+compteur à zéro sur catalogue vide, absence de double comptage, mise à jour sans
+cache, exclusions personnelles/globales et historique préservés. Parcours admin
+1440/1024/390/320 px réussis sur base temporaire.

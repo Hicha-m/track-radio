@@ -130,3 +130,55 @@ def test_catalogue_excludes_hidden_entries_before_pagination(db, client):
         client.get("/api/admin/catalog", params={"exclusions": "invalid"}, headers=AUTH).status_code
         == 422
     )
+
+
+def test_dashboard_review_counts_a_track_once_and_recomputes_without_cache(db, client):
+    entry = ensure_entry(db, "Artist", "Both statuses")
+    entry.status = "error"
+    entry.lyrics_status = "ambiguous"
+    healthy = ensure_entry(db, None, "Healthy")
+    healthy.status = "matched"
+    healthy.lyrics_status = "matched"
+    db.commit()
+    result = client.get("/api/admin/dashboard", headers=AUTH).json()
+    assert result["visible_tracks"] == 2 and result["review_tracks"] == 1
+    entry.status = "matched"
+    entry.lyrics_status = "matched"
+    db.commit()
+    result = client.get("/api/admin/dashboard", headers=AUTH).json()
+    assert result["visible_tracks"] == 2 and result["review_tracks"] == 0
+
+
+def test_catalogue_count_uses_covering_index_and_migration_is_reversible(tmp_path):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine
+
+    config = Config("alembic.ini")
+    url = f"sqlite:///{tmp_path / 'review-cover.db'}"
+    config.set_main_option("sqlalchemy.url", url)
+    # env.py reads the application setting; isolate it for this migration test.
+    from app.config import settings
+
+    previous = settings.database_url
+    settings.database_url = url
+    try:
+        command.upgrade(config, "head")
+        engine = create_engine(url)
+        with engine.connect() as conn:
+            plan = conn.exec_driver_sql(
+                "EXPLAIN QUERY PLAN SELECT count(id), "
+                "count(CASE WHEN status IN ('error', 'ambiguous', 'not_found') "
+                "OR lyrics_status IN ('error', 'ambiguous', 'not_found') THEN id END) "
+                "FROM track_metadata"
+            ).all()
+            assert any("COVERING INDEX ix_track_metadata_review_cover" in r[3] for r in plan)
+        command.downgrade(config, "0015")
+        with engine.connect() as conn:
+            assert "ix_track_metadata_review_cover" not in {
+                r[1] for r in conn.exec_driver_sql("PRAGMA index_list(track_metadata)")
+            }
+        command.upgrade(config, "head")
+        engine.dispose()
+    finally:
+        settings.database_url = previous

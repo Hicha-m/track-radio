@@ -132,12 +132,18 @@ def dashboard_summary(db: Db, filters: Annotated[ExclusionFilters, Query()]):
             Play.detected_at >= since, *exclusion_conditions(filters.exclusions, unicode)
         )
     ).one()
+    visible_tracks, review_tracks = db.execute(
+        select(
+            func.count(TrackMetadata.id),
+            func.count(case((review, TrackMetadata.id))),
+        ).where(*visible)
+    ).one()
     return {
         "active_stations": db.scalar(
             select(func.count(Station.id)).where(Station.enabled, Station.configured)
         ),
-        "visible_tracks": db.scalar(select(func.count(TrackMetadata.id)).where(*visible)),
-        "review_tracks": db.scalar(select(func.count(TrackMetadata.id)).where(*visible, review)),
+        "visible_tracks": visible_tracks,
+        "review_tracks": review_tracks,
         "recent_plays": recent_plays,
         "last_detection": last_detection.replace(tzinfo=UTC) if last_detection else None,
     }
