@@ -1,0 +1,184 @@
+<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Validation architecture — Radio Tracker</title><style>body{font:17px/1.6 system-ui;margin:0;background:#f3f5f8;color:#172438}main{max-width:1000px;margin:auto;padding:32px}header,section{background:white;padding:24px;margin-bottom:20px;border-radius:12px}h1{line-height:1.2}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}a{color:#1250a0}</style><main><header><h1>Architecture Radio Tracker</h1><p>Validation BMad · 9 novembre 2026 · Trois regards indépendants</p><p><a href="rapport.md">Rapport Markdown complet</a></p></header><section><h2>Synthèse et priorités</h2><pre># Validation BMad — Architecture Radio Tracker
+
+Date : 9 novembre 2026. Source : ARCHITECTURE.md, révision 098b037.
+
+## Verdict
+
+Bonne description de l’existant ; contrat de cohérence à renforcer avant des développements indépendants. Aucun défaut critique applicatif démontré. La validation porte sur la documentation et une lecture ciblée du code, sans nouvelle mesure de production ni validation exhaustive du PRD.
+
+Trois relecteurs indépendants ont examiné la couverture, la conformité au code et les divergences possibles. Le lint BMad signale uniquement `{id}` dans une URL d’API : faux positif. L’absence d’AD structurés n’est pas détectée par ce lint ; elle relève de la revue sémantique.
+
+## Priorités proposées
+
+1. Expliciter les invariants déjà acquis : exclusions avant agrégation, masquage sans suppression, identité musicale distincte d’une diffusion.
+2. Ratifier les responsabilités de mutation, la priorité des choix manuels et les règles de concurrence du collecteur à partir du code existant.
+3. Corriger le statut D02 : objectif admin confirmé ; diagnostic global du chargement encore ouvert.
+4. Préciser les exceptions d’inspection administrative, les environnements et les conditions de reprise des décisions différées.
+5. Lier les versions et les paramètres au code qui en fait autorité.
+
+Ces propositions ne sont pas des décisions adoptées. Aucune migration, restructuration ou correction applicative n’est engagée. ARCHITECTURE.md reste intact. La suite proposée est une mise à jour documentaire avec le propriétaire, puis l’adoption du contrat comme référence des futurs tickets avec Sofia (bmad-agent-po).
+
+## Vérification de la livraison
+
+Ruff et contrôles syntaxiques JavaScript réussis ; trois fichiers de tests JavaScript réussis. Aucun changement d’interface applicative. Installation locale officielle des quatre modules BMad, statut current vérifié ; scripts et réponses personnelles restent exclus par les règles Git existantes.
+
+</pre></section><section><h2>Couverture et lisibilité</h2><pre># Revue BMad — grille de cohérence et lisibilité
+
+Document évalué : `ARCHITECTURE.md`, 315 lignes. Revue du 9 novembre 2026.
+Périmètre : qualité documentaire et capacité à guider des développements séparés ; aucun changement de code, aucun accès à la production. Référence annoncée par le document : `d3ba132`.
+
+**Verdict : bonne cartographie technique de l’existant ; insuffisant comme contrat de cohérence autonome pour construire plusieurs évolutions indépendamment.** Aucun défaut critique établi par cette revue. Deux lacunes hautes concernent le guidage des prochains développements, et non une panne démontrée de l’application actuelle.
+
+## Constats prioritaires
+
+### R1 — Haute : les invariants ne sont pas distingués des détails descriptifs
+
+**Preuves :** le paradigme est correctement nommé aux lignes 21–26. L’identité de diffusion et l’identité musicale sont séparées aux lignes 89–101 ; l’interdiction de supprimer l’historique lors du masquage apparaît aux lignes 92–93 et 181–185 ; l’application des exclusions avant agrégation apparaît aux lignes 229–233. Le registre des lignes 277–294 recense surtout des options futures, sans règles adoptées identifiées par des AD et sans Binds/Prevents/Rule.
+
+**Divergence possible :** une future route admin pourrait traiter l’absence d’exclusions personnelles comme une permission de contourner la blacklist, ou une importation pourrait dédupliquer tous les passages par identité musicale. Le texte permet d’en déduire que ce serait incorrect, mais son organisation ne donne pas un petit contrat vérifiable auquel rattacher les développements.
+
+**Traitement :** discuter puis extraire les invariants déjà approuvés dans une courte section, avec identifiants stables, périmètre et règle. Ne pas transformer les valeurs de timeout ou le choix actuel du moteur en invariants immuables. Les règles d’exclusions sont étayées par `app/services/exclusions.py:48`, qui combine condition globale et liste personnelle.
+
+### R2 — Haute : les propriétaires des mutations et les frontières restent implicites
+
+**Preuves :** API et worker partagent base, modèles et services (lignes 21–24) ; les routes accèdent directement à SQLAlchemy (58–60) ; le catalogue conserve choix manuels et compléments automatiques (109–111). Le tableau des tables (134–143) décrit les données sans préciser qui arbitre leurs modifications. La structure future reste ouverte en D05b/D05c (289–290).
+
+**Divergence possible :** un traitement de fond pourrait considérer une fiche sélectionnée comme remplaçable tandis qu’un module admin la considère comme protégée ; deux nouveaux traitements pourraient chacun s’attribuer les changements de statut d’une même fiche. Ce risque documentaire ne démontre pas que le code actuel écrase des choix manuels.
+
+**Traitement :** discuter une matrice minimale données / acteurs autorisés / service de mutation / règle de conflit. Ratifier les conventions réelles avant d’imposer une nouvelle couche d’abstraction. Documenter les frontières actuelles et les exceptions ; laisser la restructuration générale ouverte.
+
+## Autres constats
+
+### R3 — Moyenne : le registre des arbitrages n’est pas complètement réconcilié avec les résultats
+
+**Preuves :** D02 indique encore des objectifs à valider au point 2 (ligne 285), tandis que les lignes 300–301 mentionnent l’objectif admin confirmé de moins de 2 s et des échantillons l’atteignant. La migration 0016 et l’agrégation sont décrites comme existantes aux lignes 173–177.
+
+**Traitement :** correction documentaire ciblée : distinguer la décision admin déjà acquise des objectifs encore ouverts pour classement et titres courants. Garder l’historique chiffré dans `docs/performance-loading.md` et un lien depuis l’architecture. Pas de changement applicatif nécessaire.
+
+### R4 — Moyenne : les environnements et les conditions d’évolution opérationnelle restent peu définis
+
+**Preuves :** la production, les limites CPU/mémoire, la sauvegarde avant migration et la CD sont couvertes aux lignes 252–269. Le document souligne correctement l’absence de garantie de sauvegarde indépendante et de délai de restauration (187–191). En revanche, la stratégie de test/staging et les conditions nécessaires avant multiplication des processus ou migration de stockage ne sont pas explicitement décidées ou différées avec un déclencheur.
+
+**Traitement :** compléter un court tableau « actuel / à décider / événement déclencheur ». Ne pas inventer un staging ni des objectifs de reprise. Le Compose confirme la topologie API/collector/cloudflared (`compose.production.yaml:26`, `:39`, `:54`) ; la CD attend le succès CI (`.github/workflows/cd.yml:15`).
+
+### R5 — Faible : densité et paramètres qui vieillissent vite
+
+**Preuves :** tables détaillées de fichiers, tables et caches (45–56, 134–143, 199–206), paramètres de reconnexion (119–124), détails d’index (173–177) et mesures (298–310). Ils sont utiles pour comprendre le projet, mais allongent le chemin vers ses règles durables. Un seul schéma illustre les processus ; aucune vue de responsabilité des mutations.
+
+**Traitement :** conserver la cartographie existante comme référence humaine, ajouter au début un contrat court ; ajouter une vue de mutations seulement si elle éclaire les responsabilités. Éviter une réécriture cosmétique en plusieurs documents sans besoin identifié.
+
+## Passage de la grille good-spine
+
+| Dimension | Évaluation |
+| --- | --- |
+| Paradigme nommé | Satisfait : monolithe modulaire, deux processus |
+| Points de divergence réels couverts | Partiel : règles métier présentes mais dispersées ; propriété des mutations implicite |
+| AD exécutables et vérifiables | Non satisfait au format spine : aucun AD structuré ; ne signifie pas que les descriptions sont fausses |
+| Deferred ne laisse pas diverger les unités | Partiel : restructuration raisonnablement différée, règles de collaboration actuelles encore à ratifier |
+| Réalité brownfield | Étayée sur les échantillons examinés : base, exclusions, Compose et déclenchement CD ; revue exhaustive des assertions déléguée au regard dédié |
+| Versions et technologies actuelles | Pas de nouvelle technologie choisie ici ; vérifier les dépendances effectives dans la revue dédiée, sans exiger une montée de version |
+| Exigences du ticket | Non applicable : aucun ticket Requirements fourni ; le PRD est lié mais la revue n’est pas une validation exhaustive du PRD |
+| Spine parent | Non applicable : aucun parent fourni |
+| Enveloppe opérationnelle | Bien couverte pour la production ; environnements et déclencheurs d’évolution à expliciter |
+| Lisibilité | Bonne progression et liens vers le code ; améliorer l’accès aux invariants et la cohérence du registre |
+
+## Limites et suite proposée
+
+Cette revue ne valide ni la restauration réelle, ni les performances actuelles, ni toutes les routes de l’application. Elle ne propose aucune migration PostgreSQL ni nouvelle architecture cible. Les constats R1/R2 demandent une ratification des règles avec le propriétaire ; R3 peut être corrigé mécaniquement ; R4 peut rester ouvert avec conditions de reprise ; R5 est facultatif. Pour ce petit monolithe, quelques règles explicites suffisent : aucun besoin démontré de microservices ou de multiplication des ADR.
+</pre></section><section><h2>Fidélité au code</h2><pre># Revue BMad — fidélité à l’existant
+
+Date : 9 novembre 2026. Périmètre : architecture versionnée, lecture du code et des configurations ; aucune nouvelle mesure de production, aucune migration ou modification applicative. Le document source n’est pas modifié.
+
+## Verdict
+
+Le document représente correctement les composants et les mécanismes examinés. Une incohérence de statut et deux imprécisions de documentation restent à corriger. Aucun défaut critique démontré par cette revue.
+
+## R1 — Moyen — D02 reste présenté comme entièrement à valider
+
+**Preuves :** `ARCHITECTURE.md:285` indique « objectifs à valider au point 2 », tandis que `ARCHITECTURE.md:300` annonce l’objectif admin confirmé et atteint sur deux échantillons. `docs/performance-loading.md:96` consigne l’arbitrage confirmé et `:120–125` le relevé après index. `app/admin_api.py:135–140` confirme l’agrégation unique et `migrations/versions/0016_catalog_review_cover.py:11–18` l’index réellement implémenté.
+
+**Impact :** un prochain développeur pourrait traiter l’objectif admin et la correction retenue comme des décisions encore ouvertes.
+
+**Action :** actualiser D02 en distinguant l’objectif admin déjà arbitré du diagnostic global toujours ouvert. Correction documentaire, sans nouvelle décision technique.
+
+## R2 — Faible — La table des workflows ne couvre pas le profilage de chargement
+
+**Preuves :** `ARCHITECTURE.md:64` décrit CI, déploiement et diagnostic manuel Skyrock ; le dépôt contient aussi `.github/workflows/loading-diagnostics.yml` et `scripts/profile_loading.py`, précisément utilisés par le rapport cité au §9.
+
+**Impact :** le chemin permettant de reproduire le diagnostic du chargement est moins visible que celui de Skyrock.
+
+**Action :** nommer les diagnostics de collecte et de chargement dans la table et l’exploitation. Le texte du §9 décrit correctement le middleware et ses limites.
+
+## R3 — Faible — L’absence de version de stack est acceptable, mais son autorité gagnerait à être explicite
+
+**Preuves :** `pyproject.toml:9–22` fixe Python &gt;=3.12 et les dépendances principales ; `requirements.lock` et `requirements-dev.lock` portent les environnements verrouillés. `ARCHITECTURE.md` nomme les technologies sans prétendre en recommander une version récente.
+
+**Constat :** aucune version technologique inventée ni recommandation de migration n’est identifiée. La vérification brownfield porte sur la réalité du dépôt, pas sur une prétendue actualité du marché.
+
+**Action :** ajouter un renvoi vers `pyproject.toml`, les locks et `Dockerfile` comme autorité de versions. Éviter de recopier une matrice qui divergerait du code.
+
+## Affirmations examinées et confirmées
+
+- API et boucles de collecte/enrichissement/YouTube : `app/worker.py:288`, Compose de production et Dockerfile ; pas de broker externe dans la configuration.
+- SQLite partagé, WAL, pool 2 sans débordement et timeout : `app/database.py:9–31`, `compose.production.yaml`.
+- Métadonnées récupérées sans connexion SQL de station conservée pendant le réseau : `app/worker.py:101–122`.
+- Cache classement sous verrou pendant le calcul : `app/services/stats.py:29–57`. Caches statistiques/exploration bornés et calcul hors verrou : `app/metrics_api.py:341–352`, `app/services/explorer.py:148–159`.
+- Archive rendue durable avant suppression SQL : `app/services/maintenance.py:39–61` ; indépendante des exclusions.
+- Pause radio par sourdine, distincte des extraits : `app/static/player.js:36`, `:425–431`.
+- Pages administratives protégées par session et redirection : `app/main.py:209–216`. API protégées par les dépendances d’administration.
+- Sauvegarde préalable et observation 360 secondes : `scripts/deploy.sh:8–28`, `:105` ; santé et qualité fournisseur demeurent distinctes.
+- Profilage authentifié, trois chemins, SQL non publié : `app/loading_profile.py`.
+
+## Limites
+
+Cette revue vérifie les mécanismes nommés par échantillonnage ciblé, sans prouver l’absence de bugs dans toutes les routes. Les durées de production sont attribuées au rapport existant ; elles n’ont pas été remesurées. L’exhaustivité des exclusions de chaque parcours et la restauration réelle nécessitent leurs validations propres. Rien ne permet d’affirmer qu’une migration PostgreSQL ou un découpage en services est nécessaire.
+</pre></section><section><h2>Analyse adversariale</h2><pre># Revue adversariale — Architecture Radio Tracker
+
+Date : 9 novembre 2026. Cible : `ARCHITECTURE.md`, sans modification. Examen documentaire et statique ; aucun accès à la production ni bug d’exécution démontré.
+
+**Verdict : description utile et prudente de l’existant, mais contrat insuffisant pour des développements indépendants touchant les mêmes données.** Aucun constat critique. Trois lacunes de priorité haute et une précision moyenne.
+
+## A1 — Haute : protocole d’écriture partagé du catalogue non contractuel
+
+Document : lignes 109–111 et 138. « Les choix manuels restent distincts » ne fixe pas le comportement d’un résultat réseau calculé sur une ancienne version.
+
+Contre-exemple : un module d’administration sélectionne manuellement une version pendant qu’un module d’enrichissement prépare un complément. Le second peut sauvegarder son ancien objet complet, tandis que le premier pense sa sélection prioritaire. Tous deux peuvent prétendre conserver la distinction manuel/automatique.
+
+Preuves existantes : `app/services/catalog.py:523` capture une révision et un instantané ; lignes 547–551 conditionnent l’UPDATE à cette révision et à `manual=False`. `app/catalog_api.py:587` et lignes 593–608 recontrôlent la révision après I/O puis effectuent une mise à jour conditionnelle. Le code contient donc des protections que le contrat n’explique pas.
+
+Traitement proposé : formaliser les auteurs autorisés par donnée, la priorité du choix manuel, la comparaison de révision avant écriture et le comportement de conflit. Reprendre les conventions prouvées ; ne pas imposer une exclusivité d’écriture fictive au worker.
+
+## A2 — Haute : atomicité diffusion / état de collecte et enveloppe de concurrence absentes
+
+Document : lignes 82–103 décrit la distinction observation/rediffusion et l’état durable, mais ne fixe ni unité transactionnelle ni hypothèse sur le nombre de collecteurs.
+
+Contre-exemple : un adaptateur ajoute un passage puis actualise l’état dans une transaction séparée ; un autre fait les deux ensemble. Après interruption, une observation peut être retraitée différemment. Autre divergence : un nouveau déploiement multiplie les workers en supposant que l’état durable suffit à sérialiser deux collectes simultanées d’une station.
+
+Preuve existante : `app/services/collector.py:172` à 191 ajoute le passage, flush, associe `play_id` à `station.collection_state`, puis commit dans la même session. `compose.production.yaml` déclare un service collector ; cela ne prouve pas la sûreté d’exécutions concurrentes supplémentaires.
+
+Traitement proposé : écrire l’invariant transactionnel et l’enveloppe réellement supportée ; différer la multiplication des collecteurs jusqu’à un protocole de coordination et des essais dédiés. Ce constat n’est pas la preuve d’un doublon actuel.
+
+## A3 — Haute : identité musicale partagée trop peu définie
+
+Document : lignes 100–103 parle d’identité normalisée artiste/titre sans préciser les informations à préserver ni les fonctions à réutiliser.
+
+Contre-exemple : un module de recherche supprime featuring et suffixes de version pour construire la clé, un autre reprend le libellé complet. Ils emploient tous deux une identité « normalisée », mais associent différemment catalogue, exclusions et regroupement statistique.
+
+Preuves existantes : `app/services/track_identity.py:9` à 12 préserve explicitement versions et featuring ; `grouping_columns` lignes 15–27 conserve un repli séparé pour les lignes anciennes sans identité. `app/services/exclusions.py:66` emploie une normalisation dédiée au couple d’exclusion, qui ne doit pas être assimilée automatiquement au hash musical.
+
+Traitement proposé : nommer la fonction d’identité commune et ses invariants ; distinguer identité musicale, identité de diffusion et correspondance des exclusions. Ne pas réimplémenter une normalisation différente dans chaque module.
+
+## A4 — Moyenne : exceptions de visibilité et invalidation à préciser
+
+Document : lignes 208–213 et 229–233 impose correctement exclusions avant agrégation et clés de cache sensibles à la visibilité. La phrase « résultats concernés » laisse toutefois le périmètre des accès directs implicite.
+
+Contre-exemple : un nouvel écran d’administration traite un accès direct à une fiche comme une statistique et la rend introuvable ; un autre conserve l’inspection administrative pour corriger une fiche exclue. Les agrégats restent filtrés dans les deux cas, mais les parcours divergent.
+
+Preuves existantes : `app/services/exclusions.py:95` à 105 autorise explicitement l’inspection authentifiée d’un titre globalement exclu. Le classement, lui, inclut les exclusions et la révision globale dans sa clé (`app/services/stats.py:16` à 27), avant application SQL des conditions (lignes 36–37). Cette exception d’inspection ne doit jamais devenir un contournement des exclusions dans les calculs administratifs.
+
+Traitement proposé : ajouter une matrice courte consultation/agrégats/inspection/modification, puis lier chaque famille aux fonctions communes de contrôle et à son invalidation. La règle d’exclusion préalable déjà présente reste une force ; ne pas la présenter comme absente.
+
+## Limites et suite
+
+Les scénarios sont des tests de suffisance du document, pas des failles constatées dans l’application. Aucun changement de moteur, file externe, API ou structure de code n’est nécessaire pour corriger ces lacunes documentaires. Faire adopter les règles tirées du code, garder ouvertes les décisions de concurrence et de frontières qui ne sont pas encore établies.
+</pre></section></main></html>
