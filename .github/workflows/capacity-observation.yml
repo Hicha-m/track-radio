@@ -1,0 +1,44 @@
+name: Capacity observation
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Observation duration, from 10 to 3600 seconds
+        required: true
+        default: '1800'
+permissions:
+  contents: read
+concurrency:
+  group: capacity-observation
+  cancel-in-progress: false
+jobs:
+  observe:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure verified SSH access
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_KEY"
+          test -n "$KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Observe aggregates without exporting production data
+        env:
+          SECONDS_REQUESTED: ${{ inputs.seconds }}
+        run: |
+          python -c 'import os; n=int(os.environ["SECONDS_REQUESTED"]); assert 10 <= n <= 3600'
+          [[ "$SECONDS_REQUESTED" =~ ^[0-9]+$ ]]
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 ubuntu@129.151.250.229 "cd track-radio && python3 - --seconds $SECONDS_REQUESTED" < scripts/loadtest/observe_server.py > server-aggregates.jsonl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: server-aggregates
+          path: server-aggregates.jsonl
+          retention-days: 7

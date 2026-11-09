@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "base_url": "https://radio.hicham.dpdns.org",
+  "seed": 20261109,
+  "max_vus": 500,
+  "ramp_seconds": 15,
+  "warmup_seconds": 30,
+  "steady_seconds": 300,
+  "cooldown_seconds": 30,
+  "session_seconds": 120,
+  "think_seconds": [10, 25],
+  "weights": {"radio": 60, "ranking": 25, "search": 15},
+  "chart_days": [1, 7, 30],
+  "p90_ms": 1000,
+  "max_error_rate": 0.01,
+  "min_api_samples": 20,
+  "request_timeout_seconds": 10,
+  "max_generator_cpu_percent": 80,
+  "min_available_memory_percent": 10,
+  "repeat_boundary": 2
+}
