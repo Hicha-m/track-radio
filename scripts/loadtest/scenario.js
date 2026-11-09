@@ -13,11 +13,12 @@ if (!Number.isInteger(target) || target < 1 || target > config.max_vus || target
 const apiLatency = new Trend('api_latency', true);
 const apiErrors = new Rate('api_errors');
 const routeMetrics = {};
-for (const route of ['session', 'exclusions', 'now', 'top', 'explore', 'catalog', 'history']) {
+for (const route of ['session', 'exclusions', 'now', 'top', 'explore', 'catalog', 'history', 'artwork']) {
   routeMetrics[route] = {time: new Trend(`api_${route}_ms`, true), errors: new Rate(`api_${route}_errors`), count: new Counter(`api_${route}_count`)};
 }
 const siteErrors = new Rate('site_errors');
 const sessions = new Counter('sessions_started');
+const missingArtwork = new Counter('missing_station_artwork');
 const skippedExternal = new Counter('external_assets_skipped');
 const stableStart = config.ramp_seconds + config.warmup_seconds;
 export const options = {
@@ -57,7 +58,9 @@ function request(path, name, validate = null, allowRedirect = false) {
   const response = http.get(base + path, {redirects: 0, timeout: `${config.request_timeout_seconds}s`,
     responseType: validate || name === 'html' ? 'text' : 'none', tags: {name}});
   let data = null;
-  let ok = response.status === 200 || (allowRedirect && [301, 302, 303, 307, 308].includes(response.status));
+  const missingLogo = name === 'artwork' && response.status === 404;
+  if (missingLogo) missingArtwork.add(1);
+  let ok = missingLogo || response.status === 200 || (allowRedirect && [301, 302, 303, 307, 308].includes(response.status));
   if (ok && validate) {
     try { data = response.json(); ok = validate(data); } catch (_) { ok = false; }
   }
@@ -74,8 +77,9 @@ function session() { request('/api/admin/session', 'session', d => typeof d === 
 function image(url) {
   if (!url || assets.has(url)) return;
   assets.add(url);
-  if (url.startsWith('/')) request(url, 'asset', null, true);
-  else if (url.startsWith(base + '/')) request(url.slice(base.length), 'asset', null, true);
+  const path = url.startsWith(base + '/') ? url.slice(base.length) : url;
+  const name = /^\/api\/stations\/\d+\/artwork(?:[?]|$)/.test(path) ? 'artwork' : 'asset';
+  if (path.startsWith('/')) request(path, name, null, name === 'artwork');
   else skippedExternal.add(1);
 }
 function remember(items) {
@@ -164,7 +168,7 @@ export function handleSummary(data) {
   // No URLs, response bodies, cookies, environment, machine names or user data.
   const metrics = {};
   for (const [name, metric] of Object.entries(data.metrics)) {
-    if (/^(api_|http_reqs$|http_req_failed$|iterations$|vus$|vus_max$|data_received$|data_sent$|sessions_started$|site_errors$|external_assets_skipped$)/.test(name)) {
+    if (/^(api_|http_reqs$|http_req_failed$|iterations$|vus$|vus_max$|data_received$|data_sent$|sessions_started$|missing_station_artwork$|site_errors$|external_assets_skipped$)/.test(name)) {
       metrics[name] = metric.values;
     }
   }

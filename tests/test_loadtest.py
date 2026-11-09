@@ -76,3 +76,35 @@ def test_cap_cannot_be_disabled_by_profile(profile):
     profile["max_vus"] = 501
     with pytest.raises(ValueError):
         runner.validate(profile)
+
+
+def test_campaign_does_not_certify_unsampled_level_and_repeats_boundary(
+    profile, tmp_path, monkeypatch
+):
+    profile["max_vus"] = 8
+    source = tmp_path / "profile.json"
+    source.write_text(json.dumps(profile))
+    output = tmp_path / "results"
+    monkeypatch.setattr(
+        "sys.argv",
+        ["run.py", "--run", "--config", str(source), "--k6", "synthetic", "--output", str(output)],
+    )
+    monkeypatch.setattr(runner.subprocess, "check_output", lambda *a, **kw: "k6 v2.3.0")
+    monkeypatch.setattr(runner.time, "sleep", lambda _: None)
+    visited = []
+
+    def plateau(k6, config_path, config, target, directory):
+        assert config_path.exists()
+        visited.append(target)
+        verdict = "inconclusive" if target == 1 else "pass" if target <= 5 else "fail"
+        return {
+            "vus": target,
+            "verdict": verdict,
+            "reasons": ["insufficient_route_samples:explore"] if target == 1 else [],
+        }
+
+    monkeypatch.setattr(runner, "run_plateau", plateau)
+    runner.main()
+    manifest = json.loads((output / "campaign.json").read_text())
+    assert visited == [1, 2, 4, 8, 6, 5, 5, 5, 6, 6]
+    assert manifest["bounds"] == {"last_pass": 5, "first_fail": 6, "boundary_repeated": True}

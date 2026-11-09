@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 HERE = Path(__file__).resolve().parent
-ROUTES = ("session", "exclusions", "now", "top", "explore", "catalog", "history")
+ROUTES = ("session", "exclusions", "now", "top", "explore", "catalog", "history", "artwork")
 
 
 def validate(config):
@@ -246,6 +246,17 @@ def main():
                 low = target
             elif result["verdict"] == "fail":
                 high = target
+            elif (
+                not args.vus
+                and high is None
+                and all(reason.startswith("insufficient_") for reason in result["reasons"])
+                and target < config["max_vus"]
+            ):
+                # More concurrent sessions improve coverage; do not certify this lower level.
+                (args.output / "campaign.json").write_text(json.dumps(manifest, indent=2))
+                target = min(config["max_vus"], target * 2)
+                time.sleep(config["cooldown_seconds"])
+                continue
             else:
                 break
             (args.output / "campaign.json").write_text(json.dumps(manifest, indent=2))

@@ -54,13 +54,17 @@ Une exécution peut durer longtemps : chaque palier comporte 15 s de montée, 30
 préchauffage, 300 s de mesure et 5 s de descente, puis 30 s de récupération.
 Le premier échec à 1 VU ne prouve pas une capacité de zéro utilisateur : il indique que
 le profil ne respecte déjà pas le critère, à analyser avant toute montée supplémentaire.
-Un verdict `inconclusive` arrête la campagne et ne resserre pas la dichotomie.
+Un palier sans assez de réponses ne valide aucune borne. Pendant la montée initiale,
+le lanceur peut doubler pour améliorer la couverture ; un autre résultat non concluant,
+ou un manque de couverture pendant la dichotomie, arrête la campagne.
 Les bornes sont rejouées deux fois ; si elles ne se reproduisent pas, ne pas annoncer
 une limite stable. Une borne à 500 conforme indique seulement « au moins 500 selon ce profil ».
 
 Le seuil convenu est **p90 ≤ 1 000 ms par route API** pendant la fenêtre stable de chaque
 palier, avec moins de 1 % d’erreurs comme critère opérationnel initial explicitement
-configuré. Le taux inclut aussi les réponses JSON invalides. Le seuil d’arrêt de sécurité
+configuré. Le taux inclut aussi les réponses JSON invalides. Un logo de station absent (404)
+est compté séparément et accepté comme un repli déjà présent hors charge ; la latence
+de cette route API est mesurée. Une erreur 5xx reste une erreur. Le seuil d’arrêt de sécurité
 est de 5 % d’erreurs ; les pauses de préchauffage et de montée ne sont pas incluses dans
 les percentiles API. Les premières visites restent donc à mesurer séparément.
 
