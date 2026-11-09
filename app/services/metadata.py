@@ -98,9 +98,21 @@ def _json_path(payload: Any, path: str | None) -> Any:
 
 
 async def fetch_json(station: Station, client: httpx.AsyncClient) -> TrackMetadata | None:
-    from app.services.skyrock import ENDPOINTS, NATIONAL_STREAM, parse_schedule
+    from app.services.skyrock import (
+        ENDPOINTS,
+        NATIONAL_STREAM,
+        SUPER_ENDPOINT,
+        parse_schedule,
+        shared_track,
+        stream_key,
+    )
 
     if station.metadata_url in ENDPOINTS:
+        if station.metadata_url == SUPER_ENDPOINT:
+            key = stream_key(station.stream_url)
+            if key is None:
+                raise ValueError("Skyrock JSON requires a matching Skyrock stream")
+            return await shared_track(client, key)
         if station.stream_url != NATIONAL_STREAM:
             raise ValueError("Skyrock JSON requires the national stream")
         content = await read_bounded(client, station.metadata_url)

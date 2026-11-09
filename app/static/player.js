@@ -33,7 +33,7 @@
     return {items, cursor, currentIndex: cursor, returnRadio, attempted: new Set([id]), active: true, pending: false};
   }
   let userMuted = false;
-  function quietRadio() { suspended = true; radioAudio.muted = true; }
+  function quietRadio() { suspended = true; cancelRadioRecovery(); radioAudio.muted = true; }
   function stopExcerpt() { excerptAudio.pause(); excerptAudio.removeAttribute('src'); excerptAudio.load(); }
   function announceAudio() { window.dispatchEvent(new Event('radio:audioactive')); }
 
@@ -83,6 +83,42 @@
   }
   trackButton.addEventListener('click', () => { if (currentTrack) window.TrackCatalog.open(currentTrack, {previewQueue: sequence?.items.map(item => item.track) || []}); });
   let radio = audio.getAttribute('src') ? {url: audio.getAttribute('src'), id: panel.dataset.stationId, name: name.textContent} : null;
+  let radioRetryTimer = null, radioWatchdog = null, radioStableTimer = null;
+  let radioRetryCount = 0;
+  let radioReloadRequired = false;
+  function cancelRadioRecovery(reset = false) {
+    clearTimeout(radioRetryTimer); clearTimeout(radioWatchdog); clearTimeout(radioStableTimer);
+    radioRetryTimer = radioWatchdog = radioStableTimer = null;
+    if (reset) radioRetryCount = 0;
+  }
+  function radioActive() { return mode === 'radio' && radio && !suspended; }
+  function watchRadio() {
+    clearTimeout(radioStableTimer); radioStableTimer = null;
+    if (radioActive() && radioRetryTimer === null && radioWatchdog === null) radioWatchdog = setTimeout(retryRadio, 12000);
+  }
+  function retryRadio() {
+    if (!radioActive()) return;
+    if (radioRetryTimer !== null) {
+      status.textContent = window.RadioI18n.t('radio.reconnecting');
+      return;
+    }
+    clearTimeout(radioWatchdog); radioWatchdog = null;
+    clearTimeout(radioStableTimer); radioStableTimer = null;
+    if (radioRetryCount >= 3) {
+      radioReloadRequired = true;
+      suspended = true; radioAudio.pause();
+      label.textContent = window.RadioI18n.t('ui.ce6a03b5762e');
+      status.textContent = window.RadioI18n.t('radio.retry_stopped'); sync();
+      return;
+    }
+    const source = radio.url;
+    status.textContent = window.RadioI18n.t('radio.reconnecting');
+    radioRetryTimer = setTimeout(() => {
+      radioRetryTimer = null;
+      if (!radioActive() || radio.url !== source) return;
+      radioAudio.load(); play({recovery: true});
+    }, 1000 * 2 ** radioRetryCount++);
+  }
   const listeningSettings = document.querySelector('#listening-settings');
   const resumeRadio = document.querySelector('#resume-radio-after-preview');
   const settingsToggle = document.querySelector('#listening-settings-toggle');
@@ -179,26 +215,42 @@
       title.textContent = currentTrack ? window.RadioI18n.t('stations.last_known_player', {title: currentTrack.title}) : window.RadioI18n.t('stations.unavailable');
     }
   }
-  async function play() {
+  async function play({recovery = false} = {}) {
     if (mode === 'video') { video?.play(); return; }
-    if (mode === 'radio') { suspended = false; audio.muted = userMuted; label.textContent = audio.readyState >= 3 ? window.RadioI18n.t("ui.235df0b17a9e") : window.RadioI18n.t("ui.910919b77ec7"); }
+    if (mode === 'radio') {
+      const reload = audio.error || audio.ended || radioReloadRequired;
+      if (!recovery) cancelRadioRecovery(true);
+      suspended = false; audio.muted = userMuted;
+      // A failed/ended live connection needs a fresh request, even for the same station.
+      if (reload) { audio.load(); radioReloadRequired = false; }
+      label.textContent = audio.readyState >= 3 ? window.RadioI18n.t("ui.235df0b17a9e") : window.RadioI18n.t("ui.910919b77ec7");
+      status.textContent = '';
+      if (audio.paused || audio.readyState < 3) watchRadio();
+    }
     if (mode === 'preview' && sequence) sequence.active = true;
     announceAudio();
     const source = audio.src, ticket = previewVersion;
     try { await audio.play(); } catch (error) {
       if (error.name !== 'AbortError' && audio.src === source && ticket === previewVersion) {
+        if (mode === 'radio' && suspended) { sync(); return; }
         label.textContent = window.RadioI18n.t("ui.ce6a03b5762e");
         status.textContent = mode === 'preview' ? window.RadioI18n.t("ui.9f4b7303e42b") : window.RadioI18n.t("ui.080d5f7d0c0b");
         if (mode === 'preview' && sequence?.active) {
           if (error.name === 'NotAllowedError') {
             sequence.active = false; sequence.pending = false;
           } else advancePreview('error');
+        } else if (mode === 'radio') {
+          if (error.name === 'NotAllowedError') {
+            suspended = true; cancelRadioRecovery();
+          } else retryRadio();
         }
       }
     }
     sync();
   }
   function selectRadio(station) {
+    cancelRadioRecovery(true);
+    if (radio?.url !== station.url) radioReloadRequired = false;
     cancelSequence(); metadataVersion++;
     announceAudio(); video = null; stopExcerpt(); audio = radioAudio;
     const changed = radio?.url !== station.url;
@@ -324,20 +376,33 @@
   for (const sourceAudio of [radioAudio, excerptAudio]) {
     const listen = (event, callback) => sourceAudio.addEventListener(event, () => { if (sourceAudio === audio && mode !== 'video') callback(); });
   listen('play', () => { label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.910919b77ec7") : window.RadioI18n.t("ui.a90bd5662fcc"); sync(); });
-  listen('playing', () => { label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.235df0b17a9e") : window.RadioI18n.t("ui.7224fc1ace77"); sync(); });
-  listen('waiting', () => { label.textContent = window.RadioI18n.t("ui.66474911d953"); });
+  listen('playing', () => {
+    label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.235df0b17a9e") : window.RadioI18n.t("ui.7224fc1ace77");
+    if (mode === 'radio') {
+      clearTimeout(radioWatchdog); radioWatchdog = null;
+      clearTimeout(radioRetryTimer); radioRetryTimer = null;
+      clearTimeout(radioStableTimer);
+      status.textContent = '';
+      radioStableTimer = setTimeout(() => { if (radioActive()) radioRetryCount = 0; }, 30000);
+    }
+    sync();
+  });
+  listen('waiting', () => { label.textContent = window.RadioI18n.t("ui.66474911d953"); if (mode === 'radio') watchRadio(); });
+  listen('stalled', () => { if (mode === 'radio' && audio.readyState < 3) watchRadio(); });
   listen('pause', () => {
     if (audio.getAttribute('src') && !audio.error && !audio.ended && (mode === 'radio' || sequence?.active && !sequence.pending)) label.textContent = window.RadioI18n.t("ui.239c064e0d40");
     sync();
   });
   listen('ended', () => {
     if (mode === 'preview') { advancePreview('ended'); return; }
+    if (mode === 'radio') retryRadio();
     label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.3a3b98e30872") : window.RadioI18n.t("ui.a4d4a1c61e92"); sync();
   });
   listen('error', () => {
     if (!sourceAudio.error) return;
     label.textContent = window.RadioI18n.t("ui.ce6a03b5762e"); status.textContent = window.RadioI18n.t("ui.7b6e9406532f"); sync();
     if (mode === 'preview') advancePreview('error');
+    else if (mode === 'radio') retryRadio();
   });
   ['timeupdate', 'loadedmetadata', 'durationchange', 'emptied', 'seeked'].forEach(event => listen(event, syncProgress));
   }

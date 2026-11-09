@@ -837,5 +837,7 @@
   "monitor.last_seen_write_seconds": "Repeated observation write interval (s)",
   "monitor.details": "Worker details and settings",
   "monitor.worker_revision": "Worker revision",
-  "monitor.result.non_music": "Program or station ident, no musical play"
+  "monitor.result.non_music": "Program or station ident, no musical play",
+  "radio.reconnecting": "Connection interrupted, retrying…",
+  "radio.retry_stopped": "Unable to connect after three retries. Press Play to try again."
 }

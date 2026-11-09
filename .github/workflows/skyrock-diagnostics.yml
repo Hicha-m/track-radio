@@ -10,7 +10,7 @@ jobs:
   diagnose:
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - name: Configure verified SSH access
@@ -28,3 +28,15 @@ jobs:
       - name: Read-only checks from collector network
         run: |
           ssh ubuntu@129.151.250.229 'cd track-radio && docker compose -f compose.yaml exec -T collector python -' < scripts/diagnose_skyrock.py
+  listen:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install playwright==1.64.0
+      - name: Verify public player decodes the affected live streams
+        run: python scripts/check_skyrock_listening.py

@@ -3,7 +3,10 @@
     "name": "Skyrock",
     "slug": "skyrock",
     "stream_url": "https://icecast.skyrock.net/s/natio_mp3_128k",
-    "website_url": "https://www.skyrock.fm/"
+    "website_url": "https://www.skyrock.fm/",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.natio.schedule.0.info.title"
   },
   {
     "name": "NRJ",
@@ -92,102 +95,153 @@
     "name": "Skyrock Paris Île-de-France",
     "slug": "skyrock-parisidf",
     "stream_url": "https://icecast.skyrock.net/s/parisidf_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.parisidf.schedule.0.info.title"
   },
   {
     "name": "Skyrock Lille",
     "slug": "skyrock-lille",
     "stream_url": "https://icecast.skyrock.net/s/lille_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.lille.schedule.0.info.title"
   },
   {
     "name": "Skyrock Béthune",
     "slug": "skyrock-bethune",
     "stream_url": "https://icecast.skyrock.net/s/bethune_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.bethune.schedule.0.info.title"
   },
   {
     "name": "Skyrock Marseille",
     "slug": "skyrock-marseille",
     "stream_url": "https://icecast.skyrock.net/s/marseille_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.marseille.schedule.0.info.title"
   },
   {
     "name": "Skyrock 100 % Français",
     "slug": "skyrock-francais",
     "stream_url": "https://icecast.skyrock.net/s/francais_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.francais.schedule.0.info.title"
   },
   {
     "name": "Skyrock Klassiks",
     "slug": "skyrock-klassiks",
     "stream_url": "https://icecast.skyrock.net/s/klassiks_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.klassiks.schedule.0.info.title"
   },
   {
     "name": "Skyrock Abidjan",
     "slug": "skyrock-abidjan",
     "stream_url": "https://icecast.skyrock.net/s/abidjan_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.abidjan.schedule.0.info.title"
   },
   {
     "name": "Skyrock Alger",
     "slug": "skyrock-alger",
     "stream_url": "https://icecast.skyrock.net/s/alger_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.alger.schedule.0.info.title"
   },
   {
     "name": "Skyrock PLM",
     "slug": "skyrock-plm",
     "stream_url": "https://icecast.skyrock.net/s/plm_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.plm.schedule.0.info.title"
   },
   {
     "name": "Skyrock Casablanca",
     "slug": "skyrock-casa",
     "stream_url": "https://icecast.skyrock.net/s/casa_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.casa.schedule.0.info.title"
   },
   {
     "name": "Skyrock Tunis",
     "slug": "skyrock-tunis",
     "stream_url": "https://icecast.skyrock.net/s/tunis_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.tunis.schedule.0.info.title"
   },
   {
     "name": "Skyrock La Nocturne",
     "slug": "skyrock-nocturne",
     "stream_url": "https://icecast.skyrock.net/s/nocturne_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.nocturne.schedule.0.info.title"
   },
   {
     "name": "Skyrock Urban Music Non-Stop",
     "slug": "skyrock-urban-music",
     "stream_url": "https://icecast.skyrock.net/s/urban_music_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.urban-music.schedule.0.info.title"
   },
   {
     "name": "Hit Skyrock",
     "slug": "skyrock-hit-skyrock",
     "stream_url": "https://icecast.skyrock.net/s/hit_skyrock_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.hit-skyrock.schedule.0.info.title"
   },
   {
     "name": "Skyrock Hit US",
     "slug": "skyrock-hit-us",
     "stream_url": "https://icecast.skyrock.net/s/hit_us_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.hit-us.schedule.0.info.title"
   },
   {
     "name": "Skyrock Premier sur le Rap",
     "slug": "skyrock-1er-rap",
     "stream_url": "https://icecast.skyrock.net/s/1er_rap_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.1er-rap.schedule.0.info.title"
   },
   {
     "name": "Skyrock Rap & RnB Non Stop",
     "slug": "skyrock-rap-rnb",
     "stream_url": "https://icecast.skyrock.net/s/rap_rnb_aac_128k",
-    "website_url": "https://skyrock.fm/radios"
+    "website_url": "https://skyrock.fm/radios",
+    "source_type": "json",
+    "metadata_url": "https://skyrock.fm/api/v3/player/onair/super",
+    "json_title_path": "radios.rap-rnb.schedule.0.info.title"
   }
 ]

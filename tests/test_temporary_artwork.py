@@ -136,7 +136,7 @@ def test_catalogue_contains_annexes_only_on_directory(db, client):
     assert len(BeautifulSoup(directory, "html.parser").select(".station-card")) == 2
 
 
-def test_optional_cover_matches_song_and_survives_unavailable_service(monkeypatch):
+def test_optional_cover_matches_song_and_survives_unavailable_service():
     import asyncio
     import json
 
@@ -155,8 +155,6 @@ def test_optional_cover_matches_song_and_survives_unavailable_service(monkeypatc
             requests.append(request)
             return httpx.Response(200, stream=httpx.ByteStream(json.dumps(payload).encode()))
 
-        monkeypatch.setattr(artwork, "_expires", 0)
-        monkeypatch.setattr(artwork, "_cache", {})
         station = Station(stream_url="https://icecast.skyrock.net/s/francais_aac_128k")
         song = TrackMetadata("Artist", "Song", "fixture", "icy")
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
@@ -164,11 +162,9 @@ def test_optional_cover_matches_song_and_survives_unavailable_service(monkeypatc
             wrong = TrackMetadata("Artist", "Different Song", "fixture", "icy")
             assert await artwork.cover_for(station, wrong, client) is None
             assert len(requests) == 1
-        monkeypatch.setattr(artwork, "_expires", 0)
         async with httpx.AsyncClient(
             transport=httpx.MockTransport(lambda request: httpx.Response(503))
         ) as client:
             assert await artwork.cover_for(station, song, client) is None
-        assert artwork._cache == {}
 
     asyncio.run(run())

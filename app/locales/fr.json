@@ -837,5 +837,7 @@
   "monitor.last_seen_write_seconds": "Écriture des observations répétées (s)",
   "monitor.details": "Détails et paramètres du worker",
   "monitor.worker_revision": "Révision du worker",
-  "monitor.result.non_music": "Émission ou habillage, sans diffusion musicale"
+  "monitor.result.non_music": "Émission ou habillage, sans diffusion musicale",
+  "radio.reconnecting": "Connexion interrompue, nouvel essai…",
+  "radio.retry_stopped": "Connexion impossible après trois essais. Appuyez sur Lecture pour réessayer."
 }

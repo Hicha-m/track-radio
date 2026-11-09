@@ -71,12 +71,26 @@ async def diagnose():
         except Exception as error:
             print("Skyrock JSON error: " + type(error).__name__, flush=True)
 
-        # Four fixed mounts only, sequential and with a short connection lifetime.
+        # Fixed configured mounts only, sequential and with a short connection lifetime.
         for mount in (
+            "natio_mp3_128k",
             "francais_aac_128k",
             "klassiks_aac_128k",
             "hit_us_aac_128k",
             "nocturne_aac_128k",
+            "parisidf_aac_128k",
+            "lille_aac_128k",
+            "bethune_aac_128k",
+            "marseille_aac_128k",
+            "abidjan_aac_128k",
+            "alger_aac_128k",
+            "plm_aac_128k",
+            "casa_aac_128k",
+            "tunis_aac_128k",
+            "urban_music_aac_128k",
+            "hit_skyrock_aac_128k",
+            "1er_rap_aac_128k",
+            "rap_rnb_aac_128k",
         ):
             started = time.monotonic()
             result = {"mount": mount}

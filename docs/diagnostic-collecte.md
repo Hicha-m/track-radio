@@ -185,24 +185,42 @@ permet pas d'attribuer la cause de l'incident passé.
 
 ## Identification Skyrock et choix de source
 
-ICY reste la source nationale active. Les lectures comparatives depuis le poste
-de diagnostic confirment l'accès aux deux JSON et un coût inférieur à ICY, mais
-ne prouvent pas leur disponibilité depuis le worker ni une meilleure couverture
-musicale : un JSON récent peut conserver le dernier morceau terminé. Aucun repli
-automatique et aucun rattrapage ne sont activés. La cadence reste inchangée.
+Depuis le 9 novembre 2026, les 18 radios Skyrock configurées utilisent
+`https://skyrock.fm/api/v3/player/onair/super` comme source JSON. Une sonde
+exécutée depuis le conteneur du collecteur a confirmé un événement courant
+pour chacune de ces radios, alors que les quatre lectures ICY comparées
+(Français, Klassiks, Hit US, Nocturne) ne donnaient aucune métadonnée exploitable.
+Les mêmes quatre flux fournissaient pourtant de l’audio HTTP 200. Cette
+observation distingue le défaut de collecte de la disponibilité audio ; elle
+n’établit ni un bannissement ni la cause historique des interruptions locales.
 
-L'adaptateur JSON national est disponible pour une configuration explicitement
-choisie : `source_type=json`, `metadata_url` égal à l'un des deux endpoints
-Skyrock documentés, flux national exact et `json_title_path=radios.natio.schedule`
-(champ exigé par la configuration, l'adaptateur réalise la sélection temporelle).
-Pour `/super`, seule `radios.natio` est inspectée. Il exige une horloge fournisseur
-âgée d'au plus 60 s, avec une avance tolérée de 5 s, des dates ISO zonées cohérentes
-avec leurs epochs, une durée positive d'au plus deux heures, un UID valide et
-un unique événement `record` couvrant à la fois l'heure fournisseur et l'heure
-locale. L'ordre du tableau ne décide jamais du morceau. Un programme, un trou
-de programme ou un événement terminé ne déclenchent aucune reconstruction.
-Les artistes multiples sont conservés dans l'ordre fourni. Seuls début et UID
-sont retenus dans les métadonnées brutes JSON, sans payload ni données personnelles.
+La correspondance utilise le montage du flux (`hit_us` devient `hit-us`, etc.),
+jamais le premier élément d’une liste ni le programme national pour une annexe.
+`source_type=json`, l’URL ci-dessus et `json_title_path` sont déclarés dans
+`config/stations.json` ; pour cet endpoint, l’adaptateur sélectionne lui-même
+l’événement daté de la bonne radio. `/onair` reste limité au flux national exact
+et peut être choisi explicitement ; aucun basculement automatique vers les
+flux audio n’est effectué en cas d’échec du JSON. Le repli opérationnel est la
+temporisation et le réessai de la source, avec dernier titre connu dans
+l’interface, sans insertion d’un faux titre courant.
+
+L’adaptateur exige une horloge fournisseur âgée d’au plus 60 s (avance tolérée
+5 s), des dates ISO zonées cohérentes avec leurs epochs, une durée positive
+d’au plus deux heures, un UID valide et un unique événement `record` couvrant
+à la fois l’heure fournisseur et l’heure locale. Un programme, un trou ou un
+événement terminé ne déclenchent aucun rattrapage. Les artistes multiples sont
+conservés dans l’ordre fourni. Seuls début et UID sont retenus dans les
+métadonnées brutes JSON, sans payload ni profils utilisateurs.
+
+Le cache appartient au client HTTP du worker : un verrou partage les appels
+concurrents, et une réponse sert pendant 15 s à toutes les radios et aux
+pochettes. Seuls les titres courants validés, leurs dates et leurs images sont
+conservés en mémoire. L’horloge fournisseur et la fin du morceau sont revérifiées
+à chaque utilisation. Les échecs sont aussi mutualisés, les anciennes entrées
+sont vidées avant un nouvel appel et `Retry-After` sur 429/503 est partagé.
+Un appel est borné à 5 s ; les limites de taille, la validation réseau publique
+et les délais persistés par radio restent appliqués. Une annexe malformée
+n’empêche pas les autres radios de fonctionner.
 
 Les UID nationaux ICY (`§…`) et JSON partagent une identité de passage. Un même
 UID ne crée pas une seconde diffusion lors d'un réessai, changement de libellé
@@ -230,7 +248,7 @@ exploitable n'a été établi ; les [CGU du fournisseur](https://skyrock.fm/cgu)
 ne constituent pas un contrat d'API de notifications. Aucun transport poussé
 n'est donc activé ou promis.
 
-Le collecteur reste en polling avec ICY actif. La valeur configurée reste 20 s
+Le collecteur reste en polling, avec JSON groupé pour Skyrock. La valeur configurée reste 20 s
 par défaut (bornes de configuration 5–3600 s). Chaque radio possède une échéance
 monotone calculée depuis le début de sa tentative, plutôt qu'une pause complète
 ajoutée après le dernier résultat du tour. La concurrence et le timeout restent
@@ -257,7 +275,7 @@ même lorsque les deux endpoints utilisent des hôtes différents.
 
 Le flux ICY observé ne fournit ni ETag ni Last-Modified, avec `no-cache` : aucune
 revalidation conditionnelle ni réutilisation d'anciennes métadonnées n'est
-introduite. L'adaptateur JSON inactif ne reçoit pas de cache musical automatique.
+introduite pour ICY. Le JSON Skyrock utilise le cache partagé borné décrit plus haut.
 Un 304 futur ne serait pas assimilé à une nouvelle observation de morceau sans
 règles de fraîcheur supplémentaires.
 
@@ -297,3 +315,24 @@ Le délai maximal du job de déploiement inclut cette fenêtre d'observation.
 Les tests de reprise couvrent également un redémarrage après expiration d'une
 échéance : le nombre d'échecs consécutifs reste conservé pour calculer le
 prochain délai progressif, tout en permettant l'essai devenu éligible.
+
+## Reprise de l’écoute Skyrock
+
+Le lecteur recharge explicitement la même URL après une erreur ou une fin de
+flux. Une connexion bloquée pendant 12 s déclenche aussi un nouvel essai. Les
+réessais automatiques sont limités à trois, espacés de 1, 2 et 4 s ; le budget
+n’est réinitialisé automatiquement qu’après 30 s de lecture stable. Au terme
+des essais, le lecteur indique l’échec et attend une nouvelle action Lecture.
+Un refus de lecture automatique du navigateur ne déclenche pas de boucle.
+
+Pause, changement de radio et passage à un extrait ou une vidéo annulent les
+réessais en attente. Les flux sains restent connectés et muets pendant la pause
+et les extraits, conformément au comportement existant ; la navigation interne
+ne recharge pas le média. Aucun changement de domaine, proxy audio ou
+contournement de limitation distante n’est ajouté.
+
+Contrôles reproductibles : `PYTHONPATH=. .venv/bin/python tests/browser_radio_recovery.py`
+pour le média natif simulé (reprise, plafond, retry manuel, annulations, navigation),
+et workflow manuel **Skyrock diagnostics** pour les sondes bornées depuis le
+réseau du worker. Ces contrôles ne prouvent pas l’accès depuis le réseau personnel
+de chaque auditeur ; un timeout local doit rester identifié comme tel.
