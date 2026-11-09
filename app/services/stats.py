@@ -31,28 +31,29 @@ def cached_top(db, station_id, since, until, limit, exclusions="", station_ids=(
         if key in _cache and _cache[key][0] > now:
             _cache.move_to_end(key)
             return _cache[key][1]
-        artist = func.min(Play.artist).label("artist")
-        title = func.min(Play.title).label("title")
-        query = select(artist, title, func.count(Play.id)).where(
-            *exclusion_conditions(exclusions, db.get_bind().dialect.name == "sqlite")
+    artist = func.min(Play.artist).label("artist")
+    title = func.min(Play.title).label("title")
+    query = select(artist, title, func.count(Play.id)).where(
+        *exclusion_conditions(exclusions, db.get_bind().dialect.name == "sqlite")
+    )
+    if station_id:
+        query = query.where(Play.station_id == station_id)
+    if station_ids:
+        query = query.where(Play.station_id.in_(station_ids))
+    if since:
+        query = query.where(Play.detected_at >= since)
+    if until:
+        query = query.where(Play.detected_at < until)
+    result = tuple(
+        db.execute(
+            query.group_by(*grouping_columns())
+            .order_by(func.count(Play.id).desc(), title, artist, Play.track_id)
+            .limit(limit)
         )
-        if station_id:
-            query = query.where(Play.station_id == station_id)
-        if station_ids:
-            query = query.where(Play.station_id.in_(station_ids))
-        if since:
-            query = query.where(Play.detected_at >= since)
-        if until:
-            query = query.where(Play.detected_at < until)
-        result = tuple(
-            db.execute(
-                query.group_by(*grouping_columns())
-                .order_by(func.count(Play.id).desc(), title, artist, Play.track_id)
-                .limit(limit)
-            )
-        )
+    )
+    with _lock:
         _cache[key] = (now + settings.stats_cache_seconds, result)
         _cache.move_to_end(key)
         while len(_cache) > 64:
             _cache.popitem(last=False)
-        return result
+    return result

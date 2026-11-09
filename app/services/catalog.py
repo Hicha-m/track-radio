@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from sqlalchemy import case, or_, select
+from sqlalchemy.orm import load_only
 
 from app.models import Play, TrackMetadata
 from app.services.exclusions import exclusion_conditions
@@ -215,7 +216,24 @@ def public_metadata(entry):
 
 def attach_metadata(db, items):
     keys = {identity(t.get("artist"), t["title"]) for t in items}
-    entries = {e.id: e for e in db.scalars(select(TrackMetadata).where(TrackMetadata.id.in_(keys)))}
+    entries = {
+        e.id: e
+        for e in db.scalars(
+            select(TrackMetadata)
+            .options(
+                load_only(
+                    TrackMetadata.id,
+                    TrackMetadata.status,
+                    TrackMetadata.manual,
+                    TrackMetadata.lyrics_status,
+                    TrackMetadata.primary_genre,
+                    TrackMetadata.selected,
+                    TrackMetadata.temporary_cover_url,
+                )
+            )
+            .where(TrackMetadata.id.in_(keys))
+        )
+    }
     return [
         {
             **t,

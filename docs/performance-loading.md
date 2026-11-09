@@ -132,3 +132,29 @@ clé admin, pour trois routes JSON, afin de distinguer temps API, exécution SQL
 plus longue exécution et nombre de requêtes. Aucun SQL, paramètre, résultat ou
 secret n’est exposé. Il n’est pas activé sur les redirections d’images et la clé
 n’est jamais envoyée au fournisseur d’image.
+
+## Attentes API et lecture du catalogue
+
+Le [chronométrage authentifié](https://github.com/Hicha-m/track-radio/actions/runs/42656833907)
+mesure un premier classement HTTP à 2 512 ms : préparation API 2 411 ms, dont
+394 ms dans `cursor.execute`. Il confirme une attente hors de cette mesure SQL,
+sans l’attribuer entièrement à un composant. Le tableau admin reste à 325–335 ms.
+
+Un test contrôlé reproduit séparément le blocage d’un classement déjà en cache
+par le SQL lent d’un autre classement : le verrou global restait tenu pendant
+l’exécution. La correction limite ce verrou aux accès au cache. Les filtres,
+clés, TTL et limite de 64 entrées restent identiques. Plusieurs calculs à froid
+peuvent désormais s’exécuter simultanément, bornés par le pool SQL ; deux requêtes
+identiques arrivant à froid peuvent recalculer le même résultat. Ce compromis
+évite de bloquer tous les résultats chauds derrière un calcul indépendant.
+
+La lecture publique du catalogue est aussi limitée aux champs effectivement
+rendus. Elle ne charge plus candidats, paroles complètes, tentatives ou autres
+payloads internes pour afficher un classement. La projection conserve exactement
+la réponse publique, vérifiée par test. Cette réduction est indépendante de la
+pochette de station et ne promet pas d’accélérer son fournisseur distant.
+
+409 tests Python réussis, dont non-blocage d’un résultat chaud, égalité de la
+réponse publique et absence de lecture des payloads internes. Les mesures après
+ces deux dernières corrections restent à relever avant de conclure sur le
+premier classement et le parcours navigateur.
