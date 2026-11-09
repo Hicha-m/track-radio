@@ -1,9 +1,20 @@
 # Architecture — Radio Tracker
 
 État décrit le 9 novembre 2026, à partir du code de
-`b4d012d77af690c245f37e48d846a33ba73b34e1` et des fichiers cités.
+`d3ba132` et des fichiers cités.
 Le [PRD](PRD.md) porte le besoin produit ; ce document décrit sa réalisation
 actuelle et les arbitrages encore ouverts. Aucune architecture cible n’est approuvée ici.
+
+## Lecture rapide
+
+Radio Tracker permet de retrouver les titres diffusés et d’écouter les radios.
+Jinja2 et JavaScript composent l’interface ; FastAPI sert pages et données ;
+un worker collecte et enrichit les titres ; SQLite conserve passages et catalogue.
+Les médias sont lus depuis les fournisseurs, directement par le navigateur.
+
+Ce document décrit les composants (§1–2), les parcours (§3), les données (§4),
+les caches (§5), les accès (§6) et l’exploitation (§7). Les arbitrages futurs (§8)
+et les limites des mesures (§9) restent distincts de l’architecture existante.
 
 ## 1. Vue d’ensemble de l’existant
 
@@ -157,6 +168,14 @@ Le code contient des branches SQL et une dépendance optionnelle PostgreSQL ; le
 Compose de production décrit SQLite. Une migration PostgreSQL et une validation
 équivalente sur ce moteur ne sont pas établies par cette compatibilité partielle.
 
+### Index du catalogue administratif
+
+La migration [0016](migrations/versions/0016_catalog_review_cover.py) ajoute
+l’index couvrant SQLite `ix_track_metadata_review_cover` sur artiste, titre,
+statut, statut des paroles et identité, puis exécute `ANALYZE` sur cet index.
+Les compteurs du catalogue du tableau admin utilisent une agrégation commune,
+sans nouveau cache et en conservant les exclusions.
+
 ### Conservation et restauration
 
 Le paramètre `retention_days` vaut 180 par défaut, avec désactivation possible à 0.
@@ -276,16 +295,21 @@ arrière**. Les propositions restent ouvertes jusqu’à confirmation explicite.
 
 ## 9. Inconnues et frontière du prochain chantier
 
-La distribution des latences à froid, le volume et la taille réels de la base,
-la sélectivité des filtres, les plans SQL utilisés, le temps passé à attendre une
-connexion/verrou et le coût des appels externes ne sont pas établis par cette
-lecture de code. Aucun accès aux données de production ni `EXPLAIN ANALYZE` n’a
-été réalisé pour ce cadrage. Un moteur de base ou une architecture ne peut donc
-pas être désigné comme cause des lenteurs à ce stade.
+Les premières mesures et leurs limites figurent dans le
+[rapport de chargement](docs/performance-loading.md). Après l’index du catalogue,
+le tableau admin a répondu en 180 puis 195 ms en HTTP sur les échantillons
+rapportés, atteignant l’objectif confirmé de moins de 2 s. Ce résultat ne garantit
+pas la latence générale : un premier classement HTTP a encore pris 12 s.
+Le diagnostic du chargement initial reste ouvert.
 
-Le point 2 devra convenir du protocole et des objectifs, puis mesurer les parcours
-avec le product owner. Pour SQLite, exploiter les outils de plan et de mesure de
-ce moteur ; une commande PostgreSQL `EXPLAIN ANALYZE` ne doit pas être présentée
-comme directement exécutable sur SQLite. Si un autre moteur est comparé, séparer
-ses résultats et conditions. La mesure précède l’arbitrage, puis la correction et
-sa validation. Ce document ne lance aucune de ces opérations.
+Le [middleware de profilage](app/loading_profile.py) mesure le temps API jusqu’au
+départ des en-têtes, la durée cumulée et maximale des exécutions SQL et leur
+nombre. Il exige une demande explicite et un Bearer administrateur ; il couvre
+uniquement classement, titres courants et tableau admin. Aucun SQL ni paramètre
+n’est publié. Le téléchargement complet, le rendu navigateur et tous les coûts
+de récupération des lignes ne sont pas mesurés par ces compteurs.
+
+Ces observations ne démontrent ni la nécessité de PostgreSQL ni une cause unique
+aux lenteurs. Les prochaines comparaisons doivent préserver les exclusions et
+séparer SQL, API, réseau et navigateur. SQLite utilise `EXPLAIN QUERY PLAN` ;
+le `EXPLAIN ANALYZE` de PostgreSQL ne lui est pas directement applicable.
