@@ -1,0 +1,30 @@
+name: Loading diagnostics
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: loading-diagnostics
+  cancel-in-progress: false
+jobs:
+  diagnose:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure verified SSH access
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          test -n "$SSH_KEY"
+          test -n "$KNOWN_HOSTS"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          printf 'Host *\n  BatchMode yes\n  StrictHostKeyChecking yes\n  ConnectTimeout 15\n' > ~/.ssh/config
+      - name: Profile SQL and loopback API without data writes
+        run: |
+          ssh ubuntu@129.151.250.229 'cd track-radio && docker compose -f compose.yaml exec -T api python -' < scripts/profile_loading.py
