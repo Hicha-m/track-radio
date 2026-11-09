@@ -17,9 +17,10 @@ from app.admin_api import session_router
 from app.admin_sessions import current_session
 from app.artwork_api import router as artwork_router
 from app.catalog_api import router as catalog_router
-from app.database import get_db
+from app.database import engine, get_db
 from app.export_api import router as export_router
 from app.i18n import CATALOGUES, language, translate
+from app.loading_profile import LoadingProfileMiddleware, instrument
 from app.metrics_api import router as metrics_router
 from app.models import Play, Station, TrackMetadata
 from app.playlist_api import router as playlist_router
@@ -31,7 +32,9 @@ from app.services.explorer import ExploreFilters, explore
 from app.services.station_now_playing import StationNowFilters
 from app.services.stats import cached_top
 
+instrument(engine)
 app = FastAPI(title="Radio Tracker", version="0.1.0")
+app.add_middleware(LoadingProfileMiddleware)
 app.add_middleware(SecurityMiddleware)
 app.include_router(catalog_router)
 app.include_router(session_router)

@@ -140,7 +140,8 @@ def profile():
     for name, path in paths.items():
         for sample in range(2):
             request = urllib.request.Request("http://127.0.0.1:8000" + path)
-            if name == "admin_dashboard":
+            if name != "artwork":
+                request.add_header("X-Loading-Profile", "1")
                 request.add_header(
                     "Authorization", "Bearer " + settings.admin_token.get_secret_value()
                 )
@@ -149,12 +150,15 @@ def profile():
                 with opener.open(request, timeout=20) as response:
                     response.read(2 * 1024 * 1024)
                     status, error = response.status, None
+                    server_timing = response.headers.get("Server-Timing", "")
             except Exception as exc:
                 status, error = getattr(exc, "code", None), type(exc).__name__
+                server_timing = ""
             print(
                 json.dumps(
                     {
                         "route": name,
+                        "server_timing": server_timing,
                         "sample": sample + 1,
                         "status": status,
                         "error": error,

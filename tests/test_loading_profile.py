@@ -15,6 +15,7 @@ def test_profile_is_read_only_and_only_prints_technical_evidence(db, monkeypatch
 
     class Response:
         status = 200
+        headers = {}
 
         def __enter__(self):
             return self
@@ -48,3 +49,22 @@ def test_profile_is_read_only_and_only_prints_technical_evidence(db, monkeypatch
     assert any(row.get("plans") for row in rows)
     assert not any(s.startswith(("INSERT", "UPDATE", "DELETE")) for s in statements)
     assert rows[1]["statements"] < rows[0]["statements"]
+
+
+def test_live_timing_is_admin_opt_in_and_does_not_expose_data(client, db):
+    from app.loading_profile import instrument
+
+    instrument(db.get_bind())
+    route = "/api/stats/top"
+    assert "server-timing" not in client.get(route).headers
+    assert "server-timing" not in client.get(route, headers={"X-Loading-Profile": "1"}).headers
+    headers = {"X-Loading-Profile": "1", "Authorization": "Bearer test-admin-token"}
+    response = client.get(route, headers=headers)
+    assert response.status_code == 200
+    timing = response.headers["server-timing"]
+    assert "sql_execute;dur=" in timing and "sql_count;desc=" in timing
+    import re
+
+    assert int(re.search(r'sql_count;desc="(\d+)"', timing)[1]) > 0
+    assert "SELECT" not in timing and "test-admin-token" not in timing
+    assert "server-timing" not in client.get(route).headers

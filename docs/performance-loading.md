@@ -114,3 +114,21 @@ validés. Migration aller/retour et utilisation de l’index couvrant vérifiée
 compteur à zéro sur catalogue vide, absence de double comptage, mise à jour sans
 cache, exclusions personnelles/globales et historique préservés. Parcours admin
 1440/1024/390/320 px réussis sur base temporaire.
+
+## Mesure après index (révision 43da6d8)
+
+[Profilage après déploiement](https://github.com/Hicha-m/track-radio/actions/runs/42655232489) :
+le tableau admin prend 797 puis 305 ms en appel direct et **180 puis 195 ms en HTTP**.
+L’objectif admin inférieur à 2 s est atteint sur ces échantillons, sans nouveau
+cache. Le plan utilise `SCAN track_metadata USING COVERING INDEX
+ix_track_metadata_review_cover`. La comparaison des compteurs est toujours identique.
+Les conditions du relevé restent celles précisées plus haut, sans liste personnelle.
+
+Le premier appel HTTP au classement a cependant pris 12 033 ms (puis 53 ms),
+contre 1 688 ms pour le calcul direct. Le point 2 reste donc ouvert : le gain
+admin ne prouve pas une résolution générale du premier chargement. Un chronométrage
+`Server-Timing` est ajouté uniquement sur demande explicite authentifiée par la
+clé admin, pour trois routes JSON, afin de distinguer temps API, exécution SQL,
+plus longue exécution et nombre de requêtes. Aucun SQL, paramètre, résultat ou
+secret n’est exposé. Il n’est pas activé sur les redirections d’images et la clé
+n’est jamais envoyée au fournisseur d’image.
