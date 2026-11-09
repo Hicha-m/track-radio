@@ -42,7 +42,7 @@ def test_profile_is_read_only_and_only_prints_technical_evidence(db, monkeypatch
         event.remove(db.get_bind(), "before_cursor_execute", record)
     output = capsys.readouterr().out
     rows = [json.loads(line) for line in output.splitlines()]
-    assert len(rows) == 15
+    assert len(rows) == 17
     assert not any(row.get("error") for row in rows)
     assert "PRIVATE" not in output
     assert any(row.get("plans") for row in rows)

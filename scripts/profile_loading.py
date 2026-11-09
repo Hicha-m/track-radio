@@ -5,14 +5,15 @@ import time
 import urllib.request
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import event
+from sqlalchemy import case, event, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.admin_api import dashboard_summary
 from app.config import settings
 from app.database import engine
 from app.main import top_tracks
-from app.services.exclusions import ExclusionFilters
+from app.models import TrackMetadata
+from app.services.exclusions import ExclusionFilters, exclusion_conditions
 from app.services.station_now_playing import now_playing
 
 
@@ -39,6 +40,7 @@ def profile():
     try:
         with engine.connect() as conn:
             conn.exec_driver_sql("PRAGMA query_only=ON")
+            conn.exec_driver_sql("BEGIN")  # One read snapshot for count comparisons.
             raw = conn.connection.driver_connection
             deadline = [time.monotonic() + 20]
             raw.set_progress_handler(lambda: int(time.monotonic() > deadline[0]), 10000)
@@ -48,6 +50,30 @@ def profile():
                     def top(start):
                         return top_tracks(db, None, start, None, 20, "", "")
 
+                    baseline = {}
+
+                    def admin():
+                        result = dashboard_summary(db, ExclusionFilters())
+                        baseline.update(result)
+
+                    def combined():
+                        review = or_(
+                            TrackMetadata.status.in_(["ambiguous", "not_found", "error"]),
+                            TrackMetadata.lyrics_status.in_(["ambiguous", "not_found", "error"]),
+                        )
+                        counts = db.execute(
+                            select(
+                                func.count(TrackMetadata.id),
+                                func.count(case((review, TrackMetadata.id))),
+                            ).where(
+                                *exclusion_conditions(
+                                    "", True, artist=TrackMetadata.artist, title=TrackMetadata.title
+                                )
+                            )
+                        ).one()
+                        if counts != (baseline["visible_tracks"], baseline["review_tracks"]):
+                            raise ValueError("Count comparison failed")
+
                     cases = [
                         ("top_process_cold", lambda: top(since)),
                         ("top_identical_warm", lambda: top(since)),
@@ -56,12 +82,14 @@ def profile():
                         ("now_playing_repeat", lambda: now_playing(db)),
                         (
                             "admin_dashboard_first",
-                            lambda: dashboard_summary(db, ExclusionFilters()),
+                            admin,
                         ),
                         (
                             "admin_dashboard_repeat",
-                            lambda: dashboard_summary(db, ExclusionFilters()),
+                            admin,
                         ),
+                        ("catalog_combined_first", combined),
+                        ("catalog_combined_repeat", combined),
                     ]
                     for name, call in cases:
                         captured.clear()
@@ -81,6 +109,7 @@ def profile():
                             "total_ms": round((time.perf_counter() - start) * 1000, 2),
                             "cursor_execute_ms": round(sum(timings) * 1000, 2),
                             "statements": len(captured),
+                            "cursor_execute_samples_ms": [round(t * 1000, 2) for t in timings],
                             "error": error,
                             "plans": [],
                         }
