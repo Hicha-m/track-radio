@@ -52,7 +52,7 @@ def artwork_snapshot(payload, now=None):
     return result
 
 
-async def cover_for(station, track, client):
+async def skyrock_cover_for(station, track, client):
     global _cache, _expires
     key = radio_key(station.stream_url)
     if not key or not track.is_music:
@@ -82,3 +82,10 @@ async def cover_for(station, track, client):
     except (httpx.HTTPError, ValueError, KeyError, TypeError, TimeoutError):
         pass  # An optional cover must never stop the collector.
     return None
+
+
+async def cover_for(station, track, client):
+    from app.services.mytuner import cover_for as mytuner_cover
+
+    cover = await skyrock_cover_for(station, track, client)
+    return cover or await mytuner_cover(station, track, client)

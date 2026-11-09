@@ -82,5 +82,10 @@ def stream_key(stream):
     name = url.path.rsplit("/", 1)[-1]
     for suffix in ("_aac_128k", "_mp3_128k"):
         if name.endswith(suffix):
-            return name.removesuffix(suffix)
+            key = name.removesuffix(suffix)
+            return (
+                key.replace("_", "-")
+                if key in {"urban_music", "hit_skyrock", "hit_us", "1er_rap", "rap_rnb"}
+                else key
+            )
     return None

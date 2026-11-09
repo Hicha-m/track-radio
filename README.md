@@ -26,6 +26,7 @@ Radio Tracker collecte les **métadonnées** des radios et conserve leurs passag
 | Espace | Ce que vous pouvez faire |
 | --- | --- |
 | **Classements** | Explorer les titres les plus diffusés par radio et par période, avec pochettes et extraits. |
+| **Radios** | Rechercher les stations et les annexes Skyrock dans un catalogue dédié, tout en conservant les radios habituelles sur l’accueil. |
 | **Recherche** | Filtrer l’historique par titre, artiste, station, dates et fréquence ; retrouver un morceau avec la recherche rapide. |
 | **Fiche musicale** | Consulter la version choisie, les métadonnées, les paroles, la provenance des informations et les derniers passages. |
 | **Statistiques** | Comparer répétitions, diversité, genres, recoupements et décalages entre radios. |

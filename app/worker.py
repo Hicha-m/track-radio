@@ -81,6 +81,23 @@ def save_metadata(station_id, metadata, *, with_decision=False):
         return decision if with_decision else created
 
 
+def needs_artwork(metadata):
+    from app.models import GlobalExclusion, TrackMetadata
+    from app.services.catalog import safe_url
+    from app.services.exclusions import exclusion_id
+    from app.services.track_identity import identity
+
+    if not metadata.is_music:
+        return False
+    with SessionLocal() as db:
+        if db.get(GlobalExclusion, exclusion_id(metadata.artist, metadata.title)) is not None:
+            return False
+        entry = db.get(TrackMetadata, identity(metadata.artist, metadata.title))
+        return entry is None or not (
+            safe_url((entry.selected or {}).get("cover_url")) or safe_url(entry.temporary_cover_url)
+        )
+
+
 async def collect_station(station: Station, client: httpx.AsyncClient):
     # Detached snapshot: no database connection is held during network I/O.
     event_id = await asyncio.to_thread(
@@ -98,9 +115,10 @@ async def collect_station(station: Station, client: httpx.AsyncClient):
 
         from app.services.temporary_artwork import cover_for
 
-        cover = await cover_for(station, metadata, client)
-        if cover:
-            metadata = replace(metadata, cover_url=cover)
+        if await asyncio.to_thread(needs_artwork, metadata):
+            cover = await cover_for(station, metadata, client)
+            if cover:
+                metadata = replace(metadata, cover_url=cover)
         decision = await asyncio.to_thread(save_metadata, station.id, metadata, with_decision=True)
         outcome, changed = decision["code"], decision["changed"]
         if metadata.source_started_ms is not None:

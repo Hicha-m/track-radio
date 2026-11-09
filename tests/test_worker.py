@@ -213,3 +213,108 @@ def test_temporary_artwork_is_saved_only_for_accepted_observation():
     )
     with SessionLocal() as db:
         assert db.get(Catalogue, identity("Other", "Blocked")) is None
+
+
+def test_existing_artwork_and_global_blacklist_skip_optional_network():
+    from app.models import GlobalExclusion
+    from app.services.catalog import ensure_entry
+    from app.services.exclusions import exclusion_id, normalized_pair
+    from app.services.metadata import TrackMetadata
+    from app.worker import SessionLocal, needs_artwork
+
+    song = TrackMetadata("Artist", "Song", "fixture", "icy")
+    assert needs_artwork(song)
+    with SessionLocal() as db:
+        entry = ensure_entry(db, song.artist, song.title)
+        entry.temporary_cover_url = "https://example.test/temporary.jpg"
+        db.commit()
+    assert not needs_artwork(song)
+    with SessionLocal() as db:
+        entry = ensure_entry(db, song.artist, song.title)
+        entry.temporary_cover_url = None
+        entry.selected = {"cover_url": "https://example.test/official.jpg"}
+        db.commit()
+    assert not needs_artwork(song)
+    with SessionLocal() as db:
+        entry = ensure_entry(db, song.artist, song.title)
+        entry.selected = None
+        artist, title = normalized_pair(song.artist, song.title)
+        db.add(
+            GlobalExclusion(
+                id=exclusion_id(song.artist, song.title),
+                artist=song.artist,
+                title=song.title,
+                artist_normalized=artist,
+                title_normalized=title,
+            )
+        )
+        db.commit()
+    assert not needs_artwork(song)
+    assert not needs_artwork(TrackMetadata("Station", "Ident", "fixture", "icy", is_music=False))
+
+
+def test_mytuner_cover_reaches_catalogue_then_yields_to_official_artwork(monkeypatch):
+    import json
+    from time import monotonic
+
+    import httpx
+
+    from app.models import Play
+    from app.services import mytuner
+    from app.services.catalog import ensure_entry, public_metadata
+    from app.services.metadata import TrackMetadata
+    from app.worker import SessionLocal, collect_station
+
+    monkeypatch.setattr(
+        mytuner,
+        "_assets",
+        (
+            "",
+            """
+function DG() { this.execute=()=> 'HMAC radiofrance_web:'+'A'.repeat(43); }
+""",
+        ),
+    )
+    monkeypatch.setattr(mytuner, "_assets_until", monotonic() + 3600)
+    monkeypatch.setattr(mytuner, "_observations", {})
+    with SessionLocal() as db:
+        radio = Station(name="Europe 2", slug="europe2", stream_url="https://example.test/live")
+        db.add(radio)
+        db.commit()
+        db.expunge(radio)
+
+    async def observation(*args):
+        return TrackMetadata("Artist", "Song", "source observation", "icy")
+
+    monkeypatch.setattr("app.worker.fetch_metadata", observation)
+
+    def respond(request):
+        assert str(request.url).startswith(mytuner.API)
+        payload = {
+            "error_code": 0,
+            "no_metadata_available": False,
+            "radio_metadata": {
+                "metadata": "Artist - Song",
+                "artwork_url_large": "https://example.test/temporary.jpg",
+            },
+        }
+        return httpx.Response(200, stream=httpx.ByteStream(json.dumps(payload).encode()))
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            assert await collect_station(radio, client)
+
+    asyncio.run(run())
+    with SessionLocal() as db:
+        entry = ensure_entry(db, "Artist", "Song")
+        assert public_metadata(entry)["cover_url"] == "https://example.test/temporary.jpg"
+        assert db.query(Play).count() == 1
+        assert not entry.selected  # A fallback never chooses the recording.
+        entry.selected = {
+            "provider": "itunes",
+            "provider_id": "fixture",
+            "cover_url": "https://example.test/official.jpg",
+        }
+        db.commit()
+        assert public_metadata(entry)["cover_url"] == "https://example.test/official.jpg"
+        assert db.query(Play).count() == 1

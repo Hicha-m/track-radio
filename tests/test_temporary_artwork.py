@@ -59,6 +59,7 @@ def test_snapshot_only_current_track_artwork():
 def test_radio_key_requires_expected_host_and_mount():
     assert radio_key("https://icecast.skyrock.net/s/francais_aac_128k") == "francais"
     assert radio_key("https://icecast.skyrock.net/s/natio_mp3_128k") == "natio"
+    assert radio_key("https://icecast.skyrock.net/s/hit_us_aac_128k") == "hit-us"
     assert radio_key("https://other.test/s/natio_mp3_128k") is None
     assert radio_key("https://icecast.skyrock.net/other/natio_mp3_128k") is None
 
