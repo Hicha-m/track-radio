@@ -287,3 +287,66 @@ def test_previous_song_skips_personal_and_global_exclusions_in_admin_mode(db, cl
     assert response.status_code == 200
     assert response.json()["items"][0]["track"]["title"] == "Allowed previous"
     assert db.query(Play).count() == 4 and db.get(Play, original.id) is not None
+
+
+def test_previous_visible_lookup_matches_history_order_without_ranking_all_rows(db):
+    radios = [station(db, f"Radio{i}", "First")[0] for i in range(3)]
+    for radio in radios:
+        for index in range(80):
+            title = "Masked" if index % 3 == 0 else "Personal" if index % 3 == 1 else f"Song{index}"
+            at = NOW - timedelta(seconds=100 - index // 2)
+            db.add(
+                Play(
+                    station_id=radio.id,
+                    artist="Artist",
+                    title=title,
+                    detected_at=at,
+                    last_seen_at=at,
+                    source="icy",
+                    raw_metadata="preserved",
+                )
+            )
+        db.flush()
+        hidden = Play(
+            station_id=radio.id,
+            artist="Artist",
+            title="Masked",
+            detected_at=NOW - timedelta(seconds=1),
+            last_seen_at=NOW,
+            source="icy",
+            raw_metadata="preserved",
+        )
+        db.add(hidden)
+        db.flush()
+        radio.collection_state = {"artist": "Artist", "title": "Masked", "play_id": hidden.id}
+        # A later, visible timestamp in the future must not become the fallback.
+        db.add(
+            Play(
+                station_id=radio.id,
+                artist="Artist",
+                title="Future",
+                detected_at=NOW + timedelta(days=1),
+                last_seen_at=NOW + timedelta(days=1),
+                source="icy",
+                raw_metadata="preserved",
+            )
+        )
+    db.commit()
+    hide(db, "Artist", "Masked")
+    excluded = canonical_exclusions('[{"artist":"Artist","title":"Personal"}]')
+    before = db.query(Play).count()
+    queries = []
+
+    def capture(conn, cursor, statement, *args):
+        queries.append(statement)
+
+    event.listen(db.get_bind(), "before_cursor_execute", capture)
+    try:
+        result = by_station(db, excluded)
+    finally:
+        event.remove(db.get_bind(), "before_cursor_execute", capture)
+    for radio in radios:
+        assert result[radio.id]["track"]["title"] == "Song77"
+        assert result[radio.id]["status"] == "last_known"
+    assert not any("row_number" in sql.lower() for sql in queries)
+    assert db.query(Play).count() == before

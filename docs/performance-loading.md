@@ -158,3 +158,30 @@ pochette de station et ne promet pas d’accélérer son fournisseur distant.
 réponse publique et absence de lecture des payloads internes. Les mesures après
 ces deux dernières corrections restent à relever avant de conclure sur le
 premier classement et le parcours navigateur.
+
+## Recherche du précédent visible
+
+[Relevé sur ec65b5a](https://github.com/Hicha-m/track-radio/actions/runs/42658379581) :
+classement direct à cache applicatif vide 401 ms, cache chaud 1,75 ms ; HTTP
+1 562 puis 6,78 ms. Admin HTTP 196 puis 226 ms. Image testée 84 puis 22 ms.
+Ces mesures ponctuelles ne constituent pas un p95 ni une garantie sous toute charge.
+
+Les titres courants présentent cette fois une requête supplémentaire et prennent
+1,66–1,87 s directement, 2,45/1,60 s en HTTP. Le parcours de repli vers le précédent
+visible utilisait `row_number()` sur tous les passages visibles des stations
+concernées. Ce travail peut se produire lors de la récupération des lignes,
+après le `cursor.execute` mesuré, qui reste ici de quelques millisecondes.
+
+La dernière correction remplace ce classement de tout l’historique par une
+sous-requête corrélée par station, triée par date puis identifiant décroissants,
+avec `LIMIT 1`. Dates et exclusions sont appliquées dans cette sous-requête,
+**avant** la limite. L’index station/date existant permet de chercher le premier
+passage admissible plutôt que numéroter l’ensemble des passages. Aucun nouvel
+index, cache ni changement de fraîcheur n’est ajouté pour ce parcours.
+
+410 tests Python réussis. Un historique de plusieurs stations vérifie l’ordre,
+les égalités de dates, les exclusions personnelles/globales, les passages futurs
+et la conservation des lignes. Les parcours des cartes radio 1280/414/320 px
+valident aussi états courant/ancien/masqué, pochettes, mises à jour et administration.
+Le relevé après cette dernière modification et le statut terminal de livraison
+restent à vérifier avant clôture du point 2.

@@ -5,7 +5,7 @@ import math
 from datetime import UTC, datetime, timedelta
 
 from pydantic import Field
-from sqlalchemy import and_, func, select, true
+from sqlalchemy import and_, select, true
 
 from app.config import settings
 from app.models import GlobalExclusion, Play, Station, TrackMetadata
@@ -101,24 +101,20 @@ def now_playing(db, exclusions="", now=None, station_id=None):
         ):
             fallback_stations.add(station.id)
     if fallback_stations:
-        ranked = (
-            select(
-                Play.id,
-                func.row_number()
-                .over(
-                    partition_by=Play.station_id,
-                    order_by=(Play.detected_at.desc(), Play.id.desc()),
-                )
-                .label("position"),
-            )
+        previous_id = (
+            select(Play.id)
             .where(
-                Play.station_id.in_(fallback_stations),
+                Play.station_id == Station.id,
                 *predicates,
                 Play.detected_at <= now,
                 Play.last_seen_at <= now,
             )
-            .subquery()
+            .order_by(Play.detected_at.desc(), Play.id.desc())
+            .limit(1)
+            .correlate(Station)
+            .scalar_subquery()
         )
+        previous_ids = select(previous_id).where(Station.id.in_(fallback_stations))
         previous = db.execute(
             select(
                 Play.id,
@@ -129,9 +125,7 @@ def now_playing(db, exclusions="", now=None, station_id=None):
                 Play.detected_at,
                 Play.last_seen_at,
                 true().label("visible"),
-            )
-            .join(ranked, ranked.c.id == Play.id)
-            .where(ranked.c.position == 1)
+            ).where(Play.id.in_(previous_ids))
         ).all()
         for row in previous:
             rows[row.id] = row
