@@ -21,6 +21,8 @@ Radio Tracker collecte les **métadonnées** des radios et conserve leurs passag
 
 [Découvrir les fonctions](#fonctionnalités) · [Démarrer](#démarrage-rapide) · [Configurer](#configuration) · [Tester](#développement-et-tests) · [Guide technique](docs/guide-technique.md)
 
+[Cadrage produit (PRD)](PRD.md) · [Architecture actuelle et décisions à discuter](ARCHITECTURE.md)
+
 ## Fonctionnalités
 
 | Espace | Ce que vous pouvez faire |
