@@ -45,14 +45,21 @@ def backfill(factory, cursor):
     return keys[-1] if keys else None
 
 
-def claim(factory):
+def claim(factory, strategy=None):
     now = datetime.now(UTC)
     with factory() as db:
+        due = or_(MediaDiscovery.retry_at.is_(None), MediaDiscovery.retry_at <= now)
+        if strategy:
+            due = or_(
+                due,
+                MediaDiscovery.evidence["strategy"].as_string().is_(None),
+                MediaDiscovery.evidence["strategy"].as_string() != strategy,
+            )
         task = db.scalar(
             select(MediaDiscovery)
             .join(TrackMetadata, TrackMetadata.id == MediaDiscovery.track_id)
             .where(
-                or_(MediaDiscovery.retry_at.is_(None), MediaDiscovery.retry_at <= now),
+                due,
                 or_(MediaDiscovery.lease_until.is_(None), MediaDiscovery.lease_until <= now),
                 *visible(db),
             )
@@ -68,7 +75,7 @@ def claim(factory):
             .where(
                 MediaDiscovery.track_id == key,
                 or_(MediaDiscovery.lease_until.is_(None), MediaDiscovery.lease_until <= now),
-                or_(MediaDiscovery.retry_at.is_(None), MediaDiscovery.retry_at <= now),
+                due,
             )
             .values(lease_until=lease)
             .execution_options(synchronize_session=False)
@@ -156,6 +163,8 @@ def finish(factory, snapshot, result):
             "cover": result.get("cover") or (task.evidence or {}).get("cover"),
             "video_source": (result.get("video") or {}).get("source")
             or (task.evidence or {}).get("video_source"),
+            "strategy": result.get("strategy") or (task.evidence or {}).get("strategy"),
+            "sources": result.get("sources", {}),
         }
         db.commit()
 
@@ -166,7 +175,8 @@ async def worker_round(factory, lookup):
     import httpx
     from fastapi import HTTPException
 
-    snapshot = await asyncio.to_thread(claim, factory)
+    strategy = getattr(lookup, "strategy", None)
+    snapshot = await asyncio.to_thread(claim, factory, strategy)
     if not snapshot:
         return False
     if not snapshot["want_cover"] and not snapshot["want_video"]:
@@ -191,5 +201,6 @@ async def worker_round(factory, lookup):
             TimeoutError,
         ):
             result = {"status": "error"}
+    result["strategy"] = strategy
     await asyncio.to_thread(finish, factory, snapshot, result)
     return result["status"]

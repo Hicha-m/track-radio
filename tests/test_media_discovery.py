@@ -378,3 +378,77 @@ def test_postdeploy_flags_require_worker_and_a_completed_attempt(db):
     report(factory(db), "discovery", "completed", completed=1)
     assert check(factory(db))["completed_attempt_seen"]
     assert db.get(MediaDiscovery, entry.id) is not None
+
+
+def test_new_discovery_strategy_retries_old_results_once_without_waiting_a_day(db):
+    entry = ensure_entry(db, "Artist", "Song")
+    db.commit()
+    old = db.get(MediaDiscovery, entry.id)
+    old.status = "not_found"
+    old.checked_at = datetime.now(UTC)
+    old.retry_at = datetime.now(UTC) + timedelta(days=1)
+    db.commit()
+    assert jobs.claim(factory(db)) is None
+    snapshot = jobs.claim(factory(db), "free-media-v1")
+    assert snapshot is not None
+    jobs.finish(factory(db), snapshot, {"status": "not_found", "strategy": "free-media-v1"})
+    assert jobs.claim(factory(db), "free-media-v1") is None
+    db.expire_all()
+    assert db.get(MediaDiscovery, entry.id).evidence["strategy"] == "free-media-v1"
+
+
+def test_deployment_observes_the_new_strategy_in_the_durable_queue(db):
+    from app.services.supervision import report
+    from scripts.check_media_discovery import check
+
+    entry = ensure_entry(db, "Artist", "Song")
+    db.commit()
+    snapshot = jobs.claim(factory(db), "free-media-v1")
+    jobs.finish(
+        factory(db),
+        snapshot,
+        {
+            "status": "matched",
+            "strategy": "free-media-v1",
+            "video": VIDEO,
+            "cover": COVER,
+            "sources": {"youtube": "matched", "cover": "matched"},
+        },
+    )
+    report(factory(db), "discovery", "completed", completed=1)
+    assert check(factory(db))["free_strategy_attempt_seen"]
+    db.expire_all()
+    assert db.get(MediaDiscovery, entry.id).evidence["sources"] == {
+        "youtube": "matched",
+        "cover": "matched",
+    }
+
+
+def test_deployment_flags_identify_actual_free_results_and_respect_exclusions(db):
+    from scripts.check_media_discovery import check
+
+    entry = ensure_entry(db, "Artist", "Song")
+    db.commit()
+    snapshot = jobs.claim(factory(db), "free-media-v1")
+    result = {
+        **RESULT,
+        "strategy": "free-media-v1",
+        "video": {**VIDEO, "source": "yt_dlp_oembed"},
+        "cover": {**COVER, "source": "ddgs_spotify"},
+    }
+    jobs.finish(factory(db), snapshot, result)
+    flags = check(factory(db))
+    assert flags["yt_dlp_link_seen"] and flags["ddgs_cover_seen"]
+    db.add(
+        GlobalExclusion(
+            id=exclusion_id("Artist", "Song"),
+            artist="Artist",
+            title="Song",
+            artist_normalized="artist",
+            title_normalized="song",
+        )
+    )
+    db.commit()
+    flags = check(factory(db))
+    assert not flags["yt_dlp_link_seen"] and not flags["ddgs_cover_seen"]
+    assert db.get(YouTubeMatch, entry.id) is not None

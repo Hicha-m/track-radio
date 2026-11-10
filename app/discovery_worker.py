@@ -6,8 +6,10 @@ from pathlib import Path
 from time import monotonic
 
 from app.database import SessionLocal
+from app.services.free_media import Lookup
 from app.services.media_discovery import backfill, worker_round
-from app.services.musicbrainz_media import AGENT, Lookup
+from app.services.musicbrainz_media import AGENT
+from app.services.musicbrainz_media import Lookup as MusicBrainzLookup
 from app.services.network import metadata_client
 from app.services.supervision import report
 
@@ -19,7 +21,7 @@ async def run():
     cursor, next_scan = "", 0
     async with metadata_client() as client:
         client.headers["User-Agent"] = AGENT
-        lookup = Lookup(client)
+        lookup = Lookup(client, MusicBrainzLookup(client))
         while True:
             try:
                 if monotonic() >= next_scan:

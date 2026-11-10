@@ -24,7 +24,7 @@ applicatifs : l’API web, le worker de collecte et le worker de découverte des
 Ils partagent la base, les modèles et les
 services du même dépôt. Les fonctions de collecte, d’enrichissement, de
 recherche YouTube et de préparation des classements sont des boucles du même processus worker, pas trois services
-Docker indépendants. La découverte complémentaire MusicBrainz/Cover Art Archive
+Docker indépendants. La découverte gratuite yt-dlp/DDGS, complétée par MusicBrainz/Cover Art Archive
 utilise son propre conteneur, une file SQLite persistante et des appels bornés ;
 elle ne bloque pas la collecte ni les requêtes publiques. Il n’existe pas de courtier de messages externe dans la
 configuration de production versionnée.
@@ -37,7 +37,7 @@ flowchart LR
     W[Worker : collecte, enrichissement, YouTube, classements] --> B
     W --> S[Sources de métadonnées et catalogues]
     D[Worker : découverte de médias] --> B
-    D --> MB[MusicBrainz, Cover Art Archive, oEmbed YouTube]
+    D --> MB[yt-dlp, DDGS, Spotify public, MusicBrainz et oEmbed]
     A --> S
     N --> M[Flux radio, extraits, images et YouTube]
 ```
@@ -264,7 +264,7 @@ Sources : [exclusions](app/services/exclusions.py), [sessions](app/admin_session
 La production versionnée exécute une API Uvicorn à un worker, un conteneur de
 collecte et Cloudflare Tunnel. Les limites Compose sont 160 Mio/0,5 CPU pour l’API
 et 128 Mio/0,5 CPU pour le worker de collecte ; le worker de découverte dispose
-de 128 Mio/0,25 CPU. Le système de fichiers des conteneurs applicatifs
+de 256 Mio/0,25 CPU. Le système de fichiers des conteneurs applicatifs
 est en lecture seule hors volume et tmpfs ; ils s’exécutent sans privilèges root.
 Ces limites décrivent la configuration, pas des mesures de consommation ou de capacité.
 

@@ -61,7 +61,7 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    mem_limit: 128m
+    mem_limit: 256m
     cpus: 0.25
     pids_limit: 32
     healthcheck:
