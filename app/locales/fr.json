@@ -855,5 +855,6 @@
   "youtube.external_search": "Rechercher ce morceau sur YouTube",
   "youtube.link_label": "Lien YouTube du morceau",
   "youtube.verify_link": "Vérifier et associer le lien",
-  "catalog.history_until": "Tout l’historique jusqu’au {until}"
+  "catalog.history_until": "Tout l’historique jusqu’au {until}",
+  "workers.discovery": "Recherche automatique des médias"
 }

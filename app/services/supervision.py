@@ -10,7 +10,7 @@ CODES = {"started", "completed", "error", "waiting", "metadata", "enrichment", "
 
 
 def report(factory, name, code, *, total=None, completed=None, failed=None):
-    if code not in CODES or name not in {"collector", "enrichment", "youtube"}:
+    if code not in CODES or name not in {"collector", "enrichment", "youtube", "discovery"}:
         raise ValueError("Unknown operational event")
     now = datetime.now(UTC)
     with factory() as db:

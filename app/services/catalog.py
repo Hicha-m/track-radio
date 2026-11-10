@@ -191,6 +191,9 @@ def ensure_entry(db, artist, title):
         entry = TrackMetadata(id=key, artist=artist, title=title)
         db.add(entry)
         db.flush()
+        from app.services.media_discovery import queue
+
+        queue(db, key)
     elif (
         entry.automatic_done
         and not entry.manual

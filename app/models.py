@@ -127,6 +127,17 @@ class YouTubeMatch(Base):
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class MediaDiscovery(Base):
+    __tablename__ = "media_discovery"
+    track_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class ServiceQuota(Base):
     __tablename__ = "service_quotas"
     name: Mapped[str] = mapped_column(String(40), primary_key=True)

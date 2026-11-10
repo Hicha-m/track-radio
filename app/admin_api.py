@@ -464,7 +464,7 @@ def workers(db: Db, filters: Annotated[ExclusionFilters, Query()]):
     now = datetime.now(UTC)
     rows = {row.name: row for row in db.scalars(select(WorkerState))}
     items = []
-    for name in ("collector", "enrichment", "youtube"):
+    for name in ("collector", "enrichment", "youtube", "discovery"):
         row = rows.get(name)
         stale_after = max(120, settings.poll_interval_seconds * 3) if name == "collector" else 180
         items.append(

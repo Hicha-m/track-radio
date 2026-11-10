@@ -535,7 +535,7 @@ window.RadioPages = window.RadioPages || {};
       const data = await request(`/api/admin/workers?${window.MusicFilters.apply(new URLSearchParams())}`);
       if (controller.signal.aborted) return;
       const container = root.querySelector('#worker-states'); container.replaceChildren();
-      const labels = {collector: window.RadioI18n.t("ui.d7864a680b41"), enrichment: window.RadioI18n.t("ui.32febdfc98c8"), youtube: window.RadioI18n.t("ui.cb77991bb033")};
+      const labels = {collector: window.RadioI18n.t("ui.d7864a680b41"), enrichment: window.RadioI18n.t("ui.32febdfc98c8"), youtube: window.RadioI18n.t("ui.cb77991bb033"), discovery: window.RadioI18n.t('workers.discovery')};
       const states = {unknown: window.RadioI18n.t("ui.813ba490985e"), stale: window.RadioI18n.t("ui.2bf64327ef93"), idle: window.RadioI18n.t("ui.2f6c8477e92b"), running: window.RadioI18n.t("ui.797f5dcd0217"), error: window.RadioI18n.t("ui.e2fd6cfcd307")};
       for (const worker of data.items) {
         const row = el('article', '', 'worker-state');

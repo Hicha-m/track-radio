@@ -29,6 +29,9 @@ if [[ -f compose.yaml ]]; then
     exit 1
   fi
   compose stop collector
+  if compose config --services | grep -Fxq discovery; then
+    compose stop discovery
+  fi
 fi
 
 cp "$release/compose.production.yaml" compose.yaml
@@ -103,4 +106,5 @@ PY
 fi
 compose exec -T api python scripts/check_collection_diagnostics.py
 compose exec -T api python scripts/observe_collection.py --seconds 360
+compose exec -T discovery python scripts/check_media_discovery.py
 echo 'Deployment healthy'

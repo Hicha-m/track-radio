@@ -246,7 +246,7 @@ window.YT={Player:function(frame,options){
                 page.locator(".youtube-admin .youtube-choices button").nth(1).click()
                 expect(page.locator(".youtube-admin [role=status]")).to_contain_text("Choix manuel")
                 page.evaluate('window.RadioNavigation.go("/admin/workers")')
-                expect(page.locator(".worker-state")).to_have_count(3)
+                expect(page.locator(".worker-state")).to_have_count(4)
                 page.screenshot(path=str(CAPTURES / f"workers-{width}.png"), full_page=True)
                 # Language switch and preference survive reload + internal navigation.
                 page.locator("#listening-settings-toggle").click()

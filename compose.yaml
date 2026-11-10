@@ -55,5 +55,21 @@ services:
       retries: 3
       start_period: 120s
 
+  discovery:
+    <<: *common
+    command: ["python", "-m", "app.discovery_worker"]
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 32
+    healthcheck:
+      test: ["CMD", "python", "-c", "import time,os; assert time.time()-os.stat('/app/data/discovery.heartbeat').st_mtime < 300"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 120s
+
 volumes:
   radio_data:

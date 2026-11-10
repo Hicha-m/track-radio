@@ -80,12 +80,16 @@ def test_metadata_and_manual_correction_survive_backup(tmp_path, monkeypatch):
     transfer.export_data(path)
     with engine.begin() as conn:
         conn.execute(TrackMetadata.__table__.delete())
+        from app.models import MediaDiscovery
+
+        conn.execute(MediaDiscovery.__table__.delete())
     transfer.import_data(path)
     with Session(engine) as db:
         restored = db.get(TrackMetadata, key)
         assert restored.manual
         assert restored.selected["provider_id"] == "42"
         assert restored.lyrics["plain"] == "Words"
+        assert db.get(MediaDiscovery, key).status == "pending"
     engine.dispose()
 
 

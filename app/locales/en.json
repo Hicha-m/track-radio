@@ -855,5 +855,6 @@
   "youtube.external_search": "Search for this track on YouTube",
   "youtube.link_label": "YouTube link for this track",
   "youtube.verify_link": "Verify and associate link",
-  "catalog.history_until": "All history up to {until}"
+  "catalog.history_until": "All history up to {until}",
+  "workers.discovery": "Automatic media discovery"
 }
