@@ -65,20 +65,26 @@ async def discover_image(client, site):
             return image_from_html(bytes(body[: 256 * 1024]), str(response.url))
 
 
-@router.get("/{station_id}/artwork")
-async def station_artwork(station_id: int, db: Annotated[Session, Depends(get_db)]):
+def artwork_source(station_id: int, db: Annotated[Session, Depends(get_db)]):
+    """Read SQLite in FastAPI's thread pool and release it before network I/O."""
     station = db.get(Station, station_id)
     if station is None:
         raise HTTPException(404, "Radio inconnue.")
-    if station.slug in _logos:
+    source = (station.slug, station.website_url or station.metadata_url)
+    db.commit()
+    return source
+
+
+@router.get("/{station_id}/artwork")
+async def station_artwork(source: Annotated[tuple[str, str | None], Depends(artwork_source)]):
+    slug, site = source
+    if slug in _logos:
         return RedirectResponse(
             "https://cdn.instant.audio/images/logos/ecouterradioenligne-com/"
-            + _logos[station.slug]
+            + _logos[slug]
             + ".png",
             headers={"Cache-Control": "public, max-age=86400"},
         )
-    site = station.website_url or station.metadata_url
-    db.commit()
     if not site:
         raise HTTPException(404, "Site officiel non configuré.")
     async with _lock:

@@ -164,3 +164,25 @@ Les trois références Chrome avant livraison ont reçu des réponses API HTTP 2
 mais leur démarrage variait de 10,0 à 14,9 s après navigation. Un autre relevé a
 trouvé les gardes rapides : le délai est variable et n’est pas attribué à une
 cause exclusive sans preuve.
+
+
+Le premier relevé après livraison a révélé une autre attente : la route asynchrone
+des logos faisait sa lecture SQLite directement dans la boucle des requêtes.
+L’acquisition d’une connexion occupée pouvait donc retarder les réponses publiques.
+La lecture passe désormais par une dépendance synchrone exécutée dans le pool de
+threads de FastAPI et libère sa transaction avant toute redirection ou découverte
+d’image. Un test bloque volontairement cette lecture et vérifie qu’une seconde
+requête répond avant sa libération, y compris pour un logo fourni directement.
+
+Le diagnostic serveur [42844917582](https://github.com/Hicha-m/track-radio/actions/runs/42844917582)
+a confirmé l’égalité exacte entre classements bruts et préparés dans les trois
+cas contrôlés, avec les mêmes bornes et 100 résultats : toutes radios, exclusion
+personnelle et radio seule. Les lectures brutes/préparées ont pris respectivement
+environ 795/214 ms, 984/189 ms et 1 048/10 ms dans ces échantillons. Une ancienne
+route brute a aussi attendu 16,9 s au loopback alors que son traitement instrumenté
+prenait 505 ms : ce temps d’attente ne doit pas être attribué uniquement au SQL.
+
+La première observation CD a été interrompue par une coupure SSH ; la révision
+publique et la santé répondaient toujours. Des messages SSH de maintien de
+connexion sont ajoutés pendant l’observation, sans supprimer ses contrôles ni
+considérer leur interruption comme un succès.

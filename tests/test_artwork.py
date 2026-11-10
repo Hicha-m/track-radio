@@ -1,9 +1,55 @@
 import asyncio
+from threading import Event
+from types import SimpleNamespace
 
 import httpx
+from fastapi import FastAPI
 
 from app.artwork_api import discover_image, image_from_html
 from app.models import Station
+
+
+def test_waiting_for_artwork_database_does_not_block_other_requests():
+    from app.artwork_api import router
+    from app.database import get_db
+
+    started, release, finished = Event(), Event(), Event()
+    commits = []
+
+    class WaitingDatabase:
+        def get(self, model, station_id):
+            started.set()
+            release.wait(2)
+            finished.set()
+            return SimpleNamespace(slug="nrj", website_url=None, metadata_url=None)
+
+        def commit(self):
+            commits.append(True)
+
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_db] = WaitingDatabase
+
+    @app.get("/heartbeat")
+    async def heartbeat():
+        return {"ok": True}
+
+    async def run():
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app), base_url="http://test"
+        ) as client:
+            artwork = asyncio.create_task(client.get("/api/stations/1/artwork"))
+            try:
+                assert await asyncio.to_thread(started.wait, 2)
+                assert (await client.get("/heartbeat")).status_code == 200
+                assert not finished.is_set()
+            finally:
+                release.set()
+                response = await artwork
+            assert response.status_code == 307
+            assert commits == [True]
+
+    asyncio.run(run())
 
 
 def test_official_artwork_resolves_relative_url_and_rejects_private_destination():

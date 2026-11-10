@@ -71,7 +71,7 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-          printf 'Host *\n  BatchMode yes\n  StrictHostKeyChecking yes\n  ConnectTimeout 15\n' > ~/.ssh/config
+          printf 'Host *\n  BatchMode yes\n  StrictHostKeyChecking yes\n  ConnectTimeout 15\n  ServerAliveInterval 30\n  ServerAliveCountMax 6\n' > ~/.ssh/config
       - name: Upload runtime configuration
         run: |
           release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
