@@ -839,5 +839,7 @@
   "monitor.worker_revision": "Worker revision",
   "monitor.result.non_music": "Program or station ident, no musical play",
   "radio.reconnecting": "Connection interrupted, retrying…",
-  "radio.retry_stopped": "Unable to connect after three retries. Press Play to try again."
+  "radio.retry_stopped": "Unable to connect after three retries. Press Play to try again.",
+  "player.shortcuts": "Shortcuts: Space play/pause, Q/D volume (2%). Outside fields and controls.",
+  "artwork.confidence": "Temporary artwork · match score {score}/100 · {provider}"
 }

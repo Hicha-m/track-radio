@@ -107,7 +107,7 @@ window.TrackCatalog = (() => {
     adminState();
     window.RadioAdmin.refresh().then(() => { if (active()) adminState(); });
     try {
-      const params = new URLSearchParams({artist: track.artist || '', title: track.title});
+      const params = window.MusicFilters.apply(new URLSearchParams({artist: track.artist || '', title: track.title}));
       const response = await window.MusicFilters.fetch(`/api/catalog?${params}`);
       if (!response.ok) throw new Error(window.RadioI18n.t("ui.b7dfaba6f53b"));
       const data = await response.json();
@@ -133,6 +133,10 @@ window.TrackCatalog = (() => {
       essentials.append(controls);
       essentials.append(fields([[window.RadioI18n.t("ui.f05e840e0069"), data.album], [window.RadioI18n.t("ui.71d0bad42af1"), duration(data.duration)], [window.RadioI18n.t("ui.d6c7b22ccab5"), providers[data.provider] || data.provider || window.RadioI18n.t("ui.831460cb0225")]]));
       essentials.append(genreList(data), message, edit); summary.append(essentials); content.append(summary);
+      if (data.artwork) {
+        const credit = el('a', window.RadioI18n.t('artwork.confidence', {score: data.artwork.score, provider: providers[data.artwork.provider] || data.artwork.provider}), 'hint');
+        credit.href = data.artwork.url; credit.target = '_blank'; credit.rel = 'noopener noreferrer'; essentials.append(credit);
+      }
       const radio = el('section', '', 'catalog-radio'); radio.append(el('h3', window.RadioI18n.t("ui.a5ab437b560e")));
       const radioStatus = el('p', window.RadioI18n.t("ui.e539ce5cf335"), 'hint'); radio.append(radioStatus); content.append(radio);
       const radioParams = window.MusicFilters.apply(new URLSearchParams(track.history_scope || {})); if (track.station_id) radioParams.set('station_id', track.station_id);

@@ -373,6 +373,20 @@
     applyVolume();
   });
   volume.addEventListener('input', () => { userMuted = false; applyVolume(); });
+  document.addEventListener('keydown', event => {
+    if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return;
+    const target = event.target;
+    if (target instanceof Element && (target.isContentEditable || target.closest('input, textarea, select, button, a, summary, [role="button"], [role="slider"], [role="textbox"], [role="combobox"], [role="menuitem"]'))) return;
+    const key = event.key.toLowerCase();
+    if (key === ' ' && !toggle.disabled) {
+      event.preventDefault();
+      if (!event.repeat) toggle.click();
+    } else if (key === 'q' || key === 'd') {
+      event.preventDefault();
+      volume.value = Math.max(0, Math.min(1, Math.round((Number(volume.value) + (key === 'q' ? -.02 : .02)) * 100) / 100));
+      userMuted = false; applyVolume();
+    }
+  });
   for (const sourceAudio of [radioAudio, excerptAudio]) {
     const listen = (event, callback) => sourceAudio.addEventListener(event, () => { if (sourceAudio === audio && mode !== 'video') callback(); });
   listen('play', () => { label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.910919b77ec7") : window.RadioI18n.t("ui.a90bd5662fcc"); sync(); });

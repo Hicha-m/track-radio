@@ -191,6 +191,16 @@ def ensure_entry(db, artist, title):
         entry = TrackMetadata(id=key, artist=artist, title=title)
         db.add(entry)
         db.flush()
+    elif (
+        entry.automatic_done
+        and not entry.manual
+        and not safe_url((entry.selected or {}).get("cover_url"))
+        and not safe_url(entry.temporary_cover_url)
+        and "artwork" not in (entry.attempts or {})
+    ):
+        # Existing collector/backfill/ranking visits queue legacy artwork once;
+        # never add a repeating JSON scan of the entire catalogue.
+        entry.automatic_done = False
     return entry
 
 
@@ -469,8 +479,23 @@ async def enrich_progress(client, snapshot):
         except PROVIDER_ERRORS:
             result["lyrics_status"] = "error"
             attempts["lrclib"] = {"status": "error"}
+    if (
+        result["status"] != "error"
+        and not safe_url((result["selected"] or {}).get("cover_url"))
+        and not safe_url(result.get("temporary_cover_url"))
+    ):
+        from app.services.temporary_artwork import catalog_artwork
+
+        if attempts.get("artwork", {}).get("status") not in {"matched", "ambiguous", "not_found"}:
+            attempts["artwork"] = await catalog_artwork(
+                client, result["artist"], result["title"], result["candidates"]
+            )
+        cover = safe_url(attempts["artwork"].get("cover_url"))
+        if cover:
+            result["temporary_cover_url"] = cover
     result["automatic_done"] = (
         result["status"] != "error"
+        and attempts.get("artwork", {}).get("status") != "error"
         and not complement_failed
         and attempts.get("genres", {}).get("status") != "error"
         and (not selected or result["lyrics_status"] not in {"pending", "error"})
@@ -536,6 +561,7 @@ async def enrichment_round(client, session_factory, priorities=None):
             "lyrics_candidates",
             "lyrics_status",
             "attempts",
+            "temporary_cover_url",
         )
         pending = [
             (e.id, e.revision, deepcopy({f: getattr(e, f) for f in fields})) for e in entries
@@ -553,6 +579,11 @@ async def enrichment_round(client, session_factory, priorities=None):
 
             selected = result["selected"] or {}
             values = {f: result[f] for f in fields if f not in {"artist", "title"}}
+            # A station cover arriving during provider I/O keeps priority.
+            values["temporary_cover_url"] = case(
+                (TrackMetadata.temporary_cover_url.is_(None), result["temporary_cover_url"]),
+                else_=TrackMetadata.temporary_cover_url,
+            )
             values.update(
                 automatic_done=result["automatic_done"],
                 checked_at=now,

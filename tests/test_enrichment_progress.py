@@ -167,7 +167,12 @@ def test_worker_final_stop_survives_time_and_relaunch(db, client, monkeypatch):
 
     async def enrich(client, previous):
         calls.append(previous["title"])
-        return {**deepcopy(previous), "status": "not_found", "automatic_done": True}
+        return {
+            **deepcopy(previous),
+            "status": "not_found",
+            "attempts": {"artwork": {"status": "not_found"}},
+            "automatic_done": True,
+        }
 
     monkeypatch.setattr(catalog, "enrich_progress", enrich)
     asyncio.run(catalog.enrichment_round(None, sessions))

@@ -114,7 +114,7 @@ def test_normalization_duplicates_unknown_artist_and_no_personal_limit(client, d
     assert len(client.get("/api/admin/exclusions", headers=AUTH).json()["items"]) == 53
 
 
-def test_direct_links_hidden_for_public_but_available_to_admin(client, library):
+def test_public_catalogue_respects_hiding_admin_inspection_remains_available(client, library):
     hide(client)
     key = identity("skyrock", "Les Dedicaces")
     for path, params in [
@@ -129,7 +129,7 @@ def test_direct_links_hidden_for_public_but_available_to_admin(client, library):
         client.get(
             "/api/catalog", params={"artist": "skyrock", "title": "Les Dedicaces"}, headers=AUTH
         ).status_code
-        == 200
+        == 404
     )
     assert client.get(f"/api/catalog/{key}/radio", headers=AUTH).json()["detections"] == 0
     assert len(client.get("/api/admin/plays?q=Les Dedicaces", headers=AUTH).json()["items"]) == 3

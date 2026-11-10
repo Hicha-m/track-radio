@@ -100,6 +100,50 @@ with tempfile.TemporaryDirectory(prefix="radio-recovery-") as directory:
                 page.evaluate("window.RadioNavigation.go('/radios')")
                 expect(page.locator("#station-search")).to_be_visible()
                 assert len(requests) == 2
+                # Global shortcuts respect typing and native control activation.
+                page.locator("body").evaluate("e => { e.tabIndex = -1; e.focus(); }")
+                page.keyboard.press("Space")
+                assert page.locator("#radio-player").evaluate("a => a.muted && !a.paused")
+                page.keyboard.press("Space")
+                assert page.locator("#radio-player").evaluate("a => !a.muted && !a.paused")
+                page.locator("#player-volume").evaluate(
+                    "e => { e.value = .5; e.dispatchEvent(new Event('input')); }"
+                )
+                page.keyboard.press("q")
+                assert page.locator("#player-volume").input_value() == "0.48"
+                page.keyboard.press("D")
+                assert page.locator("#player-volume").input_value() == "0.5"
+                for _ in range(60):
+                    page.keyboard.press("d")
+                assert page.locator("#player-volume").input_value() == "1"
+                for _ in range(60):
+                    page.keyboard.press("q")
+                assert page.locator("#player-volume").input_value() == "0"
+                page.keyboard.press("d")
+                assert page.locator("#radio-player").evaluate("a => a.volume === .02 && !a.muted")
+                search = page.locator("#station-search")
+                search.focus()
+                search.press_sequentially("q d ")
+                assert search.input_value() == "q d "
+                assert page.locator("#player-volume").input_value() == "0.02"
+                search.fill("")
+                page.locator("#player-toggle").focus()
+                page.keyboard.press("Space")
+                assert page.locator("#radio-player").evaluate("a => a.muted")
+                page.keyboard.press("Space")
+                assert page.locator("#radio-player").evaluate("a => !a.muted")
+                page.locator("body").focus()
+                page.keyboard.press("Control+q")
+                assert page.locator("#player-volume").input_value() == "0.02"
+                # Holding space consumes repeats without toggling repeatedly or scrolling.
+                y = page.evaluate("scrollY")
+                page.keyboard.down("Space")
+                page.keyboard.down("Space")
+                page.keyboard.up("Space")
+                assert page.locator("#radio-player").evaluate("a => a.muted")
+                assert page.evaluate("scrollY") == y
+                page.keyboard.press("Space")
+                print(width, "raccourcis / bornes / saisie / contrôles : OK", flush=True)
                 # A permanently broken stream stops after exactly three retries.
                 state.update(broken=True, recover=False)
                 page.locator(".station-play").nth(1).click()
@@ -179,6 +223,25 @@ with tempfile.TemporaryDirectory(prefix="radio-recovery-") as directory:
                 page.clock.run_for(8000)
                 assert len(requests) == before
                 assert page.locator(".player").get_attribute("data-mode") == "preview"
+                page.locator("body").focus()
+                page.keyboard.press("Space")
+                assert page.locator("#excerpt-player").evaluate("a => a.paused")
+                page.keyboard.press("Space")
+                page.wait_for_function("() => !document.querySelector('#excerpt-player').paused")
+                page.keyboard.press("q")
+                assert page.locator("#excerpt-player").evaluate("a => a.volume === 0")
+                page.keyboard.press("d")
+                assert page.locator("#excerpt-player").evaluate("a => a.volume === .02")
+                page.evaluate(
+                    "() => { const e = document.createElement('div'); "
+                    "e.contentEditable = 'true'; e.id = 'editing-fixture'; "
+                    "document.body.append(e); e.focus(); }"
+                )
+                page.keyboard.type("q d ")
+                assert (
+                    page.locator("#editing-fixture").inner_text().replace("\u00a0", " ") == "q d "
+                )
+                assert page.locator("#player-volume").input_value() == "0.02"
                 assert not errors, errors
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
                 print(

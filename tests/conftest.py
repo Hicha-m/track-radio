@@ -13,6 +13,16 @@ os.environ["DATABASE_URL"] = "sqlite:///./test-unused.db"
 os.environ["ADMIN_TOKEN"] = "test-admin-token"
 
 
+@pytest.fixture(autouse=True)
+def no_live_spotify_credentials(monkeypatch):
+    from pydantic import SecretStr
+
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "spotify_client_id", SecretStr(""))
+    monkeypatch.setattr(settings, "spotify_client_secret", SecretStr(""))
+
+
 @pytest.fixture
 def db():
     engine = create_engine(

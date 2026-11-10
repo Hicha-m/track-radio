@@ -181,7 +181,12 @@ def test_negative_cache_and_manual_choice_survive_worker(db, monkeypatch):
     async def enrich(client, snapshot):
         nonlocal calls
         calls += 1
-        return {**snapshot, "status": "not_found", "automatic_done": True}
+        return {
+            **snapshot,
+            "status": "not_found",
+            "attempts": {"artwork": {"status": "not_found"}},
+            "automatic_done": True,
+        }
 
     monkeypatch.setattr("app.services.catalog.enrich_progress", enrich)
     asyncio.run(enrichment_round(None, sessions))

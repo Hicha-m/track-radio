@@ -839,5 +839,7 @@
   "monitor.worker_revision": "Révision du worker",
   "monitor.result.non_music": "Émission ou habillage, sans diffusion musicale",
   "radio.reconnecting": "Connexion interrompue, nouvel essai…",
-  "radio.retry_stopped": "Connexion impossible après trois essais. Appuyez sur Lecture pour réessayer."
+  "radio.retry_stopped": "Connexion impossible après trois essais. Appuyez sur Lecture pour réessayer.",
+  "player.shortcuts": "Raccourcis : Espace lecture/pause, Q/D volume (2 %). Hors champs et contrôles.",
+  "artwork.confidence": "Pochette temporaire · score de correspondance {score}/100 · {provider}"
 }

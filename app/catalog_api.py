@@ -199,8 +199,9 @@ def metadata(
     db: Db,
     artist: str = Query("", max_length=300),
     title: str = Query(..., min_length=1, max_length=500),
+    exclusions: str = Query("", max_length=12000),
 ):
-    ensure_visible(request, db, artist, title)
+    video_visible(request, db, artist, title)
     entry = db.get(TrackMetadata, identity(artist, title))
     if entry is None:
         return {
@@ -210,8 +211,18 @@ def metadata(
             "lyrics": None,
             "manual": False,
         }
-    ensure_visible(request, db, entry.artist, entry.title)
-    return {**public_metadata(entry), "lyrics": entry.lyrics}
+    video_visible(request, db, entry.artist, entry.title)
+    result = {**public_metadata(entry), "lyrics": entry.lyrics}
+    artwork = (entry.attempts or {}).get("artwork", {})
+    if (
+        artwork.get("status") == "matched"
+        and artwork.get("cover_url") == result["cover_url"]
+        and not safe_url((entry.selected or {}).get("cover_url"))
+    ):
+        result["artwork"] = {
+            key: artwork.get(key) for key in ("score", "threshold", "provider", "url")
+        }
+    return result
 
 
 @router.get("/{key}/radio")
