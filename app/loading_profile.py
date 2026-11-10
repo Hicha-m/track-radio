@@ -9,7 +9,12 @@ from sqlalchemy import event
 from app.config import settings
 
 _trace = ContextVar("loading_profile", default=None)
-PATHS = {"/api/stats/top", "/api/stations/now-playing", "/api/admin/dashboard"}
+PATHS = {
+    "/api/stats/top",
+    "/api/stats/prepared",
+    "/api/stations/now-playing",
+    "/api/admin/dashboard",
+}
 
 
 def instrument(engine):

@@ -199,3 +199,46 @@ class CollectionEvent(Base):
     http_status: Mapped[int | None] = mapped_column(Integer)
     details: Mapped[dict] = mapped_column(JSON, default=dict)
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PlayCount(Base):
+    """Internal counts by hour and raw identity, maintained in the write transaction."""
+
+    __tablename__ = "play_counts"
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    hour: Mapped[datetime] = mapped_column(DateTime, index=True)
+    station_id: Mapped[int] = mapped_column(Integer)
+    track_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    artist: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    title: Mapped[str] = mapped_column(String(500))
+    plays: Mapped[int] = mapped_column(Integer)
+
+
+class RankingState(Base):
+    __tablename__ = "ranking_states"
+    period: Mapped[str] = mapped_column(String(8), primary_key=True)
+    calculated_at: Mapped[datetime] = mapped_column(DateTime)
+    exclusion_revision: Mapped[str] = mapped_column(String(64))
+    generation: Mapped[str] = mapped_column(String(32))
+
+
+class RankingCount(Base):
+    __tablename__ = "ranking_counts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    period: Mapped[str] = mapped_column(String(8))
+    generation: Mapped[str] = mapped_column(String(32), index=True)
+    __table_args__ = (
+        Index("ix_ranking_counts_period_generation", "period", "generation", "station_id"),
+    )
+    station_id: Mapped[int] = mapped_column(Integer)
+    track_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    artist: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    title: Mapped[str] = mapped_column(String(500))
+    plays: Mapped[int] = mapped_column(Integer)
+
+
+@event.listens_for(Base.metadata, "after_create")
+def initialize_play_counts(metadata, connection, **kw):
+    from app.services.play_counts import install
+
+    install(connection)

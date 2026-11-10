@@ -6,7 +6,7 @@ from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -16,6 +16,7 @@ from app.admin_api import router as admin_router
 from app.admin_api import session_router
 from app.admin_sessions import current_session
 from app.artwork_api import router as artwork_router
+from app.assets import application_bundle
 from app.catalog_api import router as catalog_router
 from app.database import engine, get_db
 from app.export_api import router as export_router
@@ -44,14 +45,53 @@ app.include_router(playlist_router)
 app.include_router(artwork_router)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+BUNDLE = application_bundle()
 ASSET_VERSION = hashlib.sha256(
     b"".join(
         p.read_bytes()
         for p in sorted([*Path("app/static").glob("*"), *Path("app/locales").glob("*.json")])
         if p.is_file()
     )
+    + BUNDLE
 ).hexdigest()[:12]
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+@app.get("/assets/application.js")
+def javascript_bundle():
+    return Response(
+        BUNDLE,
+        media_type="text/javascript",
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+        },
+    )
+
+
+@app.get("/api/stats/prepared")
+def prepared_top(
+    db: DbSession,
+    period: Annotated[str, Query(pattern="^(1|7|30|all)$")] = "7",
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    exclusions: Annotated[str, Query(max_length=12000)] = "",
+    station_id: int | None = None,
+    station_ids: Annotated[str, Query(max_length=2000)] = "",
+):
+    from app.services.prepared_rankings import read
+    from app.services.station_selection import station_ids as parse_stations
+
+    try:
+        hidden, selected = canonical_exclusions(exclusions), parse_stations(station_ids)
+    except ValueError:
+        raise HTTPException(422, "Filtres de classement invalides.") from None
+    result = read(db, period, limit, hidden, station_id, selected)
+    if result is None:
+        return JSONResponse(
+            {"status": "preparing"},
+            status_code=503,
+            headers={"Retry-After": "2", "Cache-Control": "no-store"},
+        )
+    return {**result, "items": attach_metadata(db, result["items"])}
 
 
 @app.get("/health")
@@ -248,7 +288,9 @@ def dashboard(
                     .distinct()
                     .order_by(TrackMetadata.primary_genre)
                 )
-            ),
+            )
+            if path == "/recherche"
+            else [],
             "asset_version": ASSET_VERSION,
         },
     )

@@ -19,6 +19,7 @@ jobs:
           node-version: "22"
       - run: for script in app/static/*.js; do node --check "$script"; done
       - run: node --input-type=module --check < scripts/loadtest/scenario.js
+      - run: python -c "from app.assets import application_bundle; import sys; sys.stdout.buffer.write(application_bundle())" | node --check
       - run: node --test tests/*.test.cjs
       - run: bash -n scripts/deploy.sh
       - run: pip install --require-hashes -r requirements-dev.lock

@@ -13,6 +13,7 @@
     </form>
     <p class="hint" role="status" aria-live="polite" data-playlist-status></p>
     <ol class="playlist-items" data-playlist-items></ol>
+    <label class="checkbox"><input type="checkbox" data-playlist-video-visible checked>{{ t('playback.show_video') }}</label>
     <div class="playlist-actions">
       <button type="button" data-playlist-resolve disabled>{{ t('playlist.resolve') }}</button>
       <button type="button" data-playlist-stop hidden>{{ t('playlist.cancel') }}</button>

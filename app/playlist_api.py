@@ -162,3 +162,56 @@ def export_playlist(db: Db, body: PlaylistExport, filters: Filters):
         )
     headers["Content-Disposition"] = f'attachment; filename="radio-playlist-{body.destination}.csv"'
     return Response(buffer.getvalue().encode("utf-8-sig"), media_type="text/csv", headers=headers)
+
+
+@router.get("/daily")
+def daily(db: Db, filters: Annotated[PlaylistFilters, Query()]):
+    """A dated selection from the prepared week; reuse stored videos, no provider I/O."""
+    import hashlib
+    from datetime import UTC
+    from zoneinfo import ZoneInfo
+
+    from app.services.prepared_rankings import read
+    from app.services.station_selection import station_ids
+    from app.services.track_identity import identity
+
+    source = read(db, "7", 100, filters.exclusions, station_ids=station_ids(filters.station_ids))
+    if source is None:
+        return JSONResponse(
+            {"status": "preparing"},
+            status_code=503,
+            headers={"Retry-After": "2", "Cache-Control": "no-store"},
+        )
+    day = datetime.now(UTC).astimezone(ZoneInfo("Europe/Paris")).date().isoformat()
+    rows = [{**row, "track_id": identity(row["artist"], row["title"])} for row in source["items"]]
+    rows.sort(key=lambda row: hashlib.sha256(f"{day}:{row['track_id']}".encode()).hexdigest())
+    # Keep enough candidates to fill the selection after identity-wide visibility checks.
+    keys = [row["track_id"] for row in rows[:50]]
+    matches = {
+        m.track_id: m
+        for m in db.scalars(select(YouTubeMatch).where(YouTubeMatch.track_id.in_(keys)))
+    }
+    items = []
+    for row in rows[:50]:
+        match = matches.get(row["track_id"])
+        video = match.selected if match and match.status == "matched" else None
+        items.append(
+            PlaylistItem(track_id=row["track_id"], video_id=video["id"] if video else None)
+        )
+    checked = (
+        manifest(db, PlaylistExport(items=items), filters.exclusions) if items else {"items": []}
+    )
+    counts = {r["track_id"]: r["plays"] for r in rows}
+    visible = []
+    for row in checked["items"][: filters.limit]:
+        match = matches.get(row["track_id"])
+        candidates = match.candidates or [] if match and match.status != "rejected" else []
+        visible.append(
+            {
+                **row,
+                "plays": counts[row["track_id"]],
+                "candidates": candidates,
+                "state": "matched" if row["video"] else "unresolved",
+            }
+        )
+    return {"date": day, "calculated_at": source["calculated_at"], "items": visible}

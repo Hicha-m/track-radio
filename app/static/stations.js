@@ -59,7 +59,7 @@
     const timeout = setTimeout(() => request.abort(), 12000);
     try {
       const params = window.MusicFilters.apply(new URLSearchParams());
-      const response = await window.MusicFilters.fetch(`/api/stations/now-playing?${params}`, {signal: request.signal});
+      const response = await window.MusicFilters.live(`/api/stations/now-playing?${params}`, {signal: request.signal});
       if (!response.ok) throw new Error('station_metadata_unavailable');
       const data = await response.json();
       if (ticket !== generation || request.signal.aborted) return;

@@ -145,7 +145,9 @@ window.TrackCatalog = (() => {
       }).then(history => {
         if (!active()) return;
         const stations = track.station_id ? window.RadioI18n.t("ui.f2d5a938d8da") : track.history_scope?.station_ids ? window.RadioI18n.t('catalog.selected_stations') : window.RadioI18n.t("ui.e1d58522c2fa");
-        const period = track.history_scope?.since || track.history_scope?.until
+        const period = !track.history_scope?.since && track.history_scope?.until
+          ? window.RadioI18n.t('catalog.history_until', {until: date(track.history_scope.until)})
+          : track.history_scope?.since || track.history_scope?.until
           ? window.RadioI18n.t('catalog.history_period', {since: date(track.history_scope.since), until: track.history_scope.until ? date(track.history_scope.until) : window.RadioI18n.t('catalog.now')})
           : window.RadioI18n.t('catalog.all_history');
         radioStatus.textContent = `${period}${stations}. ${window.RadioI18n.t("ui.799865de7cdd", {p0: ''})}`;

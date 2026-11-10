@@ -841,5 +841,19 @@
   "radio.reconnecting": "Connection interrupted, retrying…",
   "radio.retry_stopped": "Unable to connect after three retries. Press Play to try again.",
   "player.shortcuts": "Shortcuts: Space play/pause, Q/D volume (2%). Outside fields and controls.",
-  "artwork.confidence": "Temporary artwork · match score {score}/100 · {provider}"
+  "artwork.confidence": "Temporary artwork · match score {score}/100 · {provider}",
+  "ranking.updated": "Ranking calculated at {time}",
+  "ranking.stale": "Last ranking calculated at {time} · refresh delayed, retrying automatically",
+  "daily.open": "Today’s daily",
+  "daily.scope": "Selection for {date} · tracks observed over the past 7 days · full videos subject to availability",
+  "playback.autoplay": "Play tracks in sequence automatically",
+  "playback.crossfade": "Enable crossfade",
+  "playback.fade_seconds": "Crossfade duration (seconds)",
+  "playback.fade_note": "Crossfade applies to audio previews. YouTube videos play in sequence without overlapping audio.",
+  "playback.show_video": "Show YouTube video",
+  "youtube.full_song": "Full song · YouTube",
+  "youtube.external_search": "Search for this track on YouTube",
+  "youtube.link_label": "YouTube link for this track",
+  "youtube.verify_link": "Verify and associate link",
+  "catalog.history_until": "All history up to {until}"
 }

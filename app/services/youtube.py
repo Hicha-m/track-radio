@@ -333,3 +333,53 @@ async def worker_round(session_factory):
             return False
         await discover(match.artist, match.title, db, match.track_id)
         return True
+
+
+def video_id_from_url(value):
+    from urllib.parse import parse_qs, urlsplit
+
+    try:
+        url = urlsplit(value)
+        if url.scheme != "https" or url.username or url.password or url.port not in {None, 443}:
+            raise ValueError
+        if url.hostname == "youtu.be":
+            key = url.path.removeprefix("/")
+        elif url.hostname in {"www.youtube.com", "youtube.com", "m.youtube.com"}:
+            key = parse_qs(url.query).get("v", [""])[0] if url.path == "/watch" else ""
+        else:
+            key = ""
+        if re.fullmatch(r"[A-Za-z0-9_-]{11}", key):
+            return key
+    except ValueError:
+        pass
+    raise ValueError("Lien YouTube HTTPS invalide.")
+
+
+async def verify_link(artist, title, url):
+    from app.services.catalog import fetch_json
+
+    key = video_id_from_url(url)
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            data = await fetch_json(
+                client,
+                "https://www.youtube.com/oembed",
+                {
+                    "url": f"https://www.youtube.com/watch?v={key}",
+                    "format": "json",
+                },
+            )
+        snippet = {"title": data.get("title", ""), "channelTitle": data.get("author_name", "")}
+        if data.get("type") != "video" or not snippet["title"] or not snippet["channelTitle"]:
+            raise ValueError
+        score = candidate_score(artist, title, snippet)
+    except (httpx.HTTPError, ValueError, TypeError, AttributeError, TimeoutError):
+        raise HTTPException(503, "Vérification du lien YouTube indisponible.") from None
+    if score is None:
+        raise HTTPException(422, "Le lien ne correspond pas à l’artiste et au titre demandés.")
+    return {
+        "id": key,
+        "title": html.unescape(snippet["title"])[:500],
+        "channel": html.unescape(snippet["channelTitle"])[:300],
+        "score": score,
+    }

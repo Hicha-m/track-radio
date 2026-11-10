@@ -6,6 +6,7 @@ x-common: &common
   environment:
     DATABASE_URL: sqlite:////app/data/radio.db
     ARCHIVE_DIRECTORY: /app/data/archives
+    SQLITE_TMPDIR: /app/data/sqlite-tmp
     ADMIN_TOKEN: ${ADMIN_TOKEN:-}
   volumes:
     - radio_data:/app/data

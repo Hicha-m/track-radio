@@ -69,6 +69,9 @@ with tempfile.TemporaryDirectory(prefix="radio-ranking-") as directory:
             )
         )
         db.commit()
+    from tests.browser_prepared import start as start_prepared_rankings
+
+    stop_prepared_rankings = start_prepared_rankings(SessionLocal)
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]
@@ -143,5 +146,6 @@ with tempfile.TemporaryDirectory(prefix="radio-ranking-") as directory:
             "Ranking identity: desktop/mobile, periods, radio sets, history, exports and hiding OK."
         )
     finally:
+        stop_prepared_rankings()
         server.terminate()
         server.wait(timeout=10)

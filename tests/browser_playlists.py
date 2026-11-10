@@ -70,6 +70,9 @@ with tempfile.TemporaryDirectory(prefix="radio-playlist-") as directory:
             )
         )
         db.commit()
+    from tests.browser_prepared import start as start_prepared_rankings
+
+    stop_prepared_rankings = start_prepared_rankings(SessionLocal)
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -179,6 +182,13 @@ window.YT={Player:function(frame,options){
                 expect(panel.locator("#youtube-dock iframe")).to_have_attribute(
                     "src", __import__("re").compile("/bbbbbbbbbbb")
                 )
+                # CSS visibility changes preserve the iframe and active playback.
+                panel.locator("[data-playlist-video-visible]").uncheck()
+                expect(page.locator("#youtube-dock iframe")).not_to_be_visible()
+                expect(page.locator("#youtube-dock iframe")).to_have_count(1)
+                expect(page.locator("#player-toggle")).to_have_attribute("aria-pressed", "true")
+                panel.locator("[data-playlist-video-visible]").check()
+                expect(page.locator("#youtube-dock iframe")).to_be_visible()
                 panel.locator("[data-playlist-pause]").click()
                 panel.locator("[data-playlist-pause]").click()
                 page.wait_for_function("window.__events !== undefined")
@@ -255,6 +265,21 @@ window.YT={Player:function(frame,options){
                 panel.locator("[data-playlist-close]").click()
                 page.locator("[data-open-playlist]").click()
                 expect(panel.locator("li")).to_have_count(0)
+                panel.locator("[data-playlist-close]").click()
+                page.locator("#listening-settings-toggle").click()
+                page.locator("#autoplay-tracks").uncheck()
+                page.keyboard.press("Escape")
+                page.locator("[data-open-daily]").click()
+                expect(page.locator(".playlist-dialog h2")).to_have_text("Daily du jour")
+                expect(page.locator("[data-playlist-items] li")).to_have_count(3)
+                expect(page.locator("[data-playlist-play]")).to_be_enabled()
+                page.locator("[data-playlist-play]").click()
+                expect(page.locator("[data-playlist-status]")).to_contain_text("Lecture 1/")
+                page.wait_for_timeout(100)
+                page.evaluate("window.__events.onStateChange({data:0})")
+                expect(page.locator("[data-playlist-status]")).to_contain_text(
+                    "Fin de la sélection"
+                )
                 assert not errors, errors
                 print(
                     f"{width}px: filtered selection, order, choices, exports, "
@@ -264,5 +289,6 @@ window.YT={Player:function(frame,options){
                 context.close()
             browser.close()
     finally:
+        stop_prepared_rankings()
         server.terminate()
         server.wait(timeout=10)

@@ -77,7 +77,8 @@
     if (url.origin === location.origin && paths.includes(url.pathname)) return navigate(url, true, replace);
   }};
   window.addEventListener('popstate', () => navigate(new URL(location.href), false));
-  Promise.all([window.RadioAdmin.refresh(), window.MusicFilters.refresh()])
-    .catch(error => { notice.textContent = error.message; notice.hidden = false; })
-    .finally(mount);
+  mount();
+  window.RadioAdmin.refresh();
+  window.MusicFilters.refresh()
+    .catch(error => { notice.textContent = error.message; notice.hidden = false; });
 })();

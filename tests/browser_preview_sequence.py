@@ -84,6 +84,9 @@ with tempfile.TemporaryDirectory(prefix="radio-preview-sequence-") as directory:
             )
         )
         db.commit()
+    from tests.browser_prepared import start as start_prepared_rankings
+
+    stop_prepared_rankings = start_prepared_rankings(SessionLocal)
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]
@@ -358,6 +361,42 @@ with tempfile.TemporaryDirectory(prefix="radio-preview-sequence-") as directory:
                 expect(page.locator("#playback-label")).to_have_text("Lecture indisponible")
                 assert requests.count("A") == 1 and requests.count("Broken") <= 1
                 assert "B" not in requests and "C" not in requests
+                # Crossfade overlaps two checked excerpts; pause cancels the outgoing audio.
+                reset()
+                page.locator("#listening-settings-toggle").click()
+                page.locator("#crossfade-tracks").check()
+                page.locator("#crossfade-seconds").fill("2")
+                page.locator("#crossfade-seconds").dispatch_event("change")
+                page.keyboard.press("Escape")
+                reset()
+                expect(page.locator("#crossfade-tracks")).to_be_checked()
+                expect(page.locator("#crossfade-seconds")).to_have_value("2")
+                click_preview("A")
+                page.locator("#excerpt-player").evaluate("a => a.playbackRate = 2")
+                expect(page.locator("#track-title")).to_have_text("B", timeout=10000)
+                playing("B")
+                assert requests.count("Broken") <= 1
+                assert page.locator("#transition-player").evaluate("a => !a.paused")
+                assert page.locator("#excerpt-player").evaluate("a => a.volume < 1")
+                page.locator("#player-toggle").click()
+                assert page.locator("#excerpt-player").evaluate("a => a.paused")
+                assert page.locator("#transition-player").evaluate(
+                    'a => a.paused && !a.getAttribute("src")'
+                )
+                expect(page.locator("#player-volume")).to_have_value("1")
+                # Disabling autoplay prevents entering the next excerpt.
+                page.locator("#listening-settings-toggle").click()
+                page.locator("#autoplay-tracks").uncheck()
+                page.locator("#crossfade-tracks").uncheck()
+                page.keyboard.press("Escape")
+                reset()
+                click_preview("A")
+                finish()
+                expect(page.locator("#playback-label")).to_have_text("Fin des préécoutes")
+                assert requests == ["A"]
+                page.locator("#listening-settings-toggle").click()
+                page.locator("#autoplay-tracks").check()
+                page.keyboard.press("Escape")
                 # A filter change cancels the captured queue and clears hidden playback metadata.
                 reset()
                 click_preview("A")
@@ -385,5 +424,6 @@ with tempfile.TemporaryDirectory(prefix="radio-preview-sequence-") as directory:
                 )
             browser.close()
     finally:
+        stop_prepared_rankings()
         server.terminate()
         server.wait(timeout=10)

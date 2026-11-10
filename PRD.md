@@ -57,6 +57,8 @@ d’auditeurs ou de synchronisation entre appareils.
 | F10 | Administration | Radios, catalogue, exclusions, prévisualisation/application de corrections | Les écritures sont protégées et une correction explicite ne se confond pas avec le masquage |
 | F11 | Supervision | État des workers, tentatives, erreurs, réessais et quota YouTube | Distinguer processus actif, observation utile et changement de titre ; une API saine seule ne prouve pas la collecte |
 | F12 | Présentation et préférences | Mobile/ordinateur, thèmes clair/sombre, français/anglais | Commandes utilisables aux formats couverts et préférences conservées lorsque le stockage navigateur est disponible |
+| F13 | Daily et écoute entière | Sélection datée, vidéos validées réutilisées, vérification d’un lien fourni | Exclusions revalidées avant chaque lecture ; vidéos indisponibles ou ambiguës explicites ; aucune garantie universelle de disponibilité |
+| F14 | Réglages d’enchaînement | Autoplay, fondu des extraits et visibilité CSS YouTube mémorisés | Pause/source/filtres annulent le fondu ; le masquage conserve l’iframe ; l’arrêt de l’autoplay termine la suite sans boucle |
 
 La configuration versionnée comprend 26 radios, dont 18 Skyrock. Ce nombre décrit
 le catalogue du dépôt ; il ne garantit pas la disponibilité permanente de chaque
@@ -94,10 +96,10 @@ une politique d’archivage existe, décrite dans l’architecture. Son évoluti
 | Priorité | Besoin | État et frontière |
 | --- | --- | --- |
 | Cadrage actuel — point 1 | Comprendre le produit et les choix techniques | Ces deux documents sont préparés pour revue commune ; aucune restructuration engagée |
-| Prochain chantier — point 2 | Retrouver et écouter sans attente excessive au premier chargement | Analyse à mener ensemble, cache froid puis chaud ; cause et objectifs de latence non établis |
+| Chantier du 10/11 — chargement | Retrouver et écouter sans attente excessive au premier chargement | Objectif titres/commandes en 2 s confirmé ; compteurs, vues préparées et bundle réalisés, mesures après livraison requises |
 | Réalisé — points 3 et 4 | Collecte et écoute Skyrock plus fiables | JSON groupé et reprise du lecteur livrés ; erreurs ponctuelles et limites de réseau restent possibles |
-| À planifier — point 5 | Piloter le lecteur au clavier | Espace pour lecture/pause, Q/D pour volume précis ; pas encore implémenté |
-| À étudier — point 6 | Améliorer les pochettes de remplacement | Recherche ciblée Google/Spotify et score de confiance proposés ; faisabilité et seuil non validés |
+| Livré — point 5 | Piloter le lecteur au clavier | Espace, Q/D par pas de 2 %, saisie et contrôles préservés |
+| Livré — point 6 | Améliorer les pochettes de remplacement | Score explicable et seuil prudent, ambiguïtés refusées, priorité aux pochettes validées ; disponibilité Spotify réelle non établie |
 | Exploratoire — point 7 | Réduire les publicités au démarrage | Distinguer publicité ajoutée et programme diffusé ; solution non établie |
 
 Les prochains choix doivent d’abord servir la recherche personnelle et l’écoute.
@@ -112,9 +114,9 @@ elles ne prouvent pas une cause SQL ou un défaut d’architecture.
 
 | Indicateur | Comment le vérifier lors du point 2 | Cible |
 | --- | --- | --- |
-| Temps avant recherche ou lecture utilisable | Chronométrer le parcours navigateur et séparer les requêtes bloquantes | À décider, décision D02 |
+| Temps avant titres courants et lecture utilisables | Chronométrer le parcours navigateur et séparer les requêtes bloquantes | 2 s, y compris à cache navigateur froid ; recherche particulière mesurée séparément |
 | Latence API cache froid/chaud | Comparer les mêmes routes, paramètres, jeux de données et conditions ; documenter échantillon et percentiles | À décider, D02 |
-| Fraîcheur acceptable des résultats | Distinguer délai fournisseur, collecte, cache et affichage | À décider, D03 |
+| Fraîcheur acceptable des résultats | Distinguer délai fournisseur, collecte, cache et affichage | Classement courant : jusqu’à 1 min de retard ; avertissement et dernier résultat compatible conservé ensuite |
 | Fidélité des résultats | Comparer résultats filtrés et diffusions attendues sur données contrôlées | Aucune régression des règles métier |
 | Fiabilité d’écoute | Vérifier décodage natif et reprise après interruption, en précisant le réseau testé | Reprise bornée ; disponibilité fournisseur non garantie |
 | Conservation et restauration | Vérifier ce qui reste consultable en ligne et ce qui peut être restauré | Durée et objectifs de restauration à décider, D04 |
@@ -127,10 +129,10 @@ Aucun audit de performance n’est lancé dans ce point 1.
 | ID | Question | État |
 | --- | --- | --- |
 | D01 | Quel usage guide les décisions ? | **Confirmé le 09/11/2026 : usage personnel, retrouver des titres et écouter les radios** |
-| D02 | Quels parcours doivent être rapides en premier, et avec quel délai acceptable à froid ? | À décider après une référence mesurée ; proposition d’ordre : recherche, écoute, classement, puis administration |
-| D03 | Quel retard d’affichage accepter selon le type d’information ? | À décider séparément pour titres courants, historique, classement et métadonnées |
+| D02 | Quels parcours doivent être rapides en premier, et avec quel délai acceptable à froid ? | Titres courants et commandes utilisables en 2 s, y compris sans cache navigateur ; statistiques/pochettes peuvent suivre. Objectif à revérifier après livraison |
+| D03 | Quel retard d’affichage accepter selon le type d’information ? | Classement courant préparé automatiquement, jusqu’à 1 min de retard ; date visible, avertissement ensuite et réessai automatique, aucune vue incompatible avec les exclusions |
 | D04 | Quelle période doit rester consultable immédiatement ? Quelles garanties de sauvegarde/restauration ? | À décider ; le réglage d’archivage existant n’est pas une exigence produit nouvellement validée |
-| D05 | Quels changements techniques sont justifiés par les mesures ? | À décider après comparaison des options dans l’architecture ; aucun choix SQLite/PostgreSQL ou refonte approuvé |
+| D05 | Quels changements techniques sont justifiés par les mesures ? | Compteurs maintenus et vues préparées acceptés comme direction ; mise en œuvre demandée avant reprise de k6. SQLite et les deux processus sont conservés |
 
 Le [registre technique](ARCHITECTURE.md#8-registre-des-arbitrages) précise les
 options et leurs conséquences. Pour chaque décision, conserver choix, raison,
@@ -142,10 +144,27 @@ par une recommandation supposée approuvée.
 La préparation est vérifiable par la présence des fonctions, règles, priorités,
 critères et sources dans les deux documents. La revue produit reste distincte :
 le product owner doit encore relire le périmètre et arbitrer D02 à D05 au moment
-où les preuves nécessaires existent. D01 seule est confirmée à cette étape.
+où les preuves nécessaires existent. D01, D02, D03 et la direction de D05 sont confirmées dans les actualisations ci-dessous ; la revue complète n’est pas présumée achevée.
 
 Sources de l’existant : [routes et pages](app/main.py), [catalogue](app/catalog_api.py),
 [administration](app/admin_api.py), [statistiques](app/metrics_api.py),
 [exports](app/export_api.py), [sélections](app/playlist_api.py),
 [configuration des radios](config/stations.json), [lecteur](app/static/player.js),
 [exclusions](app/services/exclusions.py), [tests](tests).
+
+
+## Actualisation du 10 novembre 2026 — travail hors k6
+
+La demande « tout sauf k6 » inclut explicitement les notes à intégrer : sélection
+quotidienne, écoute entière, fondu réglable, autoplay YouTube et visibilité de la
+vidéo mémorisée. Spotify est exclu par le product owner ; il demande une option CSS
+pour masquer le panneau vidéo en conservant la lecture.
+
+Les critères et limites détaillés figurent dans
+[chargement, daily et réglages](docs/prepared-loading-and-daily.md). Le chargement
+rapide reste un objectif mesuré avant/après, sans garantie de disponibilité des
+médias externes ni de capacité sous charge. Le benchmark k6 demeure différé.
+
+La revue commune complète du PRD reste à faire ; cette actualisation ne la coche
+pas à la place du product owner. D04 et les garanties de restauration restent
+ouverts ; la conservation existante n’est pas modifiée par cette livraison.

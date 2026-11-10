@@ -7,13 +7,17 @@ window.YouTubeAdmin = {editor(key, request) {
   const status = el('p'); status.setAttribute('role', 'status');
   const choices = el('div'); choices.className = 'youtube-choices';
   const search = el('button', window.RadioI18n.t("ui.e948f7f5c8ed")); search.type = 'button'; search.className = 'text-button';
-  section.append(heading, hint, status, search, choices);
+  const link = el('input'); link.type = 'url'; link.placeholder = 'https://www.youtube.com/watch?v=…';
+  const label = el('label', window.RadioI18n.t('youtube.link_label')); label.append(link);
+  const verify = el('button', window.RadioI18n.t('youtube.verify_link')); verify.type = 'button';
+  verify.onclick = () => action(() => request(`/api/catalog/${key}/youtube/link`, {url: link.value, revision: data?.revision || 0}));
+  section.append(heading, hint, status, search, label, verify, choices);
   let data, busy = false;
   async function action(run) {
-    if (busy) return; busy = true; search.disabled = true;
+    if (busy) return; busy = true; search.disabled = verify.disabled = true;
     try { render(await run()); }
     catch (error) { if (error.name !== 'AbortError') status.textContent = error.message; }
-    finally { busy = false; search.disabled = false; }
+    finally { busy = false; search.disabled = verify.disabled = false; }
   }
   function choose(candidate_id, automatic = false) {
     action(() => request(`/api/catalog/${key}/youtube/choice`, {candidate_id, automatic, revision: data.revision}));

@@ -76,6 +76,9 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
             )
         db.commit()
     log = open(f"{directory}/server.log", "w")
+    from tests.browser_prepared import start as start_prepared_rankings
+
+    stop_prepared_rankings = start_prepared_rankings(SessionLocal)
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]
@@ -226,10 +229,10 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         )
                         expect(station_button.locator("span")).to_have_text("Ⅱ")
                         # A broken station image restores the plain playback button.
-                        station_button.locator("img").evaluate(
+                        page.locator(".station-logo").evaluate(
                             "img => { img.src = 'https://cdn-images.dzcdn.net/broken.svg'; }"
                         )
-                        expect(station_button.locator("img")).to_have_count(0)
+                        expect(page.locator(".station-logo")).to_have_count(0)
                         expect(station_button.locator("span")).to_have_text("Ⅱ")
                         page.evaluate("""() => {
                             window.retainedPlayer = document.querySelector('#radio-player');
@@ -415,7 +418,8 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.locator(".admin-edit-dialog .catalog-close").click()
                         expect(page.locator(".catalog-dialog")).to_be_visible()
                         page.locator(".catalog-platforms summary").click()
-                        expect(page.locator(".catalog-platforms .platform-link")).to_have_count(3)
+                        expect(page.locator(".catalog-platforms .platform-link")).to_have_count(2)
+                        expect(page.locator(".preview-entry .youtube-button")).to_have_count(1)
                         expect(
                             page.locator('.catalog-dialog a[href*="open.spotify.com/search/"]')
                         ).to_be_visible()
@@ -495,7 +499,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                         page.locator("#player-mute").click()
                         assert not page.locator("#radio-player").evaluate("(e) => e.muted")
                         page.locator("#player-toggle").click()
-                        assert page.locator("#radio-player").evaluate("(e) => e.paused")
+                        assert page.locator("#radio-player").evaluate("(e) => !e.paused && e.muted")
                         page.locator("#player-toggle").click()
                         page.wait_for_function(
                             '() => !document.querySelector("#radio-player").paused'
@@ -513,7 +517,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             'document.querySelector("#radio-player") === window.retainedPlayer '
                             "&& !retainedPlayer.paused"
                         )
-                        expect(page.locator("audio")).to_have_count(1)
+                        expect(page.locator("audio")).to_have_count(3)
                         expect(page.locator(".player")).to_have_attribute("data-mode", "preview")
                         expect(page.locator("#player-seek")).to_be_visible()
                         expect(page.locator(".player-live")).not_to_be_visible()
@@ -527,7 +531,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             }"""
                         )
                         page.wait_for_function(
-                            '() => document.querySelector("#radio-player").currentTime >= 59',
+                            '() => document.querySelector("#excerpt-player").currentTime >= 59',
                             timeout=2000,
                         )
                         page.locator("#player-volume").evaluate(
@@ -544,10 +548,10 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             path=f"/tmp/radio-preview-{browser.browser_type.name}-{width}.png"
                         )
                         page.locator("#chart-list .preview-button").first.click()
-                        assert page.locator("#radio-player").evaluate("e => e.paused")
+                        assert page.locator("#excerpt-player").evaluate("e => e.paused")
                         page.locator("#chart-list .preview-button").first.click()
                         page.wait_for_function(
-                            '() => !document.querySelector("#radio-player").paused'
+                            '() => !document.querySelector("#excerpt-player").paused'
                         )
                         page.locator("#player-return-radio").click()
                         expect(page.locator(".player")).to_have_attribute("data-mode", "radio")
@@ -684,6 +688,7 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                 for browser in browsers:
                     browser.close()
     finally:
+        stop_prepared_rankings()
         server.terminate()
         server.wait(timeout=10)
         log.close()

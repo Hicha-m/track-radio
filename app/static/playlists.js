@@ -1,5 +1,6 @@
 // A bounded, in-memory selection. Only explicit search/play/export actions contact providers.
 window.RadioPlaylists = (() => {
+  let daily = false;
   let scope = {}, activeScope = {}, opening = 0, panel, rows = [], generation = 0, request, playing = false;
   const t = (key, args) => window.RadioI18n.t(`playlist.${key}`, args);
   const el = (tag, text = '') => { const node = document.createElement(tag); node.textContent = text; return node; };
@@ -64,12 +65,13 @@ window.RadioPlaylists = (() => {
       await window.MusicFilters.refresh();
       // A discovered global revision intentionally invalidates the pending composition.
       if (current !== generation || !panel.open) return;
-      const query = new URLSearchParams(activeScope);
-      const form = find('form'); query.set('limit', form.elements.limit.value); query.set('sort', form.elements.sort.value);
+      const query = new URLSearchParams(daily ? {station_ids: activeScope.station_ids || ''} : activeScope);
+      const form = find('form'); query.set('limit', form.elements.limit.value); if (!daily) query.set('sort', form.elements.sort.value);
       window.MusicFilters.apply(query);
-      const data = await jsonRequest(`/api/playlists/selection?${query}`);
+      const data = await jsonRequest(`/api/playlists/${daily ? 'daily' : 'selection'}?${query}`);
       if (current !== generation || !panel.open) return;
-      rows = data.items.map(row => ({...row, included: true, candidates: [], video: null})); render();
+      rows = data.items.map(row => ({...row, included: true, candidates: row.candidates || [], video: row.video || null})); render();
+      if (daily) find('scope').textContent = window.RadioI18n.t('daily.scope', {date: data.date});
       find('status').textContent = rows.length ? t('ready', {count: rows.length}) : t('empty');
     } catch (error) { if (current === generation) find('status').textContent = error.name === 'AbortError' ? t('failed') : error.message; }
   }
@@ -108,6 +110,7 @@ window.RadioPlaylists = (() => {
     const videos = new Set();
     async function next() {
       if (current !== generation || !panel.open) return;
+      if (cursor > 0 && !window.RadioPlayer.autoplay()) { stopPlayback(); find('status').textContent = t('finished'); return; }
       if (cursor >= queue.length) { stopPlayback(); find('status').textContent = t('finished'); return; }
       const row = queue[cursor++], playerVersion = window.TrackYouTube.generation();
       try {
@@ -150,7 +153,8 @@ window.RadioPlaylists = (() => {
     } catch (error) { if (current === generation) find('status').textContent = error.name === 'AbortError' ? t('failed') : error.message; }
     finally { if (current === generation) update(); }
   }
-  async function open() {
+  async function open(asDaily = false) {
+    daily = asDaily;
     const attempt = ++opening;
     panel?.close(); panel?.remove(); cancel(); stopPlayback();
     await window.MusicFilters.refresh().catch(() => {});
@@ -158,14 +162,18 @@ window.RadioPlaylists = (() => {
     activeScope = {...scope};
     panel = document.querySelector('#playlist-template').content.firstElementChild.cloneNode(true);
     rows = []; cancel();
+    if (daily) { panel.querySelector('h2').textContent = window.RadioI18n.t('daily.open'); find('form').elements.sort.disabled = true; }
     find('scope').textContent = t('scope', {stations: activeScope.station_ids || t('all'), since: activeScope.since ? new Date(activeScope.since).toLocaleString(window.RadioI18n.locale) : t('beginning'), until: activeScope.until ? new Date(activeScope.until).toLocaleString(window.RadioI18n.locale) : t('now')});
     find('close').onclick = () => panel.close();
     find('pause').onclick = () => window.TrackYouTube.toggle();
+    find('video-visible').checked = window.TrackYouTube.visible();
+    find('video-visible').onchange = () => window.TrackYouTube.setVisible(find('video-visible').checked);
     find('form').onsubmit = prepare; find('resolve').onclick = resolve; find('play').onclick = play; find('export').onclick = download;
     find('stop').onclick = () => { cancel(); find('stop').hidden = true; find('status').textContent = t('stopped'); update(); };
     const opened = panel;
     panel.addEventListener('close', () => { if (panel !== opened) return; cancel(); stopPlayback(); rows = []; }, {once: true});
     window.RadioDialogs.dismissOutside(panel); document.body.append(panel); panel.showModal();
+    if (daily) await prepare();
   }
   window.addEventListener('radio:filterschange', () => {
     cancel(); stopPlayback(); rows = [];
@@ -173,6 +181,6 @@ window.RadioPlaylists = (() => {
   });
   window.addEventListener('radio:audioactive', () => { cancel(); stopPlayback(); });
   window.addEventListener('radio:beforepagechange', () => { opening++; panel?.close(); });
-  document.addEventListener('click', event => { if (event.target.closest('[data-open-playlist]')) open(); });
+  document.addEventListener('click', event => { if (event.target.closest('[data-open-playlist]')) open(); else if (event.target.closest('[data-open-daily]')) open(true); });
   return {configure(value) { const query = new URLSearchParams(value); scope = {}; for (const key of ['since', 'until']) if (query.has(key)) scope[key] = query.get(key); scope.station_ids = query.get('station_ids') || query.get('station_id') || ''; }};
 })();

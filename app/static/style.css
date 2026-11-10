@@ -552,3 +552,9 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
 .station-search-label { display: block; margin: 20px 0 8px; font-weight: 600; }
 #station-search { display: block; width: 100%; max-width: 640px; padding: 12px 14px; border-radius: 8px; background: var(--surface); color: var(--text); }
 #station-search-status { margin: 12px 0 16px; color: var(--muted); }
+
+.youtube-dock.is-concealed { visibility: hidden; pointer-events: none; position: fixed; }
+
+#listening-settings > label:not(.checkbox) { display: grid; gap: 6px; margin: 14px 0; }
+#listening-settings > .checkbox { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+#listening-settings input[type=number] { max-width: 120px; }

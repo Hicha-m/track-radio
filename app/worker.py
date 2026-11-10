@@ -285,6 +285,10 @@ async def youtube_loop():
 if __name__ == "__main__":
 
     async def run():
-        await asyncio.gather(main(), enrichment_loop(SessionLocal), youtube_loop())
+        from app.services.prepared_rankings import loop as ranking_loop
+
+        await asyncio.gather(
+            main(), enrichment_loop(SessionLocal), youtube_loop(), ranking_loop(SessionLocal)
+        )
 
     asyncio.run(run())

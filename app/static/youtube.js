@@ -2,9 +2,13 @@
 window.TrackYouTube = (() => {
   let api, player, controller, version = 0, activeTrack, currentVideo, available = [], anchor;
   let ready = false;
+  let videoVisible = true;
+  try { videoVisible = localStorage.getItem('radio-youtube-visible') !== 'false'; } catch (_) { /* Use the default. */ }
   let selectionEnded = null, selectionError = null;
   const el = (tag, text = '', className = '') => { const node = document.createElement(tag); node.textContent = text; node.className = className; return node; };
   const dock = el('section', '', 'catalog-youtube youtube-dock'); dock.id = 'youtube-dock'; dock.hidden = true;
+  function visibility() { const concealed = !videoVisible && dock.classList.contains('has-video') && !dock.dataset.videoError; dock.classList.toggle('is-concealed', concealed); dock.inert = concealed; dock.setAttribute('aria-hidden', String(concealed)); }
+  visibility();
   dock.setAttribute('aria-label', window.RadioI18n.t("ui.46aa38caf70b"));
   const close = el('button', '×', 'youtube-close'); close.type = 'button';
   close.setAttribute('aria-label', window.RadioI18n.t("ui.5e02c28191a4"));
@@ -129,7 +133,7 @@ window.TrackYouTube = (() => {
     try { player?.destroy(); } catch (_) { /* A failed embed can already be detached. */ }
     player = null; ready = false; activeTrack = null; currentVideo = null; anchor = null; available = [];
     viewport.replaceChildren(); choices.replaceChildren(); status.textContent = ''; dock.hidden = true;
-    dock.classList.remove('has-video', 'is-hovered'); delete dock.dataset.videoError; delete dock.dataset.videoState;
+    dock.classList.remove('has-video', 'is-hovered'); delete dock.dataset.videoError; delete dock.dataset.videoState; visibility();
     relocate(document.body); window.RadioPlayer?.videoStopped();
   }
   close.onclick = () => {
@@ -165,7 +169,7 @@ window.TrackYouTube = (() => {
     const current = ++version; currentVideo = video;
     delete dock.dataset.videoError; delete dock.dataset.videoState;
     player?.destroy(); player = null; ready = false; viewport.replaceChildren(); choices.replaceChildren();
-    dock.hidden = false; dock.classList.remove('has-video');
+    dock.hidden = false; dock.classList.remove('has-video'); visibility();
     status.textContent = window.RadioI18n.t("ui.1bc5757c9939"); fit();
     window.RadioPlayer.startVideo(adapter, activeTrack);
     try {
@@ -180,7 +184,7 @@ window.TrackYouTube = (() => {
       iframe.referrerPolicy = 'strict-origin-when-cross-origin';
       const url = new URL(`https://www.youtube-nocookie.com/embed/${video.id}`);
       url.search = new URLSearchParams({enablejsapi: '1', origin: location.origin, autoplay: '1', playsinline: '1', rel: '0', controls: '0'});
-      iframe.src = url; viewport.append(iframe); dock.classList.add('has-video'); fit();
+      iframe.src = url; viewport.append(iframe); dock.classList.add('has-video'); visibility(); fit();
       player = new window.YT.Player(iframe, {host: 'https://www.youtube-nocookie.com', events: {
         onReady: event => {
           if (current !== version) return;
@@ -200,7 +204,7 @@ window.TrackYouTube = (() => {
         onAutoplayBlocked: () => { if (current === version) status.textContent = window.RadioI18n.t("ui.fe115b53936d"); },
         onError: event => {
           if (current !== version) return;
-          dock.dataset.videoError = String(event?.data ?? 'unknown');
+          dock.dataset.videoError = String(event?.data ?? 'unknown'); visibility();
           if (selectionError) {
             const failed = selectionError; selectionEnded = selectionError = null; failed(); return;
           }
@@ -216,6 +220,12 @@ window.TrackYouTube = (() => {
         if (selectionError) { const failed = selectionError; selectionEnded = selectionError = null; failed(); }
       }
     }
+  }
+  function addExternalSearch(track) {
+    const link = el('a', window.RadioI18n.t('youtube.external_search'));
+    const query = encodeURIComponent(`${track.artist || ''} ${track.title || ''}`.trim());
+    link.href = `https://www.youtube.com/results?search_query=${query}`;
+    link.target = '_blank'; link.rel = 'noopener noreferrer'; choices.append(link);
   }
   function addChoice(video) {
     const button = el('button', `${video.title} · ${video.channel}`, 'text-button'); button.type = 'button'; button.onclick = () => show(video); choices.append(button);
@@ -239,10 +249,10 @@ window.TrackYouTube = (() => {
         status.textContent = window.RadioI18n.t("ui.105ebf437b14"); available.forEach(addChoice);
       } else status.textContent = window.RadioI18n.t("ui.b2c013c4927b");
       if (!dock.classList.contains('is-floating')) dock.scrollIntoView({block: 'nearest', behavior: 'smooth'});
-    } catch (error) { if (error.name !== 'AbortError' && current === version) status.textContent = error.message; }
+    } catch (error) { if (error.name !== 'AbortError' && current === version) { status.textContent = error.message; addExternalSearch(track); } }
   }
   function button(track, action) {
-    const button = el('button', window.RadioI18n.t("ui.fb7accfff8c6"), 'youtube-button platform-link'); button.type = 'button';
+    const button = el('button', window.RadioI18n.t('youtube.full_song'), 'youtube-button platform-link'); button.type = 'button';
     button.setAttribute('aria-label', window.RadioI18n.t("ui.7204ecace0ab", {p0: (track.title)}));
     button.onclick = event => { event.stopPropagation(); if (action) action(); else window.TrackCatalog.open(track, {youtube: true}); };
     return button;
@@ -278,5 +288,5 @@ window.TrackYouTube = (() => {
     selectionEnded = ended; selectionError = failed;
     return show(video);
   }
-  return {mount, button, stop, minimize, playSelected, generation: () => version, toggle() { if (adapter.playing()) adapter.pause(); else adapter.play(); window.RadioPlayer.videoState(); }};
+  return {visible: () => videoVisible, setVisible(value) { videoVisible = Boolean(value); visibility(); window.dispatchEvent(new Event('radio:youtubevisibility')); try { localStorage.setItem('radio-youtube-visible', String(videoVisible)); } catch (_) { /* Optional preference. */ } }, mount, button, stop, minimize, playSelected, generation: () => version, toggle() { if (adapter.playing()) adapter.pause(); else adapter.play(); window.RadioPlayer.videoState(); }};
 })();

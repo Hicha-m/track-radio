@@ -63,6 +63,9 @@ with tempfile.TemporaryDirectory(prefix="radio-persistent-") as directory:
         wav.setsampwidth(2)
         wav.setframerate(8000)
         wav.writeframes(b"\x00\x00" * 8000 * 60)
+    from tests.browser_prepared import start as start_prepared_rankings
+
+    stop_prepared_rankings = start_prepared_rankings(SessionLocal)
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]
@@ -278,6 +281,7 @@ window.YT={Player:function(frame,options){
                 print(f"{width}px: media, persistence, admin, monitoring, FR/EN OK", flush=True)
             browser.close()
     finally:
+        stop_prepared_rankings()
         server.terminate()
         server.wait(timeout=10)
         log.close()

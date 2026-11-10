@@ -248,3 +248,45 @@ def test_video_duplicates_and_new_global_exclusion_are_rechecked(client, db, his
     result = client.post("/api/playlists/export", json={"items": items})
     assert result.headers["x-playlist-skipped"] == "1"
     assert [row["title"] for row in result.json()["items"]] == ["Other"]
+
+
+@pytest.mark.parametrize("admin", [False, True])
+def test_daily_reuses_checked_videos_and_filters_before_selection(db, client, history, admin):
+    from contextlib import contextmanager
+
+    from app.services.prepared_rankings import refresh
+
+    now, stations, keys = history
+
+    @contextmanager
+    def factory():
+        yield db
+
+    refresh(factory, now + timedelta(seconds=1))
+    auth = {"Authorization": "Bearer test-admin-token"} if admin else {}
+    params = {"limit": 50, "exclusions": json.dumps([{"artist": "Artist", "title": "Other"}])}
+    one = client.get("/api/playlists/daily", params=params, headers=auth)
+    two = client.get("/api/playlists/daily", params=params, headers=auth)
+    assert one.status_code == 200
+    assert one.json() == two.json()
+    rows = one.json()["items"]
+    assert len(rows) == 3
+    assert all(row["title"] != "Other" for row in rows)
+    song = next(r for r in rows if r["track_id"] == keys[0])
+    assert song["video"]["id"] == "aaaaaaaaaaa"
+    assert song["state"] == "matched" and song["plays"] == 5
+    artist, title = normalized_pair("Artist", "Song")
+    db.add(
+        GlobalExclusion(
+            id=exclusion_id(artist, title),
+            artist=artist,
+            title=title,
+            artist_normalized=artist,
+            title_normalized=title,
+        )
+    )
+    db.commit()
+    assert client.get("/api/playlists/daily", params=params, headers=auth).status_code == 503
+    refresh(factory, now + timedelta(seconds=1))
+    visible = client.get("/api/playlists/daily", params=params, headers=auth).json()["items"]
+    assert all(r["track_id"] != keys[0] for r in visible)

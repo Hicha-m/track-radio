@@ -6,7 +6,7 @@ from alembic.config import Config
 from sqlalchemy import MetaData, Table, create_engine, insert, select, text
 
 from app.config import settings
-from app.models import Base, Play, Station, TrackMetadata
+from app.models import Base, Play, PlayCount, Station, TrackMetadata
 from app.services.track_identity import identity
 from scripts import transfer
 
@@ -72,6 +72,9 @@ def test_existing_history_migrates_in_batches_and_restores_from_old_backup(tmp_p
     transfer.export_data(backup)
     command.upgrade(cfg, "head")
     with old.connect() as conn:
+        from sqlalchemy import func
+
+        assert conn.scalar(select(func.sum(PlayCount.plays))) == 601
         rows = conn.execute(select(Play.track_id, Play.title, Play.raw_metadata)).all()
         assert len(rows) == 601
         assert all(r.track_id == identity("Artist", "Song") for r in rows)
@@ -86,6 +89,7 @@ def test_existing_history_migrates_in_batches_and_restores_from_old_backup(tmp_p
     monkeypatch.setattr(transfer, "engine", restored)
     transfer.import_data(backup)
     with restored.connect() as conn:
+        assert conn.scalar(select(func.sum(PlayCount.plays))) == 601
         assert conn.scalar(select(Play.track_id)) == identity("Artist", "Song")
         assert conn.scalar(select(TrackMetadata.lyrics_status)) == "matched"
         assert conn.scalar(select(Station.config_enabled)) is False

@@ -115,3 +115,19 @@ test('only authentication transitions invalidate filters, preserving in-flight c
   assert.equal(browser.clears(), 2);
   assert.deepEqual(JSON.parse(browser.filters.apply(new URLSearchParams()).get('exclusions')), [track]);
 });
+
+test('fresh server-filtered reads do not wait for revision; caches wait until it is known', async () => {
+  let finish;
+  const browser = create({fetch: async url => ({ok: true,
+    json: () => url.includes('/revision') ? new Promise(resolve => { finish = resolve; }) : Promise.resolve({items: []}),
+  })});
+  const checking = browser.filters.refresh();
+  await Promise.resolve();
+  assert.equal(browser.filters.ready(), false);
+  const response = await browser.filters.live('/api/stations/now-playing');
+  assert.deepEqual(await response.json(), {items: []});
+  finish({revision: 'first'}); await checking;
+  assert.equal(browser.filters.ready(), true);
+  assert.equal(browser.clears(), 1);
+  assert.ok(!browser.events.includes('radio:filterschange'));
+});

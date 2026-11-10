@@ -20,7 +20,7 @@ const list = document.querySelector('#chart-list');
 const status = document.querySelector('#chart-status');
 let days = new URLSearchParams(location.search).get('days') || '7';
 if (!['1', '7', '30', 'all'].includes(days)) days = '7';
-let pending;
+let pending, retryTimer;
 let chartVersion = 0;
 let renderedChart = null;
 let chartScope = {};
@@ -88,7 +88,17 @@ function renderChart(tracks) {
   if (!tracks.length) list.append(node('p', window.RadioI18n.t("ui.50bd7ac3ece8"), 'empty'));
   status.textContent = tracks.length ? window.RadioI18n.t("ui.8f7f0c04bc93", {p0: (tracks.length)}) : window.RadioI18n.t("ui.1d37e42be836");
 }
+function setScope(value) {
+  chartScope = {...value};
+  const exact = window.MusicFilters.apply(new URLSearchParams(chartScope));
+  exact.set('view', 'tracks'); exact.set('sort', 'frequency'); window.MusicFilters.exports(exact);
+  window.RadioPlaylists?.configure(chartScope);
+}
+function datedStatus(value) {
+  return window.RadioI18n.t(Date.now() - Date.parse(value) > 60000 ? 'ranking.stale' : 'ranking.updated', {time: new Date(value).toLocaleString(window.RadioI18n?.locale || 'fr-FR')});
+}
 async function loadChart(force = false) {
+  clearTimeout(retryTimer);
   if (pending) pending.abort();
   pending = new AbortController();
   const version = ++chartVersion;
@@ -114,30 +124,36 @@ async function loadChart(force = false) {
     button.setAttribute('aria-pressed', String(active));
   });
   const cacheKey = `chart:${selectedIds().join(',')}:${days}:${window.MusicFilters.key()}`;
-  const cached = window.RadioCache.get(cacheKey);
+  const cached = window.MusicFilters.ready() ? window.RadioCache.get(cacheKey) : null;
   if (cached) {
-    renderChart(cached.data);
-    status.textContent = window.RadioI18n.t("ui.1e9584892754", {p0: (new Date(cached.time).toLocaleTimeString((window.RadioI18n?.locale || 'fr-FR')))});
-    if (!force && Date.now() - cached.time < 60000) {
-      list.setAttribute('aria-busy', 'false');
-      return;
-    }
+    setScope(cached.data.scope || chartScope);
+    renderChart(cached.data.items || cached.data);
+    status.textContent = datedStatus(cached.data.calculated_at || new Date(cached.time).toISOString());
+
   }
   list.setAttribute('aria-busy', 'true');
   if (!cached) status.textContent = window.RadioI18n.t("ui.92b44edc9279");
   try {
-    const response = await window.MusicFilters.fetch(`/api/stats/top?${params}`, {signal: pending.signal, cache: 'no-store'});
-    if (!response.ok) throw new Error(window.RadioI18n.t("ui.1855e03b96c6"));
-    const data = await response.json();
+    const preparedParams = new URLSearchParams(params); preparedParams.delete('since'); preparedParams.set('period', days);
+    const response = await window.MusicFilters.live(`/api/stats/prepared?${preparedParams}`, {signal: pending.signal, cache: 'no-store'});
+    if (!response.ok) {
+      if (response.status === 503 && version === chartVersion) retryTimer = setTimeout(() => loadChart(true), 2000);
+      throw new Error(window.RadioI18n.t("ui.1855e03b96c6"));
+    }
+    const snapshot = await response.json();
+    const data = snapshot.items;
     if (version === chartVersion) {
-      window.RadioCache.put(cacheKey, data);
+      chartScope = {...chartScope, until: snapshot.until};
+      if (snapshot.since) chartScope.since = snapshot.since; else delete chartScope.since;
+      setScope(chartScope);
+      window.RadioCache.put(cacheKey, {items: data, scope: {...chartScope}, calculated_at: snapshot.calculated_at});
       renderChart(data);
-      status.textContent = window.RadioI18n.t("ui.4ec8bec2064c", {p0: (data.length), p1: (new Date().toLocaleTimeString((window.RadioI18n?.locale || 'fr-FR')))});
+      status.textContent = window.RadioI18n.t(snapshot.stale ? 'ranking.stale' : 'ranking.updated', {time: new Date(snapshot.calculated_at).toLocaleString(window.RadioI18n?.locale || 'fr-FR')});
     }
   } catch (error) {
     if (error.name !== 'AbortError' && version === chartVersion) {
       status.textContent = `${error.message}${cached ? window.RadioI18n.t("ui.5e11c8bfaea3") : ''}`;
-      if (cached) return;
+      if (cached) { status.textContent = `${datedStatus(cached.data.calculated_at || new Date(cached.time).toISOString())} · ${error.message}`; return; }
       renderedChart = null;
       podium.replaceChildren();
       list.replaceChildren();
@@ -166,7 +182,7 @@ loadChart();
 
 return () => {
   chartVersion++;
-  pending?.abort();
+  pending?.abort(); clearTimeout(retryTimer);
   compact.removeEventListener('change', resizeControls);
   window.clearInterval(timer);
   document.removeEventListener('visibilitychange', onVisibility);

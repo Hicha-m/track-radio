@@ -1,9 +1,10 @@
 # Architecture — Radio Tracker
 
-État décrit le 9 novembre 2026, à partir du code de
-`d3ba132` et des fichiers cités.
+État actualisé le 10 novembre 2026, à partir du code et des fichiers cités.
+Le [chantier de chargement et d’écoute](docs/prepared-loading-and-daily.md)
+décrit la migration 0017 et les vérifications de cette évolution.
 Le [PRD](PRD.md) porte le besoin produit ; ce document décrit sa réalisation
-actuelle et les arbitrages encore ouverts. Aucune architecture cible n’est approuvée ici.
+actuelle et les arbitrages encore ouverts. Les évolutions réalisées et les options non arbitrées restent distinctes.
 
 ## Lecture rapide
 
@@ -20,8 +21,8 @@ et les limites des mesures (§9) restent distincts de l’architecture existante
 
 Le produit est un monolithe modulaire Python, exécuté dans deux processus
 applicatifs : l’API web et le worker. Ils partagent la base, les modèles et les
-services du même dépôt. Les fonctions de collecte, d’enrichissement et de
-recherche YouTube sont des boucles du même processus worker, pas trois services
+services du même dépôt. Les fonctions de collecte, d’enrichissement, de
+recherche YouTube et de préparation des classements sont des boucles du même processus worker, pas trois services
 Docker indépendants. Il n’existe pas de courtier de messages externe dans la
 configuration de production versionnée.
 
@@ -30,7 +31,7 @@ flowchart LR
     N[Navigateur : pages, filtres, lecteur] --> T[Cloudflare Tunnel]
     T --> A[API FastAPI : routes et services]
     A --> B[(SQLite : volume radio_data)]
-    W[Worker : collecte, enrichissement, YouTube] --> B
+    W[Worker : collecte, enrichissement, YouTube, classements] --> B
     W --> S[Sources de métadonnées et catalogues]
     A --> S
     N --> M[Flux radio, extraits, images et YouTube]
@@ -114,7 +115,10 @@ automatiques. Les tentatives et quotas YouTube sont durables en base.
 Skyrock et myTuner servent de sources temporaires avec vérification de correspondance.
 L’image de station (`/api/stations/{id}/artwork`) est un autre mécanisme : logo
 connu ou image découverte sur le site configuré, avec redirection du navigateur.
-La recherche Google/Spotify avec score de confiance n’est pas implémentée.
+Le repli de catalogue applique désormais un score artiste/titre/métadonnées,
+avec refus des ambiguïtés et priorité à la pochette validée. Google n’est pas intégré ;
+Spotify demeure un fournisseur optionnel serveur dont la disponibilité réelle
+n’est pas établie par l’échantillon documenté.
 
 Le lecteur maintient le flux radio sain connecté mais muet pendant pause, extrait
 ou vidéo. Après erreur, fin ou connexion bloquée, il recharge le flux avec trois
@@ -137,6 +141,8 @@ Sources : [catalogue](app/services/catalog.py), [YouTube](app/services/youtube.p
 | `plays` | Plusieurs passages par station ; artiste/titre, identité musicale, détection, dernière observation, source et métadonnées brutes |
 | `track_metadata` | Fiche enrichie par identité musicale ; sélection, candidats, paroles, genre et pochette temporaire |
 | `global_exclusions` | Blacklist commune par couple artiste/titre normalisé |
+| `play_counts` | Comptes horaires transactionnels par radio et libellés/identité |
+| `ranking_counts`, `ranking_states` | Générations préparées des classements, date et révision de visibilité |
 | `admin_sessions` | Sessions administratives, expiration et protection CSRF |
 | `youtube_matches`, `service_quotas` | Recherche/choix vidéo, délais, réservation de travail et budget fournisseur |
 | `worker_states`, `worker_events` | État et activité bornée des boucles de fond |
@@ -198,7 +204,8 @@ Sources : [modèles](app/models.py), [base](app/database.py), [migrations](migra
 
 | Cache existant | Portée | Limite et expiration dans le code |
 | --- | --- | --- |
-| Classement `cached_top` | Mémoire du processus API | 64 entrées ; 30 s par défaut, paramétrables |
+| Classements courants préparés | SQLite, partagés entre API et worker | Générations persistantes, cadence de 30 s ; heure et révision d’exclusions vérifiées |
+| Classement particulier `cached_top` | Mémoire du processus API | 64 entrées ; 30 s par défaut, paramétrables |
 | Statistiques détaillées | Mémoire du processus API | 64 entrées ; 30 s |
 | Exploration | Mémoire du processus API | 32 entrées ; 3 s |
 | Réponses navigateur `RadioCache` | Onglet : mémoire et `sessionStorage` si disponible | 40 entrées ; 5 min ; préfixe par version d’assets |
@@ -212,8 +219,8 @@ partagés entre processus et disparaissent au redémarrage. Aucun Redis ou cache
 distribué n’est configuré. Le TTL navigateur n’implique pas que toutes les routes
 soient mises en cache pendant cinq minutes : chaque module décide de son usage.
 
-**Constat de code :** le verrou du classement reste tenu pendant le calcul SQL ;
-la découverte d’images tient aussi un verrou commun pendant la requête distante.
+**Constat de code :** le verrou du cache de classement ne couvre plus le calcul SQL ;
+la découverte d’images tient encore un verrou commun pendant la requête distante.
 **Hypothèse à mesurer :** des requêtes concurrentes pourraient attendre ces
 sections. Leur contribution aux lenteurs signalées n’a pas été mesurée ici.
 Les timestamps exacts appartiennent à la clé du classement ; un cache chaud sur
@@ -282,8 +289,8 @@ l’ordre de travail ; cela n’approuve pas une technologie future.
 
 | Décision | Options à comparer, sans choix imposé | Conséquences possibles sur le code | Preuve nécessaire et état |
 | --- | --- | --- | --- |
-| D02 — Réactivité des parcours | Réduire le travail initial, prioriser les requêtes utiles, optimiser les requêtes existantes | Ordonnancement JavaScript, limites de résultats, services de lecture ; conserver la sémantique des filtres | Mesures cache froid/chaud et parcours prioritaires ; objectifs à valider au point 2 |
-| D03 — Fraîcheur | Calcul à la demande, cache borné adapté à chaque usage, résultats préagrégés | Clés/invalidation, modules de lecture et éventuels jobs/tables d’agrégats ; filtrer les exclusions correctement | Tolérance produit par information et coût mesuré ; à décider |
+| D02 — Réactivité des parcours | Titres courants et commandes utilisables en 2 s, statistiques/pochettes ensuite | Bundle différé, montage public indépendant de la session admin, lecture ciblée | Objectif confirmé ; mesures après livraison requises |
+| D03 — Fraîcheur | Vues courantes préparées, retard accepté de 1 min, date visible et réessais | Compteurs et générations, exclusions avant calcul public ; conserver le dernier résultat compatible en erreur | Arbitrage confirmé ; fenêtre réelle de fraîcheur à mesurer après livraison |
 | D04 — Historique et reprise | Historique plus long en base, archives restaurables à la demande, politique actuelle | Maintenance, stockage, restauration et éventuellement accès aux archives ; distinguer archivage et masquage | Période utile, volume, perte/délai de restauration acceptables ; à décider |
 | D05a — Stockage | Conserver SQLite avec optimisations ciblées ou étudier PostgreSQL | URL/driver, migrations, SQL spécifique, transactions, tests et exploitation ; aucune bascule sans comparaison | Plans, volumes, attente de verrous/pool et charge concurrente ; aucune cause établie |
 | D05b — Structure du code | Conserver les modules actuels ou renforcer progressivement les frontières routes/services/accès SQL | Déplacer le code par responsabilité et stabiliser des interfaces ; préserver contrats et tests | Difficultés concrètes de maintenance et bénéfice attendu ; à décider avant restructuration |
@@ -300,7 +307,7 @@ Les premières mesures et leurs limites figurent dans le
 le tableau admin a répondu en 180 puis 195 ms en HTTP sur les échantillons
 rapportés, atteignant l’objectif confirmé de moins de 2 s. Ce résultat ne garantit
 pas la latence générale : un premier classement HTTP a encore pris 12 s.
-Le diagnostic du chargement initial reste ouvert.
+Le premier diagnostic a conduit aux optimisations décrites dans le rapport historique. Le chantier du 10 novembre ajoute la préparation et le bundle ; ses mesures après livraison restent distinctes.
 
 Le [middleware de profilage](app/loading_profile.py) mesure le temps API jusqu’au
 départ des en-têtes, la durée cumulée et maximale des exécutions SQL et leur
@@ -313,3 +320,32 @@ Ces observations ne démontrent ni la nécessité de PostgreSQL ni une cause uni
 aux lenteurs. Les prochaines comparaisons doivent préserver les exclusions et
 séparer SQL, API, réseau et navigateur. SQLite utilise `EXPLAIN QUERY PLAN` ;
 le `EXPLAIN ANALYZE` de PostgreSQL ne lui est pas directement applicable.
+
+
+## 10. Évolution du 10 novembre : préparation et lecture
+
+La migration 0017 ajoute `play_counts`, `ranking_counts` et `ranking_states`.
+Des triggers SQLite maintiennent les comptes horaires lors des écritures ; ils
+couvrent aussi imports, corrections et archivage. Le préparateur lit un instantané,
+écrit une génération par petits lots et publie atomiquement les quatre périodes.
+Il dispose de connexions distinctes de la collecte ; aucun Redis ni service externe
+n’est ajouté. Le lecteur vérifie la révision globale et applique les exclusions
+personnelles et globales avant agrégation/limite. Les vues courantes ne dépendent
+plus du cache mémoire de l’API. Les fenêtres particulières restent à la demande.
+
+Le navigateur charge un bundle ordonné et différé. La session administrateur et la vérification de révision ne
+bloquent plus les lectures publiques fraîches, filtrées côté serveur. Les caches
+navigateur restent gardés par la révision connue. Les genres ne sont plus lus sur l’accueil.
+L’API expose l’heure de calcul et les bornes, utilisées aussi par les détails et
+exports ; le navigateur préserve un classement daté lors d’un échec d’actualisation.
+
+La daily réutilise les vidéos stockées et revalide la visibilité avant chaque
+lecture. L’association administrative d’une URL utilise oEmbed avec domaines et
+identité vérifiés ; elle n’utilise pas de recherche Data API. Les réglages sont
+locaux au navigateur : autoplay, fondu des extraits et visibilité CSS de la vidéo.
+
+D02 et D03 sont précisés dans le PRD d’après les arbitrages confirmés. D05 conserve
+SQLite et les processus existants avec compteurs et vues préparées ; la demande
+actuelle autorise cette réalisation avant k6. Les autres options non arbitrées ne
+sont pas réputées approuvées. Les mesures et limites finales figurent dans le
+[rapport du chantier](docs/prepared-loading-and-daily.md).

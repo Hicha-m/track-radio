@@ -11,9 +11,8 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v={{ asset_version }}">
   <script id="i18n-catalog" type="application/json">{{ translations | tojson }}</script>
   <script id="i18n-fallback" type="application/json">{{ french_translations | tojson }}</script>
-  <script src="/static/i18n.js?v={{ asset_version }}"></script>
-  <script src="/static/theme.js?v={{ asset_version }}"></script>
   <link rel="stylesheet" href="/static/style.css?v={{ asset_version }}">
+  <script defer src="/assets/application.js?v={{ asset_version }}"></script>
 </head>
 <body data-asset-version="{{ asset_version }}">
   <button id="mobile-nav-toggle" class="mobile-nav-toggle" type="button" aria-controls="mobile-navigation" aria-haspopup="dialog">☰ <span>{{ t('ui.3db65f8c2a7d') }}</span></button>
@@ -56,7 +55,7 @@
       <section id="classement" class="chart-section" aria-labelledby="chart-title">
         <div class="section-heading"><div><h2 id="chart-title">{{ t('ui.ab355f8d8afd') }}</h2><p id="chart-subtitle">{{ t('ui.42d61b1ed6f9') }}</p></div><span class="update-badge"><span class="live-dot"></span> {{ t('ui.ab1d0e30cf2b') }}</span></div>
         <details id="chart-controls" class="chart-controls" open><summary>{{ t('ui.3b4910be09e6') }}</summary><form id="chart-filters" class="chart-filters"><div class="period-tabs" role="group" aria-label="{{ t("ui.58b883f75316") }}"><button type="button" data-days="1" aria-pressed="false">{{ t('ui.139dc478b59e') }}</button><button type="button" data-days="7" class="active" aria-pressed="true">{{ t('ui.5ce6303bdc6b') }}</button><button type="button" data-days="30" aria-pressed="false">{{ t('ui.4e9241c2a282') }}</button><button type="button" data-days="all" aria-pressed="false">{{ t('ui.0dd29de4afba') }}</button></div><details class="station-selection"><summary>{{ t('ui.207f7a3adb85') }}</summary><fieldset><legend>{{ t('ui.c63c1a6e201e') }}</legend><p class="hint">{{ t('ui.992d52e13224') }}</p>{% for station in stations %}<label class="checkbox"><input type="checkbox" data-chart-radio value="{{ station.id }}">{{ station.name }}</label>{% endfor %}<button type="button" data-chart-all class="text-button">{{ t('ui.3d7e6d53866b') }}</button></fieldset></details></form>
-        <div class="music-tools"><button type="button" data-open-exclusions>{{ t('ui.ddce6f5b8fc3') }}</button><button type="button" data-open-playlist>{{ t("playlist.open") }}</button><button type="button" data-open-export>{{ t('ui.47fef94d2b0b') }}</button></div>
+        <div class="music-tools"><button type="button" data-open-exclusions>{{ t('ui.ddce6f5b8fc3') }}</button><button type="button" data-open-daily>{{ t("daily.open") }}</button><button type="button" data-open-playlist>{{ t("playlist.open") }}</button><button type="button" data-open-export>{{ t('ui.47fef94d2b0b') }}</button></div>
         </details><p id="chart-status" class="hint" role="status" aria-live="polite">{{ t('ui.e99216f56f83') }}</p>
         <div id="chart-podium" class="podium"></div>
         <div id="chart-list" class="chart-list" aria-busy="true"></div>
@@ -92,6 +91,11 @@
     <h2 id="listening-settings-title">{{ t('ui.86b17cd1fcce') }}</h2>
     <label>{{ t('Langue') }}<select id="language-select"><option value="fr">Français</option><option value="en">English</option></select></label>
     <label class="checkbox"><input id="resume-radio-after-preview" type="checkbox" checked>{{ t('ui.67703534ac95') }}</label>
+    <label class="checkbox"><input id="autoplay-tracks" type="checkbox" checked>{{ t('playback.autoplay') }}</label>
+    <label class="checkbox"><input id="crossfade-tracks" type="checkbox">{{ t('playback.crossfade') }}</label>
+    <label>{{ t('playback.fade_seconds') }}<input id="crossfade-seconds" type="number" min="0.5" max="10" step="0.5" value="3" disabled></label>
+    <p class="hint">{{ t('playback.fade_note') }}</p>
+    <label class="checkbox"><input id="show-youtube-video" type="checkbox" checked>{{ t('playback.show_video') }}</label>
     <p class="hint">{{ t('ui.c2ed8dd01beb') }}</p>
     <p id="resume-radio-target" class="hint"></p>
   </dialog>
@@ -110,26 +114,6 @@
   </section>
   {% include 'export.html' %}
   {% include 'playlists.html' %}
-  <script src="/static/cache.js?v={{ asset_version }}"></script>
-  <script src="/static/dialogs.js?v={{ asset_version }}"></script>
-  <script src="/static/filters.js?v={{ asset_version }}"></script>
-  <script src="/static/export.js?v={{ asset_version }}"></script>
-  <script src="/static/metrics.js?v={{ asset_version }}"></script>
-  <script src="/static/admin-session.js?v={{ asset_version }}"></script>
-  <script src="/static/youtube-admin.js?v={{ asset_version }}"></script>
-  <script src="/static/collection-monitor.js?v={{ asset_version }}"></script>
-  <script src="/static/admin.js?v={{ asset_version }}"></script>
-  <script src="/static/platforms.js?v={{ asset_version }}"></script>
-  <script src="/static/youtube.js?v={{ asset_version }}"></script>
-  <script src="/static/catalog.js?v={{ asset_version }}"></script>
-  <script src="/static/search.js?v={{ asset_version }}"></script>
-  <script src="/static/player.js?v={{ asset_version }}"></script>
-  <script src="/static/stations.js?v={{ asset_version }}"></script>
   <p id="navigation-status" class="navigation-status" role="status" hidden></p>
-  <script src="/static/playlists.js?v={{ asset_version }}"></script>
-  <script src="/static/charts.js?v={{ asset_version }}"></script>
-  <script src="/static/dashboard.js?v={{ asset_version }}"></script>
-  <script src="/static/mobile-navigation.js?v={{ asset_version }}"></script>
-  <script src="/static/navigation.js?v={{ asset_version }}"></script>
 </body>
 </html>

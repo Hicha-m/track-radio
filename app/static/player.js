@@ -1,7 +1,9 @@
 // Keep the live stream connected while excerpts or YouTube use the shared controls.
 (() => {
   const radioAudio = document.querySelector('#radio-player');
-  const excerptAudio = document.createElement('audio'); excerptAudio.id = 'excerpt-player'; excerptAudio.preload = 'none'; document.body.append(excerptAudio);
+  let excerptAudio = document.createElement('audio'); excerptAudio.id = 'excerpt-player'; excerptAudio.preload = 'none'; document.body.append(excerptAudio);
+  let spareAudio = document.createElement('audio'); spareAudio.id = 'transition-player'; spareAudio.preload = 'none'; document.body.append(spareAudio);
+  let fade = null, fadeTimer = null;
   let audio = radioAudio;
   let suspended = true;
   let video = null;
@@ -9,7 +11,7 @@
   let previewVersion = 0;
   let previewRequest = null;
   function cancelSequence() {
-    previewVersion++; previewRequest?.abort(); previewRequest = null; sequence = null;
+    cancelFade(); previewVersion++; previewRequest?.abort(); previewRequest = null; sequence = null;
   }
   function previewUrl(track) {
     if (!track.metadata?.preview_url || !track.metadata.track_id) return track.preview_url;
@@ -34,7 +36,7 @@
   }
   let userMuted = false;
   function quietRadio() { suspended = true; cancelRadioRecovery(); radioAudio.muted = true; }
-  function stopExcerpt() { excerptAudio.pause(); excerptAudio.removeAttribute('src'); excerptAudio.load(); }
+  function stopExcerpt() { cancelFade(); for (const item of [excerptAudio, spareAudio]) { item.pause(); item.removeAttribute('src'); item.load(); } }
   function announceAudio() { window.dispatchEvent(new Event('radio:audioactive')); }
 
   const panel = document.querySelector('.player');
@@ -119,6 +121,71 @@
       radioAudio.load(); play({recovery: true});
     }, 1000 * 2 ** radioRetryCount++);
   }
+  const autoplay = document.querySelector('#autoplay-tracks');
+  const crossfade = document.querySelector('#crossfade-tracks');
+  const fadeSeconds = document.querySelector('#crossfade-seconds');
+  const showVideo = document.querySelector('#show-youtube-video');
+  try {
+    autoplay.checked = localStorage.getItem('radio-autoplay') !== 'false';
+    crossfade.checked = localStorage.getItem('radio-crossfade') === 'true';
+    const saved = Number(localStorage.getItem('radio-crossfade-seconds') || 3);
+    fadeSeconds.value = Number.isFinite(saved) ? Math.max(.5, Math.min(10, saved)) : 3;
+  } catch (_) { /* Keep safe defaults if storage is unavailable. */ }
+  fadeSeconds.disabled = !crossfade.checked;
+  function savePlaybackSettings() {
+    const value = Number(fadeSeconds.value);
+    fadeSeconds.value = Number.isFinite(value) ? Math.max(.5, Math.min(10, value)) : 3;
+    fadeSeconds.disabled = !crossfade.checked;
+    if (!crossfade.checked || !autoplay.checked) cancelFade();
+    try {
+      localStorage.setItem('radio-autoplay', String(autoplay.checked));
+      localStorage.setItem('radio-crossfade', String(crossfade.checked));
+      localStorage.setItem('radio-crossfade-seconds', fadeSeconds.value);
+    } catch (_) { /* Preferences remain usable in this tab. */ }
+  }
+  [autoplay, crossfade, fadeSeconds].forEach(input => input.addEventListener('change', savePlaybackSettings));
+  showVideo.checked = window.TrackYouTube.visible();
+  showVideo.addEventListener('change', () => window.TrackYouTube.setVisible(showVideo.checked));
+  window.addEventListener('radio:youtubevisibility', () => { showVideo.checked = window.TrackYouTube.visible(); });
+  function fadeVolumes() {
+    if (!fade) return;
+    const ratio = Math.min(1, (performance.now() - fade.started) / fade.duration);
+    const master = Number(volume.value);
+    fade.old.volume = master * (1 - ratio); fade.next.volume = master * ratio;
+    fade.old.muted = fade.next.muted = userMuted;
+    if (ratio >= 1) cancelFade();
+  }
+  function cancelFade() {
+    if (!fade) return;
+    clearInterval(fadeTimer); fadeTimer = null;
+    const previous = fade; fade = null;
+    previous.old.pause(); previous.old.removeAttribute('src'); previous.old.load();
+    previous.next.volume = Number(volume.value);
+    previous.run.pending = false;
+  }
+  async function blendExcerpt(track, url, run, ticket) {
+    const old = excerptAudio, next = spareAudio;
+    run.attempted.add(key(track, url));
+    next.volume = 0; next.muted = userMuted; next.src = url;
+    try { await next.play(); } catch (_) {
+      next.pause(); next.removeAttribute('src'); next.load();
+      if (sequence === run && previewVersion === ticket) {
+        run.pending = false; run.cursor = run.currentIndex;
+      }
+      return;
+    }
+    if (sequence !== run || previewVersion !== ticket || !run.active) {
+      next.pause(); next.removeAttribute('src'); next.load(); return;
+    }
+    excerptAudio = next; spareAudio = old; audio = next;
+    next.id = 'excerpt-player'; old.id = 'transition-player';
+    previewVersion++; run.currentIndex = run.cursor; run.attempted.add(key(track, url));
+    previewKey = key(track, url); setCurrentTrack(track); showArtwork(track);
+    title.textContent = track.title; artist.textContent = track.artist || '';
+    const remaining = Number.isFinite(old.duration) ? old.duration - old.currentTime : 0;
+    fade = {old, next, run, started: performance.now(), duration: Math.max(1, Math.min(Number(fadeSeconds.value), remaining) * 1000)};
+    fadeTimer = setInterval(fadeVolumes, 40); fadeVolumes(); sync(); syncProgress();
+  }
   const listeningSettings = document.querySelector('#listening-settings');
   const resumeRadio = document.querySelector('#resume-radio-after-preview');
   const settingsToggle = document.querySelector('#listening-settings-toggle');
@@ -186,7 +253,7 @@
     progress.setAttribute('aria-valuetext', window.RadioI18n.t("ui.c35a60b008ba", {p0: (time(position)), p1: (time(total))}));
   }
   function syncVolume() {
-    volume.value = mode === 'video' ? video?.volume() ?? Number(volume.value) : audio.volume;
+    if (!fade) volume.value = mode === 'video' ? video?.volume() ?? Number(volume.value) : audio.volume;
     const silent = userMuted || Number(volume.value) === 0;
     mute.setAttribute('aria-label', silent ? window.RadioI18n.t("ui.d52a0aa00ed0") : window.RadioI18n.t("ui.4bda29ddf960"));
     mute.setAttribute('aria-pressed', String(silent));
@@ -198,7 +265,7 @@
     if (mode !== 'radio' || !radio?.id) return;
     try {
       const params = window.MusicFilters.apply(new URLSearchParams({station_id: radio.id}));
-      const response = await window.MusicFilters.fetch(`/api/stations/now-playing?${params}`, {cache: 'no-store'});
+      const response = await window.MusicFilters.live(`/api/stations/now-playing?${params}`, {cache: 'no-store'});
       if (!response.ok) throw new Error('radio_metadata_unavailable');
       const data = await response.json();
       if (current !== metadataVersion || mode !== 'radio') return;
@@ -280,7 +347,7 @@
     await startExcerpt(track, url, run);
   }
   async function startExcerpt(track, url, run) {
-    metadataVersion++;
+    cancelFade(); metadataVersion++;
     announceAudio(); video = null; quietRadio(); audio = excerptAudio;
     audio.pause();
     sequence = run; run.active = true; run.pending = false; previewVersion++;
@@ -309,6 +376,7 @@
       if (reason === 'ended' && resumeRadio.checked) selectRadio(run.returnRadio);
       return;
     }
+    if (!autoplay.checked) { finishSequence(run, reason); return; }
     if (run.cursor >= run.items.length - 1) { finishSequence(run, reason); return; }
     const ticket = previewVersion, controller = new AbortController(); previewRequest = controller;
     const current = () => sequence === run && ticket === previewVersion && run.active && !controller.signal.aborted;
@@ -331,7 +399,8 @@
         const fresh = data.items?.find(row => row.metadata?.track_id === id);
         const source = fresh && previewUrl(fresh);
         if (!source) { run.attempted.add(item.key); continue; }
-        await startExcerpt({...item.track, ...fresh}, source, run);
+        if (reason === 'crossfade') await blendExcerpt({...item.track, ...fresh}, source, run, ticket);
+        else await startExcerpt({...item.track, ...fresh}, source, run);
         return;
       }
       if (current()) finishSequence(run, reason);
@@ -355,6 +424,7 @@
     if (playing) pause(); else play();
   });
   progress.addEventListener('input', () => {
+    cancelFade();
     if (mode === 'preview' && sequence?.pending) pause();
     if (mode === 'video') video?.seek(Number(progress.value) / 1000 * video.duration());
     else if (mode === 'preview' && Number.isFinite(audio.duration)) audio.currentTime = Number(progress.value) / 1000 * audio.duration;
@@ -362,7 +432,8 @@
   });
   function applyVolume() {
     const value = Number(volume.value);
-    excerptAudio.volume = value; excerptAudio.muted = userMuted;
+    if (fade) fadeVolumes(); else excerptAudio.volume = value;
+    excerptAudio.muted = spareAudio.muted = userMuted;
     radioAudio.volume = value; radioAudio.muted = userMuted || suspended || mode !== 'radio';
     if (mode === 'video') video?.setVolume(value, userMuted);
     syncVolume();
@@ -387,7 +458,7 @@
       userMuted = false; applyVolume();
     }
   });
-  for (const sourceAudio of [radioAudio, excerptAudio]) {
+  for (const sourceAudio of [radioAudio, excerptAudio, spareAudio]) {
     const listen = (event, callback) => sourceAudio.addEventListener(event, () => { if (sourceAudio === audio && mode !== 'video') callback(); });
   listen('play', () => { label.textContent = mode === 'radio' ? window.RadioI18n.t("ui.910919b77ec7") : window.RadioI18n.t("ui.a90bd5662fcc"); sync(); });
   listen('playing', () => {
@@ -418,6 +489,12 @@
     if (mode === 'preview') advancePreview('error');
     else if (mode === 'radio') retryRadio();
   });
+  listen('timeupdate', () => {
+    if (mode === 'preview' && autoplay.checked && crossfade.checked && !sequence?.returnRadio && !audio.paused && !audio.ended && Number.isFinite(audio.duration)) {
+      const remaining = audio.duration - audio.currentTime;
+      if (remaining > 0 && remaining <= Math.min(Number(fadeSeconds.value), audio.duration / 2)) advancePreview('crossfade');
+    }
+  });
   ['timeupdate', 'loadedmetadata', 'durationchange', 'emptied', 'seeked'].forEach(event => listen(event, syncProgress));
   }
 
@@ -437,6 +514,7 @@
     }
   });
   function pause() {
+    cancelFade();
     if (mode === 'video') video?.pause();
     else if (mode === 'radio') { quietRadio(); label.textContent = window.RadioI18n.t("ui.239c064e0d40"); }
     else {
@@ -458,7 +536,7 @@
     video = null; mode = 'preview'; audio = excerptAudio; stopExcerpt();
     label.textContent = window.RadioI18n.t("ui.adf3f3af5692"); sync(); syncProgress();
   }
-  window.RadioPlayer = {preview, previewUrl, key, sync, pause, startVideo, videoStopped, videoState() {
+  window.RadioPlayer = {autoplay: () => autoplay.checked, preview, previewUrl, key, sync, pause, startVideo, videoStopped, videoState() {
     if (mode === 'video') { userMuted = video?.muted?.() ?? userMuted; syncVolume(); label.textContent = video?.playing() ? window.RadioI18n.t("ui.fb7accfff8c6") : window.RadioI18n.t("ui.239c064e0d40"); sync(); syncProgress(); }
   }};
   window.setInterval(() => { if (mode === 'video') { userMuted = video?.muted?.() ?? userMuted; syncVolume(); syncProgress(); } }, 500);

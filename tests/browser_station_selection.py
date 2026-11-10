@@ -52,6 +52,9 @@ with tempfile.TemporaryDirectory(prefix="radio-station-set-") as directory:
                     )
                 )
         db.commit()
+    from tests.browser_prepared import start as start_prepared_rankings
+
+    stop_prepared_rankings = start_prepared_rankings(SessionLocal)
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]
@@ -208,6 +211,7 @@ with tempfile.TemporaryDirectory(prefix="radio-station-set-") as directory:
             browser.close()
         print("Station sets: rankings, export, single/all, reload and mobile verified.")
     finally:
+        stop_prepared_rankings()
         server.terminate()
 
         try:

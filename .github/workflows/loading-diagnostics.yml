@@ -28,3 +28,6 @@ jobs:
       - name: Profile SQL and loopback API without data writes
         run: |
           ssh ubuntu@129.151.250.229 'cd track-radio && docker compose -f compose.yaml exec -T api python -' < scripts/profile_loading.py
+      - name: Compare prepared rankings and raw counts without data writes
+        run: |
+          ssh ubuntu@129.151.250.229 'cd track-radio && docker compose -f compose.yaml exec -T api python -' < scripts/profile_prepared_rankings.py

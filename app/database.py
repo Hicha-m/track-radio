@@ -3,6 +3,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
 from app.services.search_text import register_search
+from app.services.sqlite_runtime import prepare_temp_directory
+
+prepare_temp_directory()
 
 
 def make_engine(url: str):

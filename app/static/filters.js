@@ -31,9 +31,11 @@ window.MusicFilters = (() => {
     labels();
     window.dispatchEvent(new Event('radio:filterschange'));
   }
-  function acceptRevision(value) {
+  function acceptRevision(value, initializing = false) {
     if (typeof value !== 'string' || value === revision) return;
+    const initial = revision === null && initializing;
     revision = value;
+    if (initial) { window.RadioCache.clear(); labels(); return; }
     changed();
     window.dispatchEvent(new Event('radio:globalfilterschange'));
   }
@@ -44,12 +46,12 @@ window.MusicFilters = (() => {
       .then(async response => {
         if (!response.ok) throw new Error(window.RadioI18n.t("ui.2fba583dc587"));
         const data = await response.json();
-        if (current === generation) acceptRevision(data.revision);
+        if (current === generation) acceptRevision(data.revision, true);
       }).finally(() => { checking = null; });
     return checking;
   }
-  async function filteredFetch(url, options = {}) {
-    if (revision === null) await refresh();
+  async function filteredFetch(url, options = {}, requireRevision = true) {
+    if (requireRevision && revision === null) await refresh();
     const current = generation;
     const response = await fetch(url, {...options, cache: 'no-store'});
     const json = response.json.bind(response);
@@ -199,5 +201,5 @@ window.MusicFilters = (() => {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
   window.setInterval(() => { if (!document.hidden) check(); }, 30000);
   labels();
-  return {apply, hide, promotePersonal, exports, refresh, fetch: filteredFetch, key: () => `${revision}:${JSON.stringify(hidden)}`};
+  return {apply, hide, promotePersonal, exports, refresh, fetch: filteredFetch, live: (url, options) => filteredFetch(url, options, false), ready: () => revision !== null, key: () => `${revision}:${JSON.stringify(hidden)}`};
 })();

@@ -168,6 +168,65 @@ def video_choice(key: str, payload: VideoChoice, request: Request, db: Db):
     return public(db.get(YouTubeMatch, key))
 
 
+class YouTubeLink(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    url: str = Field(min_length=1, max_length=2048)
+    revision: int = Field(ge=0)
+
+
+@router.post("/{key}/youtube/link", dependencies=[Depends(require_admin)])
+async def video_link(key: str, payload: YouTubeLink, request: Request, db: Db):
+    from app.models import YouTubeMatch
+    from app.services.youtube import public, queue, verify_link, video_id_from_url
+
+    try:
+        video_id_from_url(payload.url)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
+    entry = find(db, key)
+    video_visible(request, db, entry.artist, entry.title)
+    artist, title, revision = entry.artist, entry.title, entry.revision
+    previous = db.get(YouTubeMatch, key)
+    if (previous.revision if previous else 0) != payload.revision:
+        raise HTTPException(409, "Les propositions ont changé. Rouvrez la fiche.")
+    db.commit()
+    candidate = await verify_link(artist, title, payload.url)
+    db.expire_all()
+    entry = find(db, key)
+    video_visible(request, db, entry.artist, entry.title)
+    if entry.revision != revision:
+        raise HTTPException(409, "Les propositions ont changé. Rouvrez la fiche.")
+    queue(db, key, artist, title)
+    previous = db.get(YouTubeMatch, key, populate_existing=True)
+    candidates = [
+        candidate,
+        *[c for c in (previous.candidates or []) if c.get("id") != candidate["id"]],
+    ][:10]
+    changed = db.execute(
+        update(YouTubeMatch)
+        .where(
+            YouTubeMatch.track_id == key,
+            YouTubeMatch.revision == payload.revision,
+        )
+        .values(
+            selected=candidate,
+            candidates=candidates,
+            status="matched",
+            manual=True,
+            checked_at=datetime.now(UTC),
+            retry_at=None,
+            lease_until=None,
+            revision=payload.revision + 1,
+        )
+    )
+    if changed.rowcount != 1:
+        db.rollback()
+        raise HTTPException(409, "Les propositions ont changé. Rouvrez la fiche.")
+    db.commit()
+    db.expire_all()
+    return public(db.get(YouTubeMatch, key))
+
+
 class Search(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     provider: Literal[
