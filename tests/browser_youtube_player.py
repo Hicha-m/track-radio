@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
@@ -33,6 +33,7 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                 "artist": "Artist",
                 "title": f"Song {i}",
             }
+            played_at = datetime.now(UTC) - timedelta(minutes=1)
             for _ in range(i + 1):
                 db.add(
                     Play(
@@ -41,12 +42,15 @@ with tempfile.TemporaryDirectory(prefix="radio-youtube-stats-") as directory:
                         title=f"Song {i}",
                         source="icy",
                         raw_metadata="original",
-                        detected_at=datetime.now(UTC),
-                        last_seen_at=datetime.now(UTC),
+                        detected_at=played_at,
+                        last_seen_at=played_at,
                     )
                 )
         db.add(Station(name="Empty Radio", slug="empty", stream_url="https://example.test/live"))
         db.commit()
+    from app.services.prepared_rankings import refresh
+
+    refresh(SessionLocal)
     with socket.socket() as available:
         available.bind(("127.0.0.1", 0))
         port = available.getsockname()[1]
@@ -190,20 +194,46 @@ window.YT={Player:function(frame,options){
                     < page.locator(".youtube-close").bounding_box()["x"]
                 )
                 grip.press("Home")
-                mover = page.locator(".youtube-move")
-                mover.focus()
-                mover.press("Home")
-                left = page.locator("#youtube-dock").bounding_box()["x"]
+                dock = page.locator("#youtube-dock")
+                expect(page.locator(".youtube-move")).to_have_count(0)
+                dock.focus()
+                page.keyboard.press("Home")
+                before_move = dock.bounding_box()
+                left = before_move["x"]
                 assert left == 12
-                mover.press("End")
-                assert page.locator("#youtube-dock").bounding_box()["x"] > left
-                box = mover.bounding_box()
-                start = page.locator("#youtube-dock").bounding_box()["x"]
-                page.mouse.move(box["x"] + 20, box["y"] + 20)
-                page.mouse.down()
-                page.mouse.move(box["x"] - 20, box["y"] + 20, steps=5)
-                page.mouse.up()
-                assert page.locator("#youtube-dock").bounding_box()["x"] < start
+                if width == 1280:
+                    viewport = page.locator(".youtube-viewport").bounding_box()
+                    x, y = (
+                        viewport["x"] + viewport["width"] / 2,
+                        viewport["y"] + viewport["height"] / 2,
+                    )
+                    page.mouse.move(x, y)
+                    page.mouse.down()
+                    page.wait_for_timeout(350)
+                    page.mouse.move(x + 60, y + 35, steps=5)
+                    page.mouse.up()
+                    after_move = dock.bounding_box()
+                    assert after_move["x"] > before_move["x"] and after_move["y"] > before_move["y"]
+                if width <= 760:
+                    viewport = page.locator(".youtube-viewport").bounding_box()
+                    x, y = (
+                        viewport["x"] + viewport["width"] / 2,
+                        viewport["y"] + viewport["height"] / 2,
+                    )
+                    touch = context.new_cdp_session(page)
+                    touch.send(
+                        "Input.dispatchTouchEvent",
+                        {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]},
+                    )
+                    page.wait_for_timeout(350)
+                    touch.send(
+                        "Input.dispatchTouchEvent",
+                        {"type": "touchMove", "touchPoints": [{"x": x + 24, "y": y + 24}]},
+                    )
+                    touch.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+                    after_move = dock.bounding_box()
+                    assert after_move["x"] > before_move["x"] and after_move["y"] > before_move["y"]
+                    touch.detach()
                 dimensions = page.locator("#youtube-dock").evaluate(
                     "e => [e.scrollHeight, e.clientHeight]"
                 )

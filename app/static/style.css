@@ -451,11 +451,16 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
 
 /* Persistent YouTube host and operational state. */
 .youtube-dock { position: relative; box-sizing: border-box; width: var(--youtube-width, 640px); max-width: 100%; min-width: 0; margin-inline: auto; padding: 0 8px 24px; background: var(--surface, #fff); border: 1px solid var(--line); border-radius: 12px; color: var(--text, #191919); }
-.youtube-dock.is-floating { position: fixed; z-index: 70; left: var(--youtube-left, auto); right: 12px; bottom: var(--youtube-bottom, 145px); width: var(--youtube-width, 360px); max-width: calc(100vw - 24px); max-height: calc(100dvh - var(--youtube-bottom, 145px) - 12px); margin: 0; overflow: hidden; box-shadow: 0 10px 40px #0004; }
+.youtube-dock.is-floating { position: fixed; z-index: 70; left: var(--youtube-left, auto); right: 12px; bottom: var(--youtube-bottom, 145px); width: var(--youtube-width, 360px); max-width: calc(100vw - 24px); max-height: calc(100dvh - var(--youtube-bottom, 145px) - 12px); margin: 0; overflow: hidden; box-shadow: 0 10px 40px #0004; cursor: grab; }
+.youtube-dock.is-floating.has-position { top: var(--youtube-top); right: auto; bottom: auto; max-height: calc(100dvh - var(--youtube-top) - 12px); }
 .youtube-toolbar { display: flex; justify-content: space-between; align-items: center; height: 44px; gap: 4px; }
+.youtube-dock.is-floating .youtube-toolbar { cursor: grab; touch-action: none; }
+.youtube-dock.is-floating .youtube-status { touch-action: none; }
+.youtube-dock.is-floating .youtube-viewport { touch-action: none; }
+.youtube-dock.is-floating .youtube-viewport iframe { pointer-events: none; }
 .youtube-toolbar button { display: grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; font-size: 24px; padding: 0; }
 .youtube-toolbar button:hover { background: var(--line); }
-.youtube-resize { position: absolute; bottom: 0; right: 0; width: 44px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: 24px; line-height: 1; cursor: ew-resize; touch-action: none; }
+.youtube-resize { position: absolute; bottom: 0; right: 0; width: 44px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: 24px; line-height: 1; cursor: nwse-resize; touch-action: none; }
 .youtube-status { margin: 12px 4px; font-size: 12px; overflow-wrap: anywhere; }
 .youtube-status:empty,.youtube-dock>.youtube-choices:empty { display: none; }
 .youtube-dock>.youtube-choices { margin: 12px 4px; overflow-wrap: anywhere; }
@@ -531,6 +536,9 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
 .playlist-items { padding-left: 1.7rem; }
 .playlist-items li { padding: .8rem 0; border-bottom: 1px solid var(--border); }
 .playlist-item-head, .playlist-actions { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; }
+.playlist-transport { position: sticky; top: 0; z-index: 2; display: flex; width: max-content; max-width: 100%; align-items: center; gap: .25rem; padding: 4px 0; background: var(--surface); }
+.playlist-transport button { min-width: 44px; }
+.playlist-transport [data-playlist-play] { min-width: 120px; }
 .playlist-item-head strong { flex: 1 1 160px; overflow-wrap: anywhere; min-width: 0; }
 .playlist-item-head button { min-height: 40px; }
 .playlist-items select { width: 100%; max-width: 100%; margin-top: .5rem; }
@@ -543,10 +551,11 @@ button.player-copy:not(:disabled):hover strong{text-decoration:underline}
 .playlist-dialog [data-playlist-status] { margin: 12px 0; }
 .playlist-dialog .playlist-actions + .hint { margin-top: 14px; }
 .playlist-items li { border-color: var(--line); }
-@media(max-width: 420px) { .playlist-dialog .filter-grid { grid-template-columns: 1fr; } .playlist-actions > button { flex: 1 1 130px; } }
+.playlist-items li.is-current { border-left: 3px solid var(--accent); padding-left: .75rem; background: var(--surface-alt); }
+@media(max-width: 420px) { .playlist-dialog .filter-grid { grid-template-columns: 1fr; } .playlist-actions > button { flex: 1 1 130px; } .playlist-transport { width: 100%; justify-content: center; } }
 
-.youtube-move { cursor: ew-resize !important; touch-action: none; }
-.youtube-dock.is-moving { user-select: none; }
+.youtube-dock.is-moving { cursor: grabbing; user-select: none; }
+.youtube-dock:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .youtube-dock.is-floating > .youtube-choices { max-height: 30dvh; overflow-y: auto; }
 
 .station-search-label { display: block; margin: 20px 0 8px; font-weight: 600; }

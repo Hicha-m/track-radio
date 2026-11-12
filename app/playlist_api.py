@@ -166,8 +166,7 @@ def export_playlist(db: Db, body: PlaylistExport, filters: Filters):
 
 @router.get("/daily")
 def daily(db: Db, filters: Annotated[PlaylistFilters, Query()]):
-    """A dated selection from the prepared week; reuse stored videos, no provider I/O."""
-    import hashlib
+    """A daily playlist in the prepared ranking order; reuse stored videos."""
     from datetime import UTC
     from zoneinfo import ZoneInfo
 
@@ -184,7 +183,7 @@ def daily(db: Db, filters: Annotated[PlaylistFilters, Query()]):
         )
     day = datetime.now(UTC).astimezone(ZoneInfo("Europe/Paris")).date().isoformat()
     rows = [{**row, "track_id": identity(row["artist"], row["title"])} for row in source["items"]]
-    rows.sort(key=lambda row: hashlib.sha256(f"{day}:{row['track_id']}".encode()).hexdigest())
+    # Preserve the prepared ranking order so the visible list is also the playback order.
     # Keep enough candidates to fill the selection after identity-wide visibility checks.
     keys = [row["track_id"] for row in rows[:50]]
     matches = {

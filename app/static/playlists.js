@@ -2,17 +2,32 @@
 window.RadioPlaylists = (() => {
   let daily = false;
   let scope = {}, activeScope = {}, opening = 0, panel, rows = [], generation = 0, request, playing = false;
+  let playQueue = [], playQueueIds = new Set(), cursor = -1, navigation = 0;
   const t = (key, args) => window.RadioI18n.t(`playlist.${key}`, args);
   const el = (tag, text = '') => { const node = document.createElement(tag); node.textContent = text; return node; };
   const find = name => panel.querySelector(`[data-playlist-${name}]`);
   const selected = () => rows.filter(row => row.included);
   function cancel() { generation++; request?.abort(); request = null; }
   function edit() { cancel(); stopPlayback(); find('stop').hidden = true; }
-  function stopPlayback() { if (playing) window.TrackYouTube.stop(); playing = false; if (panel?.open) find('pause').disabled = true; }
+  function stopPlayback() {
+    if (playing) window.TrackYouTube.stop();
+    playing = false; playQueue = []; playQueueIds = new Set(); cursor = -1; navigation++;
+    if (panel?.open) update();
+  }
   function update() {
+    if (!panel) return;
     const count = selected().length;
     find('export').disabled = find('resolve').disabled = !count;
     find('play').disabled = !selected().some(row => row.video);
+    find('previous').disabled = cursor <= 0;
+    find('next').disabled = cursor < 0 || cursor >= playQueue.length - 1;
+    find('pause').disabled = !playing;
+    find('items').querySelectorAll('li').forEach((item, index) => {
+      const current = cursor >= 0 && playQueue[cursor] === rows[index];
+      item.classList.toggle('is-current', current);
+      if (current) item.setAttribute('aria-current', 'true');
+      else item.removeAttribute('aria-current');
+    });
   }
   function render() {
     const list = find('items'); list.replaceChildren();
@@ -104,32 +119,51 @@ window.RadioPlaylists = (() => {
     } catch (error) { if (current === generation) find('status').textContent = error.message; }
     finally { if (current === generation) { find('stop').hidden = true; update(); } }
   }
+  function finishPlayback(current) {
+    if (current !== generation) return;
+    playing = false; find('status').textContent = t('finished'); update();
+  }
+  async function playAt(index, current, automatic = false) {
+    if (current !== generation || !panel.open) return;
+    if (automatic && !window.RadioPlayer.autoplay()) { finishPlayback(current); return; }
+    if (index >= playQueue.length) { finishPlayback(current); return; }
+    if (index < 0) return;
+    const attempt = ++navigation;
+    request?.abort();
+    if (playing) window.TrackYouTube.stop();
+    playing = false; cursor = index; update();
+    const row = playQueue[index], playerVersion = window.TrackYouTube.generation();
+    try {
+      await window.MusicFilters.refresh();
+      if (current !== generation || attempt !== navigation) return;
+      const data = await validate([row]);
+      if (current !== generation || attempt !== navigation || playerVersion !== window.TrackYouTube.generation() || !panel.open) return;
+      const track = data.items[0];
+      if (!track?.video || (automatic && playQueueIds.has(track.video.id))) {
+        await playAt(index + 1, current, true);
+        return;
+      }
+      playQueueIds.add(track.video.id); playing = true;
+      find('status').textContent = t('playing', {current: index + 1, total: playQueue.length, title: track.title});
+      update();
+      window.TrackYouTube.playSelected(track, track.video, () => {
+        if (current === generation && attempt === navigation) void playAt(index + 1, current, true);
+      }, () => {
+        if (current !== generation || attempt !== navigation) return;
+        find('status').textContent = t('video_error');
+        void playAt(index + 1, current, true);
+      }, panel);
+    } catch (_) {
+      if (current === generation && attempt === navigation) {
+        stopPlayback(); find('status').textContent = t('check_failed');
+      }
+    }
+  }
   async function play() {
     cancel(); stopPlayback(); const current = generation;
-    const queue = [...selected().filter(row => row.video)]; let cursor = 0;
-    const videos = new Set();
-    async function next() {
-      if (current !== generation || !panel.open) return;
-      if (cursor > 0 && !window.RadioPlayer.autoplay()) { stopPlayback(); find('status').textContent = t('finished'); return; }
-      if (cursor >= queue.length) { stopPlayback(); find('status').textContent = t('finished'); return; }
-      const row = queue[cursor++], playerVersion = window.TrackYouTube.generation();
-      try {
-        await window.MusicFilters.refresh();
-        if (current !== generation) return;
-        const data = await validate([row]);
-        if (current !== generation || playerVersion !== window.TrackYouTube.generation() || !panel.open) return;
-        const track = data.items[0];
-        if (!track?.video || videos.has(track.video.id)) return next();
-        videos.add(track.video.id); playing = true; find('pause').disabled = false;
-        find('status').textContent = t('playing', {current: cursor, total: queue.length, title: track.title});
-        window.TrackYouTube.playSelected(track, track.video, next, () => {
-          if (current !== generation) return;
-          find('status').textContent = t('video_error'); next();
-        }, panel);
-      } catch (_) { if (current === generation) { stopPlayback(); find('status').textContent = t('check_failed'); } }
-    }
-    if (!queue.length) { find('status').textContent = t('no_videos'); return; }
-    await next();
+    playQueue = [...selected().filter(row => row.video)]; playQueueIds = new Set();
+    if (!playQueue.length) { find('status').textContent = t('no_videos'); update(); return; }
+    await playAt(0, current);
   }
   async function download() {
     cancel(); stopPlayback(); const current = generation, list = [...selected()];
@@ -166,6 +200,12 @@ window.RadioPlaylists = (() => {
     find('scope').textContent = t('scope', {stations: activeScope.station_ids || t('all'), since: activeScope.since ? new Date(activeScope.since).toLocaleString(window.RadioI18n.locale) : t('beginning'), until: activeScope.until ? new Date(activeScope.until).toLocaleString(window.RadioI18n.locale) : t('now')});
     find('close').onclick = () => panel.close();
     find('pause').onclick = () => window.TrackYouTube.toggle();
+    find('previous').onclick = () => {
+      if (cursor > 0) { playQueueIds = new Set(); void playAt(cursor - 1, generation); }
+    };
+    find('next').onclick = () => {
+      if (cursor >= 0 && cursor < playQueue.length - 1) { playQueueIds = new Set(); void playAt(cursor + 1, generation); }
+    };
     find('video-visible').checked = window.TrackYouTube.visible();
     find('video-visible').onchange = () => window.TrackYouTube.setVisible(find('video-visible').checked);
     find('form').onsubmit = prepare; find('resolve').onclick = resolve; find('play').onclick = play; find('export').onclick = download;

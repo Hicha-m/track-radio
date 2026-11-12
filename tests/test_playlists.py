@@ -271,6 +271,7 @@ def test_daily_reuses_checked_videos_and_filters_before_selection(db, client, hi
     assert one.json() == two.json()
     rows = one.json()["items"]
     assert len(rows) == 3
+    assert [row["plays"] for row in rows] == sorted((row["plays"] for row in rows), reverse=True)
     assert all(row["title"] != "Other" for row in rows)
     song = next(r for r in rows if r["track_id"] == keys[0])
     assert song["video"]["id"] == "aaaaaaaaaaa"

@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
@@ -28,6 +28,7 @@ with tempfile.TemporaryDirectory(prefix="radio-playlist-") as directory:
         db.add(station)
         db.flush()
         keys = {}
+        played_at = datetime.now(UTC) - timedelta(minutes=1)
         for index, title in enumerate(
             ["First", "Second", "Ambiguous", "Missing", "Global secret", "Personal secret"]
         ):
@@ -39,8 +40,8 @@ with tempfile.TemporaryDirectory(prefix="radio-playlist-") as directory:
                         station_id=station.id,
                         artist="Artist",
                         title=title,
-                        detected_at=datetime.now(UTC),
-                        last_seen_at=datetime.now(UTC),
+                        detected_at=played_at,
+                        last_seen_at=played_at,
                         source="json",
                         raw_metadata="synthetic",
                     )
@@ -269,12 +270,50 @@ window.YT={Player:function(frame,options){
                 page.locator("#listening-settings-toggle").click()
                 page.locator("#autoplay-tracks").uncheck()
                 page.keyboard.press("Escape")
+                page.evaluate("""() => {
+                    const key = 'radio-hidden-tracks-v1';
+                    const hidden = JSON.parse(localStorage.getItem(key) || '[]');
+                    const remaining = hidden.filter(track => track.title !== 'First');
+                    localStorage.setItem(key, JSON.stringify(remaining));
+                }""")
+                page.reload()
+                expect(page.locator("#chart-list")).to_have_attribute("aria-busy", "false")
+                if not page.locator("[data-open-daily]").is_visible():
+                    page.locator("#chart-controls > summary").click()
                 page.locator("[data-open-daily]").click()
                 expect(page.locator(".playlist-dialog h2")).to_have_text("Daily du jour")
-                expect(page.locator("[data-playlist-items] li")).to_have_count(3)
+                expect(page.locator("[data-playlist-items] li")).to_have_count(4)
+                assert [
+                    text.strip()
+                    for text in page.locator("[data-playlist-items] strong").all_text_contents()
+                ] == [
+                    "First · Artist",
+                    "Second · Artist",
+                    "Ambiguous · Artist",
+                    "Missing · Artist",
+                ]
+                daily_evidence = Path("/tmp/radio-daily-evidence")
+                daily_evidence.mkdir(exist_ok=True)
+                page.screenshot(path=str(daily_evidence / f"{width}-daily.png"))
                 expect(page.locator("[data-playlist-play]")).to_be_enabled()
+                expect(page.locator("[data-playlist-previous]")).to_be_disabled()
+                expect(page.locator("[data-playlist-next]")).to_be_disabled()
                 page.locator("[data-playlist-play]").click()
-                expect(page.locator("[data-playlist-status]")).to_contain_text("Lecture 1/")
+                expect(page.locator("[data-playlist-status]")).to_have_text("Lecture 1/2 : First")
+                expect(page.locator("[data-playlist-items] li").first).to_have_attribute(
+                    "aria-current", "true"
+                )
+                expect(page.locator("[data-playlist-next]")).to_be_enabled()
+                page.locator("[data-playlist-next]").click()
+                expect(page.locator("[data-playlist-status]")).to_have_text("Lecture 2/2 : Second")
+                expect(page.locator("#youtube-dock iframe")).to_have_attribute(
+                    "src", __import__("re").compile("/bbbbbbbbbbb")
+                )
+                page.locator("[data-playlist-previous]").click()
+                expect(page.locator("[data-playlist-status]")).to_have_text("Lecture 1/2 : First")
+                expect(page.locator("#youtube-dock iframe")).to_have_attribute(
+                    "src", __import__("re").compile("/aaaaaaaaaaa")
+                )
                 page.wait_for_timeout(100)
                 page.evaluate("window.__events.onStateChange({data:0})")
                 expect(page.locator("[data-playlist-status]")).to_contain_text(
