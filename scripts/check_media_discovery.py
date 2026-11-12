@@ -3,7 +3,7 @@
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.database import SessionLocal
 from app.models import MediaDiscovery, TrackMetadata, WorkerState, YouTubeMatch
@@ -21,36 +21,34 @@ def check(factory=SessionLocal):
             < 180
         )
         eligible = db.scalar(
-            select(func.count())
-            .select_from(MediaDiscovery)
+            select(MediaDiscovery.track_id)
             .join(TrackMetadata, TrackMetadata.id == MediaDiscovery.track_id)
             .where(*visible(db))
+            .limit(1)
         )
         checked = db.scalar(
-            select(func.count())
-            .select_from(MediaDiscovery)
-            .where(MediaDiscovery.checked_at.is_not(None))
+            select(MediaDiscovery.track_id).where(MediaDiscovery.checked_at.is_not(None)).limit(1)
         )
         free_checked = db.scalar(
-            select(func.count())
-            .select_from(MediaDiscovery)
+            select(MediaDiscovery.track_id)
             .join(TrackMetadata, TrackMetadata.id == MediaDiscovery.track_id)
             .where(MediaDiscovery.evidence["strategy"].as_string() == STRATEGY, *visible(db))
+            .limit(1)
         )
         free_video = db.scalar(
-            select(func.count())
-            .select_from(YouTubeMatch)
+            select(YouTubeMatch.track_id)
             .join(TrackMetadata, TrackMetadata.id == YouTubeMatch.track_id)
             .where(YouTubeMatch.selected["source"].as_string() == "yt_dlp_oembed", *visible(db))
+            .limit(1)
         )
         free_cover = db.scalar(
-            select(func.count())
-            .select_from(MediaDiscovery)
+            select(MediaDiscovery.track_id)
             .join(TrackMetadata, TrackMetadata.id == MediaDiscovery.track_id)
             .where(
                 MediaDiscovery.evidence["cover"]["source"].as_string() == "ddgs_spotify",
                 *visible(db),
             )
+            .limit(1)
         )
         return {
             "worker_recent": recent,
