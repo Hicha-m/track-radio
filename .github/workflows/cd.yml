@@ -50,7 +50,7 @@ jobs:
   deploy:
     needs: publish
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     permissions:
       contents: read
       packages: read
@@ -76,7 +76,7 @@ jobs:
         run: |
           release="track-radio-upload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh "$VPS" "mkdir -m 700 '$release'"
-          tar -czf - compose.production.yaml .env.example config/stations.json scripts/deploy.sh scripts/configure_lastfm.py |
+          tar -czf - compose.production.yaml .env.example config/stations.json scripts/deploy.sh scripts/backup_sqlite.py scripts/configure_lastfm.py |
             ssh "$VPS" "tar -xzf - -C '$release'"
       - name: Transfer Last.fm configuration
         env:

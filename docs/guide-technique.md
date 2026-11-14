@@ -289,7 +289,7 @@ docker compose exec api python scripts/transfer.py export /app/data/backup.jsonl
 docker compose cp api:/app/data/backup.jsonl.gz ./backup.jsonl.gz
 ```
 
-Choisir un nom de fichier différent à chaque sauvegarde. Sauvegarder également le répertoire d’archives et `.env` dans un lieu privé. Pour restaurer dans un **nouveau volume vide**, exécuter les migrations, importer le fichier, puis lancer le seed et les services. Ne pas copier uniquement un fichier SQLite actif en oubliant son journal WAL.
+Choisir un nom de fichier différent à chaque sauvegarde. Sauvegarder également le répertoire d’archives et `.env` dans un lieu privé. Pour restaurer un export JSONL dans un **nouveau volume vide**, exécuter les migrations, importer le fichier, puis lancer le seed et les services. Ne pas copier uniquement un fichier SQLite actif en oubliant son journal WAL. Les instantanés `database.sqlite` des déploiements sont un format SQLite distinct : les restaurer uniquement services arrêtés, après avoir conservé une copie de l’état actuel du volume ; ne pas les passer à `scripts/transfer.py import`.
 
 Pour exporter une ancienne installation PostgreSQL, utiliser `scripts/transfer.py export …` dans l’ancien conteneur (qui possède son pilote), puis copier le fichier hors du conteneur. Dans le nouveau conteneur, avant tout seed :
 
@@ -406,8 +406,11 @@ privé sont installés dans `~/track-radio`, les données dans le volume Docker
 `track-radio_radio_data`. Les configurations de radios suivent le dépôt.
 Ne jamais supprimer ce volume pour une mise à jour.
 
-Avant les déploiements suivants, un export cohérent de la base active et la
-configuration précédente sont conservés dans `~/track-radio/backups/`. Les
+Avant les déploiements suivants, un instantané SQLite cohérent de la base active
+(créé avec l’API de sauvegarde en ligne de SQLite puis contrôlé avec
+`PRAGMA quick_check`) et la configuration précédente sont conservés dans
+`~/track-radio/backups/`. Les exports JSONL restent disponibles pour les
+sauvegardes manuelles et les imports décrits plus haut. Les
 archives historiques restent dans le volume et ne font pas partie de cet export.
 Prévoir leur sauvegarde externe ainsi qu’une gestion de l’espace disque : les
 sauvegardes et images ne sont pas automatiquement purgées.

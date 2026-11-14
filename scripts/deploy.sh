@@ -12,8 +12,9 @@ flock -n 9 || { echo 'Another deployment is running'; exit 1; }
 export RADIO_IMAGE="$image"
 compose() { docker compose -f compose.yaml "$@"; }
 
+echo '[deploy] Pulling validated image.'
 docker pull "$image"
-# Preserve the previous configuration and export using the running image,
+# Preserve the previous configuration and take a snapshot using the running image,
 # before new migrations or station synchronization can change the database.
 if [[ -f compose.yaml ]]; then
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
@@ -22,18 +23,25 @@ if [[ -f compose.yaml ]]; then
   cp compose.yaml .env image.env "$archive/"
   cp -r config "$archive/"
   if [[ -n $(compose ps --status running -q api) ]]; then
-    compose exec -T api python scripts/transfer.py export "/app/data/deploy-$stamp.jsonl.gz"
-    compose cp "api:/app/data/deploy-$stamp.jsonl.gz" "$archive/database.jsonl.gz"
+    snapshot="/app/data/deploy-$stamp.sqlite"
+    echo '[deploy] Creating a consistent SQLite snapshot before migrations.'
+    compose cp "$release/scripts/backup_sqlite.py" api:/tmp/backup_sqlite.py
+    compose exec -T api python /tmp/backup_sqlite.py /app/data/radio.db "$snapshot"
+    echo '[deploy] Copying the verified database snapshot to the private archive.'
+    compose cp "api:$snapshot" "$archive/database.sqlite"
+    compose exec -T api rm -f "$snapshot" /tmp/backup_sqlite.py
   else
     echo 'Existing API is stopped: refusing to deploy without a backup.' >&2
     exit 1
   fi
+  echo '[deploy] Stopping collection before the update.'
   compose stop collector
   if compose config --services | grep -Fxq discovery; then
     compose stop discovery
   fi
 fi
 
+echo '[deploy] Installing the new runtime configuration.'
 cp "$release/compose.production.yaml" compose.yaml
 mkdir -p config
 cp "$release/config/stations.json" config/stations.json
@@ -54,6 +62,7 @@ fi
 if [[ -s "$release/youtube.key" ]]; then
   python3 "$release/scripts/configure_lastfm.py" "$release/youtube.key" .env YOUTUBE_API_KEY
 fi
+echo '[deploy] Starting services and waiting for health checks.'
 if ! compose up -d --wait --wait-timeout 420; then
   compose logs --tail 80 >&2
   echo 'Deployment failed. Backups retained; no automatic database downgrade.' >&2
