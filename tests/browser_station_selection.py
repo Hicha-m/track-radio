@@ -172,7 +172,10 @@ with tempfile.TemporaryDirectory(prefix="radio-station-set-") as directory:
                 page.locator("#reset-columns").click()
                 expect(page.locator("#results th")).to_have_count(2 if width <= 760 else 6)
                 page.locator(".result-columns > summary").click()
-                page.locator("#result-view").select_option("plays")
+                page.locator("#result-view").evaluate(
+                    "input => { input.value = 'plays'; "
+                    "input.dispatchEvent(new Event('change', {bubbles: true})); }"
+                )
                 expect(page.locator("#results tbody tr")).to_have_count(6)
                 if width <= 760:
                     assert page.locator("#results th").all_text_contents() == [

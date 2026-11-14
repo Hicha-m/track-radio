@@ -23,7 +23,7 @@ def test_language_selection_shared_text_and_untranslated_station(db, client):
     html = client.get("/?lang=en").text
     assert '<html lang="en">' in html
     assert "<h1>Charts</h1>" in html
-    assert "<strong>Titre</strong>" in html
+    assert 'class="station-history-open" type="button" data-id="1">Titre</button>' in html
     french = client.get("/?lang=invalid").text
     assert '<html lang="fr">' in french
     client.cookies.set("radio_language", "en")

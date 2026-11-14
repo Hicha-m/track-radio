@@ -859,5 +859,20 @@
   "youtube.link_label": "Lien YouTube du morceau",
   "youtube.verify_link": "Vérifier et associer le lien",
   "catalog.history_until": "Tout l’historique jusqu’au {until}",
-  "workers.discovery": "Recherche automatique des médias"
+  "workers.discovery": "Recherche automatique des médias",
+  "stations.history": "Historique de diffusion",
+  "stations.history_title": "Historique de {station}",
+  "stations.history_loading": "Chargement de l’historique…",
+  "stations.history_empty": "Aucune diffusion visible pour cette radio.",
+  "stations.history_error": "Impossible de charger l’historique.",
+  "stations.history_more": "Afficher les diffusions précédentes",
+  "stations.youtube_playlist": "Écouter les titres sur YouTube · expérimental",
+  "playback.radio_youtube_experimental": "Activer l’écoute expérimentale des titres via YouTube",
+  "playback.radio_youtube_note": "Une playlist séparée utilise les titres récemment diffusés. La radio en direct reste disponible à côté ; les vidéos dépendent des liens validés par la recherche automatique.",
+  "player.open_mode": "Ouvrir le mode lecteur",
+  "player.controls": "Commandes de lecture",
+  "player.radio_source": "Radio en direct · {station}",
+  "player.youtube_source": "Lecture YouTube · {station}",
+  "player.track_source": "Écoute d’un morceau",
+  "daily.station_scope": "{station} · sélection du {date} · titres diffusés sur les 7 derniers jours"
 }

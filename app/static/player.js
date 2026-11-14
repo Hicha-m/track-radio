@@ -54,24 +54,42 @@
   const duration = document.querySelector('#player-duration');
   const back = document.querySelector('#player-return-radio');
   const cover = document.querySelector('.player-cover');
+  const expandedMode = document.querySelector('#now-playing-mode');
+  const expandedArt = document.querySelector('.now-playing-art');
+  const expandedTitle = document.querySelector('#now-playing-title');
+  const expandedArtist = document.querySelector('#now-playing-artist');
+  const expandedSource = document.querySelector('#now-playing-source');
+  const expandedStatus = document.querySelector('#now-playing-status');
+  const expandedToggle = document.querySelector('#now-playing-toggle');
+  const expandedPrevious = document.querySelector('#now-playing-previous');
+  const expandedNext = document.querySelector('#now-playing-next');
+  const expandedOpen = document.querySelector('#player-mode-toggle');
   let artworkKey = '';
+  function expandedArtwork(image = null) {
+    if (!expandedArt) return;
+    if (!image) { expandedArt.replaceChildren(document.createTextNode('♫')); return; }
+    const copy = image.cloneNode(); copy.alt = ''; copy.removeAttribute('id'); expandedArt.replaceChildren(copy);
+  }
   function showArtwork(track = {}, station = null) {
     const url = track.metadata?.cover_url || track.cover_url;
     const fallback = station?.id ? `/api/stations/${encodeURIComponent(station.id)}/artwork` : '';
     const next = `${url || ''}|${fallback}`;
     if (next === artworkKey) return;
     artworkKey = next;
-    cover.replaceChildren(document.createTextNode('♫'));
-    if (!url && !fallback) return;
+    if (!url && !fallback) { cover.replaceChildren(document.createTextNode('♫')); expandedArtwork(); return; }
     const img = document.createElement('img');
-    img.alt = ''; img.referrerPolicy = 'no-referrer';
+    img.alt = ''; img.referrerPolicy = 'no-referrer'; img.decoding = 'async';
     let usedFallback = !url;
     img.onerror = () => {
       if (artworkKey !== next) return;
       if (!usedFallback && fallback) { usedFallback = true; img.src = fallback; }
-      else { img.remove(); }
+      else { cover.replaceChildren(document.createTextNode('♫')); expandedArtwork(); }
     };
-    img.onload = () => { if (artworkKey === next) cover.replaceChildren(img); };
+    img.onload = () => {
+      if (artworkKey !== next) return;
+      cover.replaceChildren(img);
+      expandedArtwork(img);
+    };
     img.src = url || fallback;
   }
   let mode = 'radio';
@@ -83,6 +101,38 @@
     trackButton.disabled = !currentTrack;
     trackButton.setAttribute('aria-label', currentTrack ? window.RadioI18n.t("ui.b04c6850d768", {p0: (currentTrack.title)}) : window.RadioI18n.t("ui.5e54e23ea65e"));
   }
+  function updateExpandedMode(playing = false) {
+    if (!expandedMode) return;
+    expandedTitle.textContent = title.textContent;
+    expandedArtist.textContent = artist.textContent;
+    expandedSource.textContent = mode === 'radio'
+      ? window.RadioI18n.t('player.radio_source', {station: name.textContent})
+      : mode === 'video'
+        ? currentTrack?.station_id || currentTrack?.station_name
+          ? window.RadioI18n.t('player.youtube_source', {station: currentTrack.station_name || name.textContent})
+          : window.RadioI18n.t('youtube.full_song')
+        : window.RadioI18n.t('player.track_source');
+    expandedStatus.textContent = label.textContent;
+    expandedToggle.disabled = toggle.disabled;
+    expandedToggle.setAttribute('aria-label', toggle.getAttribute('aria-label'));
+    expandedToggle.setAttribute('aria-pressed', String(playing));
+    expandedToggle.querySelector('path').setAttribute('d', playing ? 'M6 5h4v14H6zM14 5h4v14h-4z' : 'M8 5v14l11-7z');
+    const navigation = window.RadioPlaylists?.navigationState?.() || {};
+    expandedPrevious.disabled = !navigation.previous;
+    expandedNext.disabled = !navigation.next;
+    const image = cover.querySelector('img');
+    if (image && !expandedArt.querySelector('img')) expandedArtwork(image);
+  }
+  function openMode() {
+    updateExpandedMode(!toggle.disabled && toggle.getAttribute('aria-pressed') === 'true');
+    expandedMode.showModal();
+  }
+  expandedOpen.addEventListener('click', openMode);
+  document.querySelector('#now-playing-close').addEventListener('click', () => expandedMode.close());
+  expandedToggle.addEventListener('click', () => toggle.click());
+  expandedPrevious.addEventListener('click', () => window.RadioPlaylists?.previous());
+  expandedNext.addEventListener('click', () => window.RadioPlaylists?.next());
+  window.RadioDialogs.dismissOutside(expandedMode);
   trackButton.addEventListener('click', () => { if (currentTrack) window.TrackCatalog.open(currentTrack, {previewQueue: sequence?.items.map(item => item.track) || []}); });
   let radio = audio.getAttribute('src') ? {url: audio.getAttribute('src'), id: panel.dataset.stationId, name: name.textContent} : null;
   let radioRetryTimer = null, radioWatchdog = null, radioStableTimer = null;
@@ -224,6 +274,7 @@
     panel.classList.toggle('is-playing', playing);
     panel.dataset.mode = mode;
     document.documentElement.dataset.playerMode = mode;
+    updateExpandedMode(playing);
     seek.hidden = mode === 'radio';
     document.querySelector('.player-live').hidden = mode !== 'radio';
     back.hidden = mode === 'radio' || !radio;
@@ -277,9 +328,11 @@
       setCurrentTrack(track ? {...track, station_id: radio.id} : null);
       artist.textContent = track?.artist || '';
       showArtwork(track || {}, radio);
+      sync();
     } catch (_) {
       if (current !== metadataVersion || mode !== 'radio') return;
       title.textContent = currentTrack ? window.RadioI18n.t('stations.last_known_player', {title: currentTrack.title}) : window.RadioI18n.t('stations.unavailable');
+      sync();
     }
   }
   async function play({recovery = false} = {}) {
@@ -527,7 +580,9 @@
   function startVideo(adapter, track) {
     cancelSequence(); quietRadio(); excerptAudio.pause(); video = adapter; metadataVersion++;
     mode = 'video'; previewKey = null; setCurrentTrack(track); showArtwork(track);
-    title.textContent = track.title; artist.textContent = track.artist || ''; name.textContent = window.RadioI18n.t("ui.fb7accfff8c6");
+    const station = track.station_id && document.querySelector(`.station-history-open[data-id="${CSS.escape(String(track.station_id))}"]`);
+    title.textContent = track.title; artist.textContent = track.artist || '';
+    name.textContent = track.station_name || station?.textContent.trim() || window.RadioI18n.t("ui.fb7accfff8c6");
     video.setVolume(Number(volume.value), userMuted);
     sync(); syncProgress();
   }
@@ -536,7 +591,7 @@
     video = null; mode = 'preview'; audio = excerptAudio; stopExcerpt();
     label.textContent = window.RadioI18n.t("ui.adf3f3af5692"); sync(); syncProgress();
   }
-  window.RadioPlayer = {autoplay: () => autoplay.checked, preview, previewUrl, key, sync, pause, startVideo, videoStopped, videoState() {
+  window.RadioPlayer = {autoplay: () => autoplay.checked, preview, previewUrl, key, sync, pause, openMode, startVideo, videoStopped, videoState() {
     if (mode === 'video') { userMuted = video?.muted?.() ?? userMuted; syncVolume(); label.textContent = video?.playing() ? window.RadioI18n.t("ui.fb7accfff8c6") : window.RadioI18n.t("ui.239c064e0d40"); sync(); syncProgress(); }
   }};
   window.setInterval(() => { if (mode === 'video') { userMuted = video?.muted?.() ?? userMuted; syncVolume(); syncProgress(); } }, 500);

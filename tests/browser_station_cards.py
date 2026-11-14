@@ -283,11 +283,13 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                     const response=await window.__fetch('/api/stations/now-playing?'+params);
                     window.__snapshot=await response.json();
                     window.__pending=[];
-                    window.MusicFilters.fetch=(url,...args)=>url.includes('/api/stations/now-playing')
+                    window.__filterRequest=(url,...args)=>url.includes('/api/stations/now-playing')
                         ? new Promise(resolve=>window.__pending.push(data=>{
                             resolve(new Response(JSON.stringify(data)));
                           }))
                         : window.__fetch(url,...args);
+                    window.MusicFilters.fetch=window.__filterRequest;
+                    window.MusicFilters.live=(url,...args)=>window.__filterRequest(url,...args);
                     window.dispatchEvent(new Event('radio:catalogchange'));
                 }""")
                 page.wait_for_function("() => window.__pending.length===1")
@@ -303,7 +305,9 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                 }""")
                 expect(card(0)).to_have_attribute("data-now-status", "hidden")
                 page.evaluate(
-                    "window.__pending[0](window.__snapshot);window.MusicFilters.fetch=window.__fetch"
+                    "window.__pending[0](window.__snapshot);"
+                    "window.MusicFilters.fetch=window.__fetch;"
+                    "window.MusicFilters.live=(url,options)=>window.__fetch(url,options,false)"
                 )
                 expect(card(0).locator(".station-title")).to_have_text("Information indisponible")
                 assert not media_requests
@@ -361,6 +365,18 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                 )
                 expect(card(2)).to_have_attribute("data-now-status", "current")
                 assert len(calls) == previous + 1
+                # Clicking a station name opens its filtered broadcast history.
+                card(0).locator(".station-history-open").click()
+                expect(page.locator(".station-history-dialog")).to_be_visible()
+                expect(page.locator(".station-history-items")).to_contain_text("Current")
+                page.locator(".station-history-heading .text-button").click()
+                card(6).locator(".station-history-open").click()
+                expect(page.locator(".station-history-dialog")).to_be_visible()
+                expect(page.locator(".station-history-items li")).to_have_count(0)
+                expect(page.locator(".station-history-dialog [role=status]")).to_have_text(
+                    "Aucune diffusion visible pour cette radio."
+                )
+                page.locator(".station-history-heading .text-button").click()
                 # Explicit listening opens audio; metadata refreshes preserve that connection.
                 card(0).locator(".station-play").click()
                 page.wait_for_function(
@@ -369,11 +385,51 @@ with tempfile.TemporaryDirectory(prefix="radio-station-cards-") as directory:
                 )
                 assert len(media_requests) == 1
                 expect(page.locator("#track-title")).to_have_text("Dernier titre connu : Current")
+                page.locator("#player-mode-toggle").click()
+                expect(page.locator("#now-playing-mode")).to_be_visible()
+                expect(page.locator("#now-playing-title")).to_contain_text("Current")
+                expect(page.locator("#now-playing-source")).to_contain_text("Radio en direct")
+                if width in (1280, 320):
+                    page.screenshot(path=f"/tmp/radio-station-cards/{width}-now-playing.png")
+                page.locator("#now-playing-close").click()
                 source = page.locator("#radio-player").get_attribute("src")
                 page.evaluate("window.dispatchEvent(new Event('radio:catalogchange'))")
                 expect(card(0)).to_have_attribute("data-now-status", "last_known")
                 assert page.locator("#radio-player").get_attribute("src") == source
                 assert len(media_requests) == 1
+                # The experimental mode adds a separate playlist entry without replacing live play.
+                page.locator("#listening-settings-toggle").click()
+                page.locator("#experimental-radio-youtube").check()
+                expect(card(0).locator(".station-youtube-play")).to_be_visible()
+                page.locator("#listening-settings-close").click()
+                page.route(
+                    "**/api/playlists/daily*",
+                    lambda route: route.fulfill(
+                        json={
+                            "date": "2026-11-12",
+                            "items": [
+                                {
+                                    "track_id": "a" * 64,
+                                    "artist": "Artist",
+                                    "title": "Current",
+                                    "plays": 1,
+                                    "video": {
+                                        "id": "abcdefghijk",
+                                        "title": "Current official",
+                                        "channel": "Artist",
+                                    },
+                                    "candidates": [],
+                                    "state": "matched",
+                                }
+                            ],
+                        }
+                    ),
+                )
+                card(0).locator(".station-youtube-play").click()
+                expect(page.locator(".playlist-dialog")).to_be_visible()
+                expect(page.locator(".playlist-items")).to_contain_text("Current")
+                expect(page.locator("[data-playlist-play]")).to_be_enabled()
+                page.locator("[data-playlist-close]").click()
                 Path("/tmp/radio-station-cards").mkdir(exist_ok=True)
                 for theme in ("light", "dark"):
                     page.evaluate("(theme)=>document.documentElement.dataset.theme=theme", theme)

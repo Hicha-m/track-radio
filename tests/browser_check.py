@@ -364,7 +364,10 @@ with tempfile.TemporaryDirectory(prefix="radio-browser-") as directory:
                             page.locator("#mobile-nav-toggle").click()
                         navigation.get_by_role("link", name="Recherche avancée").click()
                         expect(page.locator("h1")).to_have_text("Recherche avancée")
-                        page.locator("#result-view").select_option("plays")
+                        page.locator("#result-view").evaluate(
+                            "input => { input.value = 'plays'; "
+                            "input.dispatchEvent(new Event('change', {bubbles: true})); }"
+                        )
                         expect(page.locator("#results tbody tr")).to_have_count(7)
                         assert_uninterrupted()
                         if width <= 760:

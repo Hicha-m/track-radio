@@ -1,16 +1,14 @@
-    <section class="panel explorer" aria-labelledby="explorer-title">
+    <section class="panel explorer advanced-search" aria-labelledby="explorer-title">
       <div class="explorer-heading">
         <div><span class="eyebrow">{{ t('ui.6028bc0884c7') }}</span><h2 id="explorer-title">{{ t('ui.2cc0068baef8') }}</h2><p class="hint">{{ t('ui.5731764d7b18') }}</p></div>
-        <label class="live-toggle"><input id="live" type="checkbox" checked> {{ t('ui.1679f37b5259') }}</label>
       </div>
       <div class="result-options">
-        <label class="result-view">{{ t('ui.e5adbe81e8aa') }}<select id="result-view"><option value="tracks">{{ t('ui.70fe869bedde') }}</option><option value="plays">{{ t('ui.31467004fcea') }}</option></select></label>
         <details class="result-columns"><summary>{{ t('ui.efc23e9e8a30') }}</summary><fieldset id="result-columns"><legend>{{ t('ui.78def24f5bbe') }}</legend></fieldset><button type="button" id="reset-columns" class="text-button">{{ t('ui.58a37d6d2551') }}</button></details>
       </div>
       <form id="explorer-form" autocomplete="off">
         <input type="hidden" name="track_id">
         <input type="hidden" name="station_ids">
-        <input type="hidden" name="view" value="tracks">
+        <input type="hidden" id="result-view" name="view" value="tracks">
         <div class="search-line"><label>{{ t('ui.733d1c742675') }}<input name="q" type="search" maxlength="200" placeholder="{{ t("ui.b99e685a9f50") }}"></label></div>
         <details class="search-filters"><summary>{{ t('ui.390a67f70687') }}</summary>
         <div class="filter-grid">
@@ -36,13 +34,13 @@
           <label class="checkbox"><input name="exact" type="checkbox"> {{ t('ui.f3a82a6afd53') }}</label>
           <p class="hint">{{ t('ui.931222919c03') }}</p>
         </details>
-        </details>
         <div class="filter-footer"><span id="active-filters" class="hint">{{ t('ui.50909a639f8f') }}</span><button type="reset" class="text-button">{{ t('ui.5b35e0e35591') }}</button></div>
+        </details>
       </form>
-      <div class="music-tools"><button type="button" data-open-exclusions>{{ t('ui.ddce6f5b8fc3') }}</button><button type="button" data-open-export>{{ t('ui.47fef94d2b0b') }}</button></div>
-      <div class="result-heading"><p id="result-status" role="status" aria-live="polite">{{ t('ui.9e7e2bef520b') }}</p><button id="refresh" type="button" class="text-button">{{ t('ui.d7d646faaecb') }}</button></div>
+      <div class="result-heading"><p id="result-status" role="status" aria-live="polite">{{ t('ui.9e7e2bef520b') }}</p><label class="live-toggle"><input id="live" type="checkbox" checked> {{ t('ui.1679f37b5259') }}</label><button id="refresh" type="button" class="text-button">{{ t('ui.d7d646faaecb') }}</button></div>
       <div id="results" class="table-wrap" aria-busy="true"></div>
       <nav class="pagination" aria-label="{{ t("ui.cc1f91347775") }}"><button id="previous-page" type="button" disabled>{{ t('ui.9a910fc71e8f') }}</button><span id="page-label">{{ t('ui.e8b8355262d0') }}</span><button id="next-page" type="button" disabled>{{ t('ui.e284bde10808') }}</button></nav>
+      <div class="music-tools"><button type="button" data-open-exclusions>{{ t('ui.ddce6f5b8fc3') }}</button><button type="button" data-open-export>{{ t('ui.47fef94d2b0b') }}</button></div>
       <p class="hint">{{ t('ui.5aefbb9d9251') }}</p>
       <noscript>{{ t('ui.e86ad1017835') }}</noscript>
     </section>

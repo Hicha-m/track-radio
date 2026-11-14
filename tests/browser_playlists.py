@@ -319,6 +319,28 @@ window.YT={Player:function(frame,options){
                 expect(page.locator("[data-playlist-status]")).to_contain_text(
                     "Fin de la sélection"
                 )
+                # Station-specific experimental playback remains a separate YouTube playlist.
+                panel.locator("[data-playlist-close]").click()
+                page.locator("#listening-settings-toggle").click()
+                page.locator("#experimental-radio-youtube").check()
+                page.locator("#listening-settings-close").click()
+                page.locator('.station-youtube-play[data-id="1"]').click()
+                expect(panel.locator("[data-playlist-scope]")).to_contain_text("Test FM")
+                panel.locator("[data-playlist-play]").click()
+                expect(panel.locator("[data-playlist-status]")).to_have_text("Lecture 1/2 : First")
+                expect(page.locator("#player-mode-toggle")).to_be_visible()
+                panel.locator("[data-playlist-mode]").click()
+                expect(page.locator("#now-playing-mode")).to_be_visible()
+                expect(page.locator("#now-playing-source")).to_have_text(
+                    "Lecture YouTube · Test FM"
+                )
+                expect(page.locator("#now-playing-next")).to_be_enabled()
+                page.locator("#now-playing-next").click()
+                expect(page.locator("#now-playing-title")).to_have_text("Second")
+                expect(page.locator("#now-playing-previous")).to_be_enabled()
+                page.locator("#now-playing-previous").click()
+                expect(page.locator("#now-playing-title")).to_have_text("First")
+                page.locator("#now-playing-close").click()
                 assert not errors, errors
                 print(
                     f"{width}px: filtered selection, order, choices, exports, "

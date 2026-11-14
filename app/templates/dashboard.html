@@ -73,10 +73,11 @@
             <button class="station-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" data-url="{{ station.stream_url }}" aria-label="{{ t('stations.listen', station=station.name) }}"><span aria-hidden="true">▶</span></button>
           </div>
           <div class="station-copy">
-            <div class="station-heading"><strong>{{ station.name }}</strong><a class="station-chart" href="/?station_id={{ station.id }}#classement" aria-label="{{ t('stations.chart', station=station.name) }}">↗</a></div>
+            <div class="station-heading"><button class="station-history-open" type="button" data-id="{{ station.id }}">{{ station.name }}</button><a class="station-chart" href="/?station_id={{ station.id }}#classement" aria-label="{{ t('stations.chart', station=station.name) }}">↗</a></div>
             <p class="station-title">{{ t('stations.loading') }}</p><p class="station-artist"></p>
             <small class="station-now-status"></small>
             <small class="station-collection"><span class="dot {{ 'on' if station.enabled else '' }}"></span>{{ t('ui.35ffed66baff') if station.enabled else t('ui.96d7591a4125') }}</small>
+            <button class="station-youtube-play" type="button" data-id="{{ station.id }}" data-name="{{ station.name }}" hidden>{{ t('stations.youtube_playlist') }}</button>
           </div>
         </article>
       {% else %}<p class="empty">{{ t('ui.08c3aa9a1c12') }}</p>{% endfor %}
@@ -97,6 +98,8 @@
     <p class="hint">{{ t('playback.fade_note') }}</p>
     <label class="checkbox"><input id="show-youtube-video" type="checkbox" checked>{{ t('playback.show_video') }}</label>
     <p class="hint">{{ t('ui.c2ed8dd01beb') }}</p>
+    <label class="checkbox"><input id="experimental-radio-youtube" type="checkbox">{{ t('playback.radio_youtube_experimental') }}</label>
+    <p class="hint">{{ t('playback.radio_youtube_note') }}</p>
     <p id="resume-radio-target" class="hint"></p>
   </dialog>
   <section class="player" aria-label="Lecteur radio" data-station-id="{{ station_id or '' }}">
@@ -107,11 +110,23 @@
       <span id="playback-label" class="playback-label">{{ t('ui.2ea6b86de560') }}</span>
     </div>
     <div class="player-volume"><button id="player-mute" type="button" aria-label="{{ t("ui.4bda29ddf960") }}" aria-pressed="false"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4 5 9H2v6h3l6 5Z"/><path class="volume-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="mute-slash" d="m16 9 6 6m0-6-6 6"/></svg></button><label><span class="sr-only">{{ t('ui.b10fb966d720') }}</span><input id="player-volume" aria-keyshortcuts="q d" title="{{ t('player.shortcuts') }}" type="range" min="0" max="1" step="0.01" value="1"></label></div>
+    <button id="player-mode-toggle" class="player-mode-toggle" type="button" aria-label="{{ t('player.open_mode') }}" title="{{ t('player.open_mode') }}">⤢</button>
     <button id="player-return-radio" class="text-button" type="button" hidden>{{ t('ui.878631682491') }}</button>
     <div id="player-seek" class="player-seek" hidden><time id="player-elapsed">0:00</time><input id="player-progress" type="range" min="0" max="1000" step="1" value="0" aria-label="{{ t("ui.4da115b44f1f") }}"><time id="player-duration">0:00</time></div>
     <span class="player-live"><span class="live-dot"></span> {{ t('ui.c089a4499f41') }}</span>
     <span id="player-status" class="sr-only" role="status" aria-live="polite"></span>
   </section>
+  <dialog id="now-playing-mode" class="now-playing-mode" aria-labelledby="now-playing-title">
+    <button id="now-playing-close" class="text-button" type="button">{{ t('ui.711e5f2e198d') }}</button>
+    <div class="now-playing-art" aria-hidden="true">♫</div>
+    <div class="now-playing-copy"><p id="now-playing-source"></p><h2 id="now-playing-title">{{ t('ui.25759d7d7728') }}</h2><p id="now-playing-artist"></p></div>
+    <div class="now-playing-controls" role="group" aria-label="{{ t('player.controls') }}">
+      <button id="now-playing-previous" type="button" aria-label="{{ t('playlist.previous') }}" disabled>‹</button>
+      <button id="now-playing-toggle" class="player-toggle" type="button" aria-label="{{ t('ui.ec0a4373089c') }}" disabled><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></button>
+      <button id="now-playing-next" type="button" aria-label="{{ t('playlist.next') }}" disabled>›</button>
+    </div>
+    <p id="now-playing-status" class="hint" role="status" aria-live="polite"></p>
+  </dialog>
   {% include 'export.html' %}
   {% include 'playlists.html' %}
   <p id="navigation-status" class="navigation-status" role="status" hidden></p>

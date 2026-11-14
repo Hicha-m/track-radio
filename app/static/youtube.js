@@ -147,8 +147,8 @@ window.TrackYouTube = (() => {
   function relocate(parent) {
     endResize();
     if (dock.parentNode !== parent) {
-      if (parent.moveBefore) parent.moveBefore(dock, null);
-      else if (!player) parent.append(dock);
+      if (!player) parent.append(dock);
+      else if (parent.moveBefore) parent.moveBefore(dock, null);
       else return false;
     }
     dock.classList.toggle('is-floating', parent === document.body);

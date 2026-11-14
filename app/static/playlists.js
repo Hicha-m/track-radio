@@ -28,6 +28,7 @@ window.RadioPlaylists = (() => {
       if (current) item.setAttribute('aria-current', 'true');
       else item.removeAttribute('aria-current');
     });
+    window.RadioPlayer?.sync();
   }
   function render() {
     const list = find('items'); list.replaceChildren();
@@ -86,7 +87,12 @@ window.RadioPlaylists = (() => {
       const data = await jsonRequest(`/api/playlists/${daily ? 'daily' : 'selection'}?${query}`);
       if (current !== generation || !panel.open) return;
       rows = data.items.map(row => ({...row, included: true, candidates: row.candidates || [], video: row.video || null})); render();
-      if (daily) find('scope').textContent = window.RadioI18n.t('daily.scope', {date: data.date});
+      if (daily) {
+        const station = activeScope.station_ids && document.querySelector(`.station-history-open[data-id="${CSS.escape(activeScope.station_ids)}"]`);
+        find('scope').textContent = station
+          ? window.RadioI18n.t('daily.station_scope', {date: data.date, station: station.textContent.trim()})
+          : window.RadioI18n.t('daily.scope', {date: data.date});
+      }
       find('status').textContent = rows.length ? t('ready', {count: rows.length}) : t('empty');
     } catch (error) { if (current === generation) find('status').textContent = error.name === 'AbortError' ? t('failed') : error.message; }
   }
@@ -143,6 +149,11 @@ window.RadioPlaylists = (() => {
         await playAt(index + 1, current, true);
         return;
       }
+      const stationIds = (activeScope.station_ids || '').split(',').filter(id => /^\d+$/.test(id));
+      if (stationIds.length === 1) {
+        track.station_id = Number(stationIds[0]);
+        track.station_name = document.querySelector(`.station-history-open[data-id="${CSS.escape(stationIds[0])}"]`)?.textContent.trim() || '';
+      }
       playQueueIds.add(track.video.id); playing = true;
       find('status').textContent = t('playing', {current: index + 1, total: playQueue.length, title: track.title});
       update();
@@ -187,19 +198,20 @@ window.RadioPlaylists = (() => {
     } catch (error) { if (current === generation) find('status').textContent = error.name === 'AbortError' ? t('failed') : error.message; }
     finally { if (current === generation) update(); }
   }
-  async function open(asDaily = false) {
+  async function open(asDaily = false, requestedScope = null) {
     daily = asDaily;
     const attempt = ++opening;
     panel?.close(); panel?.remove(); cancel(); stopPlayback();
     await window.MusicFilters.refresh().catch(() => {});
     if (attempt !== opening) return;
-    activeScope = {...scope};
+    activeScope = {...(requestedScope || scope)};
     panel = document.querySelector('#playlist-template').content.firstElementChild.cloneNode(true);
     rows = []; cancel();
     if (daily) { panel.querySelector('h2').textContent = window.RadioI18n.t('daily.open'); find('form').elements.sort.disabled = true; }
     find('scope').textContent = t('scope', {stations: activeScope.station_ids || t('all'), since: activeScope.since ? new Date(activeScope.since).toLocaleString(window.RadioI18n.locale) : t('beginning'), until: activeScope.until ? new Date(activeScope.until).toLocaleString(window.RadioI18n.locale) : t('now')});
     find('close').onclick = () => panel.close();
     find('pause').onclick = () => window.TrackYouTube.toggle();
+    find('mode').onclick = () => window.RadioPlayer.openMode();
     find('previous').onclick = () => {
       if (cursor > 0) { playQueueIds = new Set(); void playAt(cursor - 1, generation); }
     };
@@ -222,5 +234,11 @@ window.RadioPlaylists = (() => {
   window.addEventListener('radio:audioactive', () => { cancel(); stopPlayback(); });
   window.addEventListener('radio:beforepagechange', () => { opening++; panel?.close(); });
   document.addEventListener('click', event => { if (event.target.closest('[data-open-playlist]')) open(); else if (event.target.closest('[data-open-daily]')) open(true); });
-  return {configure(value) { const query = new URLSearchParams(value); scope = {}; for (const key of ['since', 'until']) if (query.has(key)) scope[key] = query.get(key); scope.station_ids = query.get('station_ids') || query.get('station_id') || ''; }};
+  return {
+    configure(value) { const query = new URLSearchParams(value); scope = {}; for (const key of ['since', 'until']) if (query.has(key)) scope[key] = query.get(key); scope.station_ids = query.get('station_ids') || query.get('station_id') || ''; },
+    openStation(stationId) { return open(true, {station_ids: String(stationId)}); },
+    navigationState() { return {previous: Boolean(panel?.open && cursor > 0), next: Boolean(panel?.open && cursor >= 0 && cursor < playQueue.length - 1)}; },
+    previous() { if (panel?.open && cursor > 0) { playQueueIds = new Set(); void playAt(cursor - 1, generation); } },
+    next() { if (panel?.open && cursor >= 0 && cursor < playQueue.length - 1) { playQueueIds = new Set(); void playAt(cursor + 1, generation); } },
+  };
 })();

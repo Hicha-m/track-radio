@@ -6,6 +6,66 @@
   const rendered = new WeakMap(), artwork = new WeakMap();
   const cards = () => [...document.querySelectorAll('.station-card[data-station-id]')];
   const date = value => new Date(value).toLocaleString(window.RadioI18n?.locale || 'fr-FR');
+  const experimental = document.querySelector('#experimental-radio-youtube');
+  let historyDialog = null, historyRequest = null, historyStation = null, historyPage = 1, historyVersion = 0;
+  function setExperimental(value = experimental?.checked) {
+    const enabled = Boolean(value);
+    if (experimental) experimental.checked = enabled;
+    cards().forEach(card => { card.querySelector('.station-youtube-play').hidden = !enabled; });
+    try { localStorage.setItem('radio-youtube-alternative', String(enabled)); } catch (_) { /* Session still works. */ }
+  }
+  function ensureHistoryDialog() {
+    if (historyDialog) return historyDialog;
+    historyDialog = document.createElement('dialog'); historyDialog.className = 'station-history-dialog';
+    historyDialog.setAttribute('aria-labelledby', 'station-history-title');
+    const header = document.createElement('div'); header.className = 'station-history-heading';
+    const heading = document.createElement('h2'); heading.id = 'station-history-title';
+    const close = document.createElement('button'); close.type = 'button'; close.className = 'text-button'; close.textContent = window.RadioI18n.t('ui.711e5f2e198d');
+    close.onclick = () => historyDialog.close(); header.append(heading, close);
+    const status = document.createElement('p'); status.className = 'hint'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+    const items = document.createElement('ol'); items.className = 'station-history-items';
+    const more = document.createElement('button'); more.type = 'button'; more.className = 'text-button station-history-more'; more.textContent = window.RadioI18n.t('stations.history_more'); more.hidden = true;
+    more.onclick = () => loadHistory(historyPage + 1, true);
+    historyDialog.append(header, status, items, more); document.body.append(historyDialog);
+    historyDialog.addEventListener('close', () => { historyVersion++; historyRequest?.abort(); historyRequest = null; });
+    window.RadioDialogs.dismissOutside(historyDialog);
+    historyDialog._heading = heading; historyDialog._status = status; historyDialog._items = items; historyDialog._more = more;
+    return historyDialog;
+  }
+  async function loadHistory(page = 1, append = false) {
+    const dialog = ensureHistoryDialog();
+    if (!historyStation) return;
+    historyRequest?.abort(); const controller = new AbortController(); historyRequest = controller;
+    const ticket = ++historyVersion; historyPage = page;
+    if (!append) dialog._items.replaceChildren();
+    dialog._more.hidden = true; dialog._status.textContent = window.RadioI18n.t('stations.history_loading');
+    const params = window.MusicFilters.apply(new URLSearchParams({view: 'plays', sort: 'newest', station_id: String(historyStation.id), page: String(page), page_size: '25'}));
+    try {
+      const response = await window.MusicFilters.fetch(`/api/explore?${params}`, {signal: controller.signal, cache: 'no-store'});
+      const data = await response.json();
+      if (!response.ok) throw new Error(window.RadioI18n.t('stations.history_error'));
+      if (ticket !== historyVersion || !dialog.open) return;
+      for (const play of data.items) {
+        const li = document.createElement('li'), button = document.createElement('button');
+        button.type = 'button';
+        const title = document.createElement('strong'); title.textContent = play.title;
+        const artist = document.createElement('small'); artist.textContent = play.artist || '—';
+        button.append(title, artist);
+        button.onclick = () => { dialog.close(); window.TrackCatalog.open({...play, station_id: historyStation.id}, {onBack: () => openHistory(historyStation.id, historyStation.name)}); };
+        const time = document.createElement('time'); time.dateTime = play.detected_at; time.textContent = date(play.detected_at);
+        li.append(button, time); dialog._items.append(li);
+      }
+      dialog._status.textContent = data.items.length ? `${data.items.length} · ${window.RadioI18n.t('stations.history')}` : window.RadioI18n.t('stations.history_empty');
+      historyPage = data.page; dialog._more.hidden = !data.has_more;
+    } catch (error) {
+      if (error.name !== 'AbortError' && ticket === historyVersion) dialog._status.textContent = error.message || window.RadioI18n.t('stations.history_error');
+    }
+  }
+  function openHistory(id, name) {
+    const dialog = ensureHistoryDialog(); historyStation = {id: Number(id), name};
+    dialog._heading.textContent = window.RadioI18n.t('stations.history_title', {station: name});
+    historyPage = 1; if (!dialog.open) dialog.showModal(); void loadHistory();
+  }
   function cover(button, url) {
     const previous = artwork.get(button);
     if (previous === (url || '')) return;
@@ -31,7 +91,7 @@
     const button = card.querySelector('.station-track');
     button.disabled = !track;
     button.onclick = track ? () => window.TrackCatalog.open({...track, station_id: Number(card.dataset.stationId)}) : null;
-    button.setAttribute('aria-label', window.RadioI18n.t('stations.details', {station: card.querySelector('.station-heading strong').textContent}));
+    button.setAttribute('aria-label', window.RadioI18n.t('stations.details', {station: card.querySelector('.station-history-open').textContent}));
     cover(button, track?.metadata?.cover_url);
     card.querySelector('.station-title').textContent = track?.title || window.RadioI18n.t(loading ? 'stations.loading' : 'stations.unavailable');
     card.querySelector('.station-artist').textContent = track?.artist || '';
@@ -77,9 +137,17 @@
       if (ticket === generation) controller = null;
     }
   }
-  window.addEventListener('radio:beforepagechange', () => { mounted = false; reset(); });
-  window.addEventListener('radio:pagechange', () => { mounted = true; reset(); load(); });
-  window.addEventListener('radio:filterschange', () => { reset(); load(); });
+  try { setExperimental(localStorage.getItem('radio-youtube-alternative') === 'true'); } catch (_) { setExperimental(false); }
+  experimental?.addEventListener('change', () => setExperimental());
+  document.addEventListener('click', event => {
+    const history = event.target.closest('.station-history-open');
+    if (history) { openHistory(history.dataset.id, history.textContent.trim()); return; }
+    const playlist = event.target.closest('.station-youtube-play');
+    if (playlist && experimental?.checked) window.RadioPlaylists?.openStation(playlist.dataset.id);
+  });
+  window.addEventListener('radio:beforepagechange', () => { mounted = false; reset(); historyDialog?.close(); });
+  window.addEventListener('radio:pagechange', () => { mounted = true; reset(); setExperimental(); load(); });
+  window.addEventListener('radio:filterschange', () => { reset(); load(); if (historyDialog?.open) { historyPage = 1; void loadHistory(); } });
   window.addEventListener('radio:catalogchange', () => load(true));
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { generation++; controller?.abort(); controller = null; }
@@ -99,7 +167,7 @@ window.RadioPages.stations = () => {
     const query = normalize(input.value);
     let count = 0;
     cards.forEach(card => {
-      card.hidden = !normalize(card.querySelector('.station-heading strong').textContent).includes(query);
+      card.hidden = !normalize(card.querySelector('.station-history-open').textContent).includes(query);
       if (!card.hidden) count++;
     });
     status.textContent = window.RadioI18n.t('stations.results', {count});

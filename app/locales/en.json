@@ -859,5 +859,20 @@
   "youtube.link_label": "YouTube link for this track",
   "youtube.verify_link": "Verify and associate link",
   "catalog.history_until": "All history up to {until}",
-  "workers.discovery": "Automatic media discovery"
+  "workers.discovery": "Automatic media discovery",
+  "stations.history": "Broadcast history",
+  "stations.history_title": "{station} broadcast history",
+  "stations.history_loading": "Loading history…",
+  "stations.history_empty": "No visible broadcasts for this station.",
+  "stations.history_error": "Could not load broadcast history.",
+  "stations.history_more": "Show earlier broadcasts",
+  "stations.youtube_playlist": "Listen to tracks on YouTube · experimental",
+  "playback.radio_youtube_experimental": "Enable experimental YouTube playback of radio tracks",
+  "playback.radio_youtube_note": "A separate playlist uses recently aired tracks. Live radio remains available beside it; videos depend on links verified by automatic discovery.",
+  "player.open_mode": "Open player mode",
+  "player.controls": "Playback controls",
+  "player.radio_source": "Live radio · {station}",
+  "player.youtube_source": "YouTube playback · {station}",
+  "player.track_source": "Listening to a track",
+  "daily.station_scope": "{station} · selection for {date} · tracks aired over the past 7 days"
 }
