@@ -1,5 +1,8 @@
 import sqlite3
 import stat
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -56,3 +59,22 @@ def test_backup_removes_partial_destination_when_source_is_invalid(tmp_path):
         backup(source_path, target_path)
 
     assert not target_path.exists()
+
+
+def test_backup_cli_can_be_streamed_to_python_stdin(tmp_path):
+    source_path = tmp_path / "radio.db"
+    target_path = tmp_path / "snapshot.db"
+    with sqlite3.connect(source_path) as source:
+        source.execute("CREATE TABLE plays (title TEXT)")
+        source.execute("INSERT INTO plays VALUES ('Streamed script')")
+
+    result = subprocess.run(
+        [sys.executable, "-", str(source_path), str(target_path)],
+        input=(Path(__file__).resolve().parents[1] / "scripts/backup_sqlite.py").read_bytes(),
+        capture_output=True,
+        check=True,
+    )
+
+    assert b"Instantan" in result.stdout
+    with sqlite3.connect(target_path) as snapshot:
+        assert snapshot.execute("SELECT title FROM plays").fetchone() == ("Streamed script",)

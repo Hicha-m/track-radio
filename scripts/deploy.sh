@@ -25,11 +25,10 @@ if [[ -f compose.yaml ]]; then
   if [[ -n $(compose ps --status running -q api) ]]; then
     snapshot="/app/data/deploy-$stamp.sqlite"
     echo '[deploy] Creating a consistent SQLite snapshot before migrations.'
-    compose cp "$release/scripts/backup_sqlite.py" api:/tmp/backup_sqlite.py
-    compose exec -T api python /tmp/backup_sqlite.py /app/data/radio.db "$snapshot"
+    compose exec -T api python - /app/data/radio.db "$snapshot" < "$release/scripts/backup_sqlite.py"
     echo '[deploy] Copying the verified database snapshot to the private archive.'
     compose cp "api:$snapshot" "$archive/database.sqlite"
-    compose exec -T api rm -f "$snapshot" /tmp/backup_sqlite.py
+    compose exec -T api rm -f "$snapshot"
   else
     echo 'Existing API is stopped: refusing to deploy without a backup.' >&2
     exit 1
